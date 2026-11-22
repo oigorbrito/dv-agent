@@ -134,10 +134,17 @@ function checkTelemetry(index: number, t: Json, violations: string[]): void {
 		if (declared.includes(bucket) && t[bucket] !== null)
 			violations.push(`${label}: ${bucket} declarado não exposto mas com valor`);
 	}
-	if (t.cost_usd === null && !missing.includes("cost_usd")) violations.push(`${label}: cost_usd nulo sem declaração`);
-	if (t.cost_usd === null && t.cost_basis !== "unknown")
-		violations.push(`${label}: cost_basis deve ser unknown sem custo`);
-	if (t.cost_usd !== null && t.cost_basis === "unknown") violations.push(`${label}: custo com cost_basis unknown`);
+	// Três estados de custo: medido (usd numérico); não aplicável por assinatura (usd null, basis subscription_session);
+	// desconhecido (usd null, basis unknown, listado em missing_buckets).
+	const subscription = t.cost_basis === "subscription_session";
+	if (subscription) {
+		if (t.cost_usd !== null) violations.push(`${label}: sessão de assinatura não pode ter cost_usd`);
+	} else if (t.cost_usd === null) {
+		if (t.cost_basis !== "unknown") violations.push(`${label}: cost_basis deve ser unknown sem custo`);
+		if (!missing.includes("cost_usd")) violations.push(`${label}: cost_usd nulo sem declaração`);
+	} else if (t.cost_basis === "unknown") {
+		violations.push(`${label}: custo com cost_basis unknown`);
+	}
 }
 
 /** Ferramentas: cada tool_finished aponta para uma tool_call declarada e com o mesmo digest de argumentos. */
@@ -171,11 +178,13 @@ function checkRunFinished(events: Json[], violations: string[]): void {
 	const run = events.find((ev) => ev.event === "run_finished");
 	const start = events.find((ev) => ev.event === "run_started");
 	if (run === undefined || start === undefined) return;
-	const costs = events
+	const telemetries = events
 		.filter((ev) => ev.event === "call_finished")
-		.map((ev) => (((ev.record as Json).telemetry ?? {}) as Json).cost_usd as number | null | undefined);
+		.map((ev) => ((ev.record as Json).telemetry ?? {}) as Json);
+	const costs = telemetries.map((t) => t.cost_usd as number | null | undefined);
 	const knownSum = costs.reduce<number>((sum, c) => sum + (typeof c === "number" ? c : 0), 0);
-	const unknownCalls = costs.filter((c) => c === null).length;
+	const unknownCalls = telemetries.filter((t) => t.cost_basis === "unknown").length;
+	const nonMeteredCalls = telemetries.filter((t) => t.cost_basis === "subscription_session").length;
 	if (run.calls_started !== costs.length || run.calls_finished !== costs.length) {
 		violations.push("contagem de chamadas no run_finished diverge do ledger");
 	}
@@ -185,8 +194,12 @@ function checkRunFinished(events: Json[], violations: string[]): void {
 		violations.push("spent_lower_bound_usd diverge da soma dos custos conhecidos");
 	}
 	if (run.unknown_cost_calls !== unknownCalls) violations.push("unknown_cost_calls diverge do ledger");
+	if (run.non_metered_cost_calls !== nonMeteredCalls) violations.push("non_metered_cost_calls diverge do ledger");
 	const max = start.max_cost_usd as number;
-	if (run.ceiling_status === "within_verified" && (unknownCalls > 0 || knownSum > max + TOLERANCE)) {
+	if (
+		run.ceiling_status === "within_verified" &&
+		(unknownCalls > 0 || nonMeteredCalls > 0 || knownSum > max + TOLERANCE)
+	) {
 		violations.push("ceiling_status within_verified incoerente com os custos");
 	}
 	if (run.ceiling_status === "exceeded" && knownSum <= max)

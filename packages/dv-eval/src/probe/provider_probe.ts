@@ -7,8 +7,7 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fauxRuntime, PI_TRANSPORT_CAPABILITIES, redactText, transportFor } from "@dv-agent/core";
 import { type AssistantMessage, type Context, normalizeContext } from "@earendil-works/pi-ai";
-import { streamSimple } from "@earendil-works/pi-ai/compat";
-import { type BuiltinProvider, getBuiltinModel, getBuiltinProviders } from "@earendil-works/pi-ai/providers/all";
+import { type LiveAuthMode, openLiveSession } from "../auth/live_session.ts";
 
 export const PROBE_SCHEMA = "dv-provider-probe-v1";
 
@@ -111,6 +110,8 @@ export interface LiveProbeResult {
 	provider: string;
 	model_id: string;
 	api: string;
+	/** Modo de autenticação usado. Nunca contém credencial. */
+	auth_mode: LiveAuthMode;
 	status: "VERIFIED" | "INCONCLUSIVE";
 	reasons: string[];
 	calls: { usage: AssistantMessage["usage"]; stop_reason: string; error?: string }[];
@@ -120,11 +121,15 @@ export interface LiveProbeResult {
  * Probe live: duas chamadas com o mesmo prefixo longo e sessionId. VERIFIED só se a segunda chamada reporta cache,
  * prompt_tokens é estável entre chamadas e cacheRead não passa do prompt. Requer credencial do provedor no ambiente.
  */
-export async function runLiveProbe(provider: string, modelId: string): Promise<LiveProbeResult> {
-	if (!getBuiltinProviders().includes(provider as BuiltinProvider))
-		throw new Error(`provedor desconhecido: ${provider}`);
-	// Entrada de CLI validada contra getBuiltinProviders() acima; o tipo genérico do catálogo não aceita string.
-	const model = getBuiltinModel(provider as BuiltinProvider, modelId as never);
+export async function runLiveProbe(options: {
+	provider: string;
+	modelId: string;
+	authMode: LiveAuthMode;
+	authPath: string;
+}): Promise<LiveProbeResult> {
+	const { provider, modelId } = options;
+	const session = await openLiveSession(options);
+	const model = session.model;
 	const transport = transportFor(model.api);
 	const systemPrompt = "Contexto fixo de verificação de cache DV. ".repeat(160);
 	const context: Context = { systemPrompt, messages: [{ role: "user", content: "responda apenas OK", timestamp: 0 }] };
@@ -133,7 +138,9 @@ export async function runLiveProbe(provider: string, modelId: string): Promise<L
 	const reasons: string[] = [];
 	const messages: AssistantMessage[] = [];
 	for (let i = 0; i < 2; i += 1) {
-		const message = await streamSimple(model, context, { sessionId, maxTokens: 16 }).result();
+		const message = await (
+			await session.streamFn(model, normalizeContext(context), { sessionId, maxTokens: 16 })
+		).result();
 		messages.push(message);
 		const error = message.stopReason === "error" ? redactText(message.errorMessage ?? "erro sem mensagem") : undefined;
 		calls.push({ usage: message.usage, stop_reason: message.stopReason, ...(error === undefined ? {} : { error }) });
@@ -156,6 +163,7 @@ export async function runLiveProbe(provider: string, modelId: string): Promise<L
 		provider,
 		model_id: modelId,
 		api: model.api,
+		auth_mode: options.authMode,
 		status: reasons.length === 0 ? "VERIFIED" : "INCONCLUSIVE",
 		reasons,
 		calls,

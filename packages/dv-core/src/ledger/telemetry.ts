@@ -15,6 +15,8 @@ export interface CallTelemetry {
 	cost_basis: string;
 	/** Nulos declarados pela tabela de transporte como não expostos (não são falha). Sempre subconjunto dos nulos. */
 	declared_not_exposed: string[];
+	/** Baldes que não se aplicam ao modo de cobrança (ex.: cost_usd em sessão de assinatura). Não são falha. */
+	declared_not_applicable: string[];
 	/** Baldes obrigatórios não medidos e não declarados. Vazio quando telemetry_complete=true. */
 	missing_buckets: string[];
 	telemetry_complete: boolean;
@@ -32,9 +34,16 @@ export function buildCallTelemetry(provider: string, message: AssistantMessage, 
 	const transport = transportFor(message.api);
 	const uncached = uncachedInputTokens(provider, message);
 	const cost = costForMessage(message, book);
+	const notApplicable: string[] = [];
+	// Sessão de assinatura: a cobrança não é por token; o custo é declarado como não aplicável, não como desconhecido.
+	if (cost !== null && cost.usd === null) notApplicable.push("cost_usd");
 
 	const declared: string[] = [];
 	const missing: string[] = [];
+	// Erro ou aborto sem nenhum token: zero aqui significa que o provedor não respondeu com usage, não medição.
+	if ((message.stopReason === "error" || message.stopReason === "aborted") && u.totalTokens === 0) {
+		missing.push("usage_not_reported");
+	}
 	// Caches: o pi-ai preenche 0 quando o transporte não envia; se a tabela diz não exposto, 0 não é medição.
 	const cacheRead =
 		transport?.cache_read_tokens === "not_exposed" ? declareNull("cache_read_tokens", declared) : u.cacheRead;
@@ -61,6 +70,7 @@ export function buildCallTelemetry(provider: string, message: AssistantMessage, 
 		cost_usd: cost?.usd ?? null,
 		cost_basis: cost?.basis ?? "unknown",
 		declared_not_exposed: declared,
+		declared_not_applicable: notApplicable,
 		missing_buckets: missing,
 		telemetry_complete: complete,
 		cost_accounting_status: complete ? "MEASURED" : "INCONCLUSIVE",

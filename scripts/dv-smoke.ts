@@ -1,16 +1,24 @@
-// Smoke end-to-end: node scripts/dv-smoke.ts --policy single|ladder|architect-editor [--auth-mode offline-faux|api-key]
-//   [--model provider/modelId] [--escalation-model provider/modelId] [--outdir DIR] [--task DIR] [--max-cost USD]
-// Padrões: auth-mode offline-faux (sem rede), task packages/dv-eval/tasks/calc-basic, outdir runs/smoke-<política>-<ts>.
+// Smoke end-to-end. Exemplos:
+//   node scripts/dv-smoke.ts --policy single                                   (offline, sem rede)
+//   node scripts/dv-smoke.ts --policy ladder --auth-mode subscription --model anthropic/<id> --escalation-model anthropic/<id2>
+//   node scripts/dv-smoke.ts --policy single --auth-mode api-key --model openai/<id>
+// Opções: --policy single|ladder|architect-editor  --auth-mode offline-faux|api-key|subscription
+//   --model provider/modelId  --escalation-model provider/modelId  --auth-file CAMINHO  --outdir DIR
+//   --task DIR  --max-cost USD
 import { resolve } from "node:path";
+import { parseArgs } from "../packages/dv-eval/src/cli/args.ts";
 import { type AuthMode, type PolicyName, runSmoke } from "../packages/dv-eval/src/smoke/runner.ts";
-import { parseArgs } from "./args.ts";
 
 const POLICIES: readonly PolicyName[] = ["single", "ladder", "architect-editor"];
-const AUTH_MODES: readonly AuthMode[] = ["offline-faux", "api-key"];
+const AUTH_MODES: readonly AuthMode[] = ["offline-faux", "api-key", "subscription"];
 
 const args = parseArgs(process.argv.slice(2));
-const policy = String(args.get("policy") ?? "");
-const authMode = String(args.get("auth-mode") ?? "offline-faux");
+const text = (name: string): string | undefined => {
+	const value = args.get(name);
+	return typeof value === "string" ? value : undefined;
+};
+const policy = text("policy") ?? "";
+const authMode = text("auth-mode") ?? "offline-faux";
 if (!(POLICIES as readonly string[]).includes(policy)) {
 	throw new Error(`--policy deve ser um de: ${POLICIES.join(", ")}`);
 }
@@ -19,26 +27,29 @@ if (!(AUTH_MODES as readonly string[]).includes(authMode)) {
 }
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const summary = await runSmoke({
-	taskDir: resolve(String(args.get("task") ?? "packages/dv-eval/tasks/calc-basic")),
+	taskDir: resolve(text("task") ?? "packages/dv-eval/tasks/calc-basic"),
 	policy: policy as PolicyName,
 	authMode: authMode as AuthMode,
-	model: typeof args.get("model") === "string" ? String(args.get("model")) : undefined,
-	escalationModel: typeof args.get("escalation-model") === "string" ? String(args.get("escalation-model")) : undefined,
-	outdir: resolve(String(args.get("outdir") ?? `runs/smoke-${policy}-${stamp}`)),
-	maxCostUsd: Number(args.get("max-cost") ?? 0.05),
+	model: text("model"),
+	escalationModel: text("escalation-model"),
+	authPath: text("auth-file") === undefined ? undefined : resolve(text("auth-file") ?? ""),
+	outdir: resolve(text("outdir") ?? `runs/smoke-${policy}-${stamp}`),
+	maxCostUsd: Number(text("max-cost") ?? 0.05),
 	probesDir: resolve("packages/dv-eval/probe-results"),
 });
 console.log(
 	JSON.stringify(
 		{
 			final_outcome: summary.final_outcome,
+			blocked_reason: summary.blocked_reason,
 			steps: summary.steps.map((s) => ({
 				step: s.step,
 				role: s.role,
 				model: s.model,
 				verdict: s.oracle?.verdict ?? null,
+				spent_lower_bound_usd: s.spent_lower_bound_usd,
+				run_status: s.run_status,
 			})),
-			blocked_reason: summary.blocked_reason,
 		},
 		null,
 		2,

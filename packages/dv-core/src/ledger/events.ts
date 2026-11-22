@@ -54,5 +54,6 @@ export interface RunFinishedPayload {
 	spent_lower_bound_usd: number;
 	unknown_cost_calls: number;
 	ceiling_status: "within_verified" | "exceeded" | "unverifiable";
+	non_metered_cost_calls: number;
 	guard_events: { doom_loop_blocks: number; budget_blocked_tools: number };
 }

@@ -78,6 +78,16 @@ test("api-key sem --model: erro de configuração claro", async () => {
 	await assert.rejects(runSmoke(opts("single", { authMode: "api-key" })), /--model é obrigatório/);
 });
 
+test("subscription sem sessão no auth.json: parada blocked com instrução de login, sem chamada", async () => {
+	const emptyAuth = join(mkdtempSync(join(tmpdir(), "dv-smoke-noauth-")), "auth.json");
+	const summary = await runSmoke(
+		opts("single", { authMode: "subscription", model: "anthropic/claude-sonnet-4-5", authPath: emptyAuth }),
+	);
+	assert.equal(summary.final_outcome, "blocked");
+	assert.match(summary.blocked_reason ?? "", /npx @earendil-works\/pi-ai@1\.6\.0 login anthropic/);
+	assert.equal(summary.steps.length, 0);
+});
+
 test("api-key com provedor PROVISIONAL sem probe: parada blocked antes de qualquer chamada", async () => {
 	const summary = await runSmoke(opts("single", { authMode: "api-key", model: "openai/gpt-4.1" }));
 	assert.equal(summary.final_outcome, "blocked");
@@ -109,6 +119,7 @@ test("doom_loop: repetição bloqueada, oráculo FAIL vira status doom_loop e o 
 		prompt: "corrija",
 		streamFn: runtime.streamFn,
 		priceBook: {
+			kind: "metered",
 			id: "t",
 			source: "t",
 			entries: { "anthropic/faux-cheap": { input: 1, output: 4, cacheRead: 0.1, cacheWrite: 1.25 } },

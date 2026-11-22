@@ -17,6 +17,7 @@ import { assertProviderCanRun } from "../ledger/capabilities.ts";
 import type { RunStatus } from "../ledger/events.ts";
 import type { PriceBook } from "../ledger/prices.ts";
 import { buildCallTelemetry } from "../ledger/telemetry.ts";
+import { ToolOutcomeTracker } from "../ledger/tool_outcomes.ts";
 import { ledgerSha256, RunLedger } from "../ledger/writer.ts";
 import { sha256Hex } from "../util/canonical.ts";
 
@@ -56,8 +57,7 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 	const budget = new BudgetGuard({ maxCostUsd: options.maxCostUsd, priceBook: options.priceBook });
 	const pendingCalls: number[] = [];
 	const toolArgumentDigests = new Map<string, string>();
-	const declaredTools = new Map<string, string>();
-	const reportedTools = new Set<string>();
+	const tools = new ToolOutcomeTracker();
 	const blockedToolCalls = new Map<string, string>();
 	let callCount = 0;
 	let callsFinished = 0;
@@ -114,7 +114,7 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 		const toolCalls = message.content.filter((block) => block.type === "toolCall");
 		for (const call of toolCalls) {
 			toolArgumentDigests.set(call.id, argumentsSha256(call.arguments));
-			declaredTools.set(call.id, call.name);
+			tools.declare({ toolCallId: call.id, toolName: call.name, argumentsSha256: argumentsSha256(call.arguments) });
 		}
 		ledger.appendCallFinished({
 			call_index: index,
@@ -138,21 +138,8 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 		});
 	};
 
-	const recordNotExecuted = (id: string, name: string): void => {
-		const reason = "run terminada antes da execução da ferramenta";
-		ledger.appendToolFinished({
-			tool_call_id: id,
-			tool_name: name,
-			arguments_sha256: toolArgumentDigests.get(id) ?? "",
-			status: "not_executed",
-			block_reason: reason,
-			raw_output: "",
-			raw_output_sha256: sha256Hex(""),
-		});
-	};
-
 	const recordToolResult = (message: ToolResultMessage): void => {
-		reportedTools.add(message.toolCallId);
+		tools.report(message.toolCallId);
 		const blockReason = blockedToolCalls.get(message.toolCallId);
 		const rawOutput = message.content
 			.map((part) => (part.type === "text" ? (part as TextContent).text : "[imagem]"))
@@ -175,10 +162,8 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 		thrown = error;
 	}
 
-	// Nada desaparece em silêncio: chamada declarada sem resultado é registrada como não executada.
-	for (const [id, name] of declaredTools) {
-		if (!reportedTools.has(id)) recordNotExecuted(id, name);
-	}
+	// Chamada declarada sem resultado é registrada como não executada (nada desaparece em silêncio).
+	tools.finalize(ledger, "run terminada antes da execução da ferramenta");
 
 	const messages = [...agent.state.messages];
 	const lastAssistant = [...messages].reverse().find((m): m is AssistantMessage => m.role === "assistant");
@@ -190,6 +175,7 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 		in_flight_call_indices: [...pendingCalls],
 		spent_lower_bound_usd: budget.spentLowerBoundUsd,
 		unknown_cost_calls: budget.unknownCostCalls,
+		non_metered_cost_calls: budget.nonMeteredCostCalls,
 		ceiling_status: budget.ceilingStatus(),
 		guard_events: { doom_loop_blocks: doom.blocks, budget_blocked_tools: budget.blockedTools },
 	});

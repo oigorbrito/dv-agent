@@ -1,4 +1,5 @@
-// Custo por chamada com fonte explícita. Preço desconhecido vira null, nunca zero (contract v4, regra b: budget_rule).
+// Custo por chamada com base explícita. Preço desconhecido vira null com cost_basis "unknown", nunca zero
+// (contract v4, regra b). Sessão de assinatura não é cobrada por token: cost_usd null com basis "subscription_session".
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 
 /** Preço em USD por 1M tokens. */
@@ -9,23 +10,37 @@ export interface PriceEntry {
 	cacheWrite: number;
 }
 
-/** Tabela de preços versionada. `id` e `source` vão para o cost_basis do ledger. Chave: `provider/modelId`. */
-export interface PriceBook {
+/** Tabela de preços versionada. Chave: `provider/modelId`. */
+export interface MeteredPriceBook {
+	kind: "metered";
 	id: string;
 	source: string;
 	entries: Readonly<Record<string, PriceEntry>>;
 }
 
+/** Sessão de assinatura (OAuth de plano): o custo marginal por token não é cobrado em USD. */
+export interface SubscriptionPriceBook {
+	kind: "subscription";
+	id: string;
+	source: string;
+}
+
+export type PriceBook = MeteredPriceBook | SubscriptionPriceBook;
+
+/** usd null só com basis "subscription_session"; para preço desconhecido, costForMessage retorna null. */
 export interface CallCost {
-	usd: number;
+	usd: number | null;
 	basis: string;
 }
 
+export const SUBSCRIPTION_BASIS = "subscription_session";
+
 /**
- * Custo de uma chamada. Usa o total reportado pelo provedor quando existe (totalFromProvider);
- * senão calcula pela tabela de preços; sem nenhuma das duas, retorna null.
+ * Custo de uma chamada. Sessão de assinatura: usd null, basis subscription_session. Total reportado pelo provedor
+ * quando existe (totalFromProvider); senão calcula pela tabela; sem nenhum dos dois, retorna null (desconhecido).
  */
 export function costForMessage(message: AssistantMessage, book: PriceBook): CallCost | null {
+	if (book.kind === "subscription") return { usd: null, basis: SUBSCRIPTION_BASIS };
 	if (message.usage.cost.totalFromProvider === true) {
 		return { usd: message.usage.cost.total, basis: "provider_reported" };
 	}

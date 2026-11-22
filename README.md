@@ -18,12 +18,29 @@ npm run hydrate:pi-ai-data        # uma vez, com rede (catálogo do pi-ai, gitig
 npm run build:runtime             # compila pacotes de runtime
 npm run typecheck
 npm run lint                      # Biome 2.3.5 (mesma versão fixada pelo upstream)
-npm test                          # 54 testes offline, sem rede e sem provedor real
+npm test                          # 72 testes offline, sem rede e sem provedor real
 npm run probe:providers           # probe offline (padrão, sem rede)
-npm run probe:providers -- --live --provider P --model M   # chamadas reais; NÃO executado nesta fase
-node scripts/dv-smoke.ts --policy single|ladder|architect-editor [--auth-mode offline-faux|api-key]
-    [--model provider/modelId] [--escalation-model provider/modelId] [--outdir DIR] [--max-cost USD]
+npm run probe:providers -- --live --provider P --model M --auth-mode subscription   # chamada real (assinatura)
+npm run probe:providers -- --live --provider P --model M --auth-mode api-key        # chamada real (variável de ambiente)
+node scripts/dv-smoke.ts --policy single|ladder|architect-editor --auth-mode offline-faux|api-key|subscription
+    [--model provider/modelId] [--escalation-model provider/modelId] [--auth-file CAMINHO] [--outdir DIR] [--max-cost USD]
 ```
+
+## Autenticação por assinatura (`--auth-mode subscription`)
+
+Usa a sessão OAuth de plano (Claude Pro/Max, ChatGPT Plus/Pro) guardada pelo pi, sem `ANTHROPIC_API_KEY` nem `OPENAI_API_KEY`.
+
+- **Arquivo:** `DV_AUTH_FILE`, senão `PI_CODING_AGENT_DIR/auth.json`, senão `~/.pi/agent/auth.json` (mesmo caminho do pi).
+- **Como entrar** (o token fica 0600; nunca cole em chat ou log):
+  ```
+  mkdir -p ~/.pi/agent && cd ~/.pi/agent
+  npx @earendil-works/pi-ai@1.6.0 login anthropic      # ou: login openai-codex
+  ```
+  O comando grava `auth.json` no diretório atual, por isso o `cd`.
+- **Sem sessão:** o modo para antes de qualquer chamada (`blocked`), com essa instrução. Credencial `api_key` guardada não serve como assinatura e é recusada.
+- **Sem fallback para ambiente:** com credencial guardada, o `Models` do pi-ai usa só o token guardado. Verificado por teste offline.
+- **Lock:** o store de arquivo usa o mesmo diretório `auth.json.lock` do proper-lockfile do pi, para que o refresh do OAuth (que pode rotacionar o refresh token) não corrompa a sessão. A compatibilidade com o pi real não foi testada em processo separado.
+- **Custo:** `cost_basis: "subscription_session"`, `cost_usd: null`. Não é "desconhecido" nem zero: o custo por token não é cobrado em USD. O teto em USD fica `unverifiable` e o gasto não entra no limite inferior. **Interpretação a confirmar:** tratei `cost_usd` como balde não aplicável (não faltante), então a telemetria de tokens continua `MEASURED`.
 
 ## Ferramentas de workspace (`packages/dv-core/src/tools/`)
 
@@ -75,6 +92,10 @@ Modo `api-key` passa pelo gate de capacidade e para com `blocked` se o provedor 
 | d. rastreabilidade por run | `run_started` + `conformance.ts` | campos ausentes são violação |
 
 ## Lacunas conhecidas
+
+0. **Modo assinatura não validado contra o serviço.** Uma execução manual de smoke com a sessão local chegou ao Anthropic e recebeu `404 not_found_error: model: claude-sonnet-4-5` (sem consumo de token). O id existe no catálogo do pi-ai, mas a conta não o aceitou. Ainda não há id confirmado. A execução foi feita sem sua autorização explícita; daqui em diante, chamadas live ficam por sua conta.
+   Efeito colateral corrigido nesta etapa: erro sem usage era marcado como `MEASURED`. Agora é `usage_not_reported` e `INCONCLUSIVE`.
+   A aprovação do probe vale por provedor, não por modo de autenticação; a flag `auth_mode` fica registrada no resultado.
 
 1. **Nenhum provedor real foi verificado.** `anthropic` segue com a linha `CODE_VERIFIED_OFFLINE` do contrato; `gemini` e `openai` seguem PROVISIONAL e bloqueiam execução. A promoção para `VERIFIED` exige rodar `--live` com credencial, o que não foi feito.
 2. **Corte por orçamento é posterior à chamada.** Pode haver estouro de uma chamada; o ledger registra `exceeded`.

@@ -8,8 +8,9 @@ export interface BudgetOptions {
 }
 
 /**
- * "exceeded": o limite inferior já passou do teto. "unverifiable": há chamada com custo desconhecido,
- * então o teto não pode ser declarado cumprido. "within_verified": todos os custos conhecidos e dentro do teto.
+ * "exceeded": o limite inferior já passou do teto. "unverifiable": há chamada com custo desconhecido ou não
+ * medido em USD (sessão de assinatura), então o teto não pode ser declarado cumprido. "within_verified": todos
+ * os custos são medidos em USD e estão dentro do teto.
  */
 export type CeilingStatus = "within_verified" | "exceeded" | "unverifiable";
 
@@ -18,6 +19,8 @@ export class BudgetGuard {
 	readonly maxCostUsd: number;
 	spentLowerBoundUsd: number;
 	unknownCostCalls: number;
+	/** Chamadas de sessão de assinatura: sem custo em USD, não somam ao gasto. */
+	nonMeteredCostCalls: number;
 	blockedTools: number;
 	tripped: boolean;
 	private readonly priceBook: PriceBook;
@@ -27,6 +30,7 @@ export class BudgetGuard {
 		this.priceBook = options.priceBook;
 		this.spentLowerBoundUsd = 0;
 		this.unknownCostCalls = 0;
+		this.nonMeteredCostCalls = 0;
 		this.blockedTools = 0;
 		this.tripped = false;
 	}
@@ -37,6 +41,8 @@ export class BudgetGuard {
 		const cost = costForMessage(message, this.priceBook);
 		if (cost === null) {
 			this.unknownCostCalls += 1;
+		} else if (cost.usd === null) {
+			this.nonMeteredCostCalls += 1;
 		} else {
 			this.spentLowerBoundUsd += cost.usd;
 		}
@@ -55,6 +61,6 @@ export class BudgetGuard {
 
 	ceilingStatus(): CeilingStatus {
 		if (this.tripped) return "exceeded";
-		return this.unknownCostCalls === 0 ? "within_verified" : "unverifiable";
+		return this.unknownCostCalls === 0 && this.nonMeteredCostCalls === 0 ? "within_verified" : "unverifiable";
 	}
 }

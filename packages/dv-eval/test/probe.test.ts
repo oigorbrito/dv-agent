@@ -66,6 +66,7 @@ test("aprovação: só probe live VERIFIED aprova; offline e INCONCLUSIVE não",
 		model_id: "m",
 		api: "openai-completions",
 		status,
+		auth_mode: "api-key",
 		reasons: [],
 		calls: [],
 	});

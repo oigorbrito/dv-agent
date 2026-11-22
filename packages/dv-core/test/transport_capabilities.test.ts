@@ -114,6 +114,7 @@ test("checker aceita nulo declarado e rejeita nulo sem declaração", async () =
 				in_flight_call_indices: [],
 				spent_lower_bound_usd: 0.1,
 				unknown_cost_calls: 0,
+				non_metered_cost_calls: 0,
 				ceiling_status: "within_verified",
 				guard_events: { doom_loop_blocks: 0, budget_blocked_tools: 0 },
 			},
@@ -205,4 +206,16 @@ test("escalonamento padrão: doom_loop e budget_exceeded promovem; provider_erro
 		assert.equal(policy.decide([attempt(status, false)]).kind, "run", `${status} promove`);
 	}
 	assert.equal(policy.decide([attempt("provider_error", null)]).kind, "stop");
+});
+
+test("erro do provedor sem usage: zero não é medição, telemetria INCONCLUSIVE", () => {
+	const failed = {
+		...msg("anthropic-messages", "anthropic", usage(0, 0)),
+		stopReason: "error" as const,
+		errorMessage: "404 model not found",
+	};
+	const t = buildCallTelemetry("anthropic", failed, priceBookFor(["anthropic/m"]));
+	assert.ok(t.missing_buckets.includes("usage_not_reported"));
+	assert.equal(t.telemetry_complete, false);
+	assert.equal(t.cost_accounting_status, "INCONCLUSIVE");
 });

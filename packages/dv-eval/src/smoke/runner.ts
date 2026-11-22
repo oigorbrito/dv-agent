@@ -22,14 +22,14 @@ import {
 } from "@dv-agent/core";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Model } from "@earendil-works/pi-ai";
-import { streamSimple } from "@earendil-works/pi-ai/compat";
-import { type BuiltinProvider, getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
+import { openLiveSession } from "../auth/live_session.ts";
+import { resolveAuthPath } from "../auth/subscription.ts";
 import { hashTree, loadTask, type OracleResult, runOracle } from "../oracle/verifier.ts";
 import { loadApprovedProbes } from "../probe/provider_probe.ts";
 import { offlineTurns } from "./offline_scripts.ts";
 
 export type PolicyName = "single" | "ladder" | "architect-editor";
-export type AuthMode = "offline-faux" | "api-key";
+export type AuthMode = "offline-faux" | "api-key" | "subscription";
 
 export interface SmokeOptions {
 	taskDir: string;
@@ -37,6 +37,8 @@ export interface SmokeOptions {
 	authMode: AuthMode;
 	/** Modelo principal em api-key, formato provider/modelId. */
 	model?: string;
+	/** Caminho do auth.json para subscription. Padrão: resolveAuthPath() (DV_AUTH_FILE ou ~/.pi/agent/auth.json). */
+	authPath?: string;
 	/** Modelo do degrau 1 (ladder) ou do editor (architect-editor) em api-key. Opcional: sem ele, reusa --model. */
 	escalationModel?: string;
 	outdir: string;
@@ -166,7 +168,7 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 
 		let run: Awaited<ReturnType<typeof executeRung>>;
 		try {
-			const engine = prepareEngine(options, decision);
+			const engine = await prepareEngine(options, decision);
 			run = await executeRung({
 				ledgerPath: join(stepDir, "ledger.jsonl"),
 				runId: `smoke-${task.id}-${step}`,
@@ -230,8 +232,8 @@ interface Engine {
 	priceBook: PriceBook;
 }
 
-/** Modelo, stream e tabela de preço do degrau. Offline: roteiro faux. Api-key: catálogo real do pi-ai. */
-function prepareEngine(options: SmokeOptions, decision: RouterDecision & { kind: "run" }): Engine {
+/** Modelo, stream e tabela de preço do degrau. Offline: roteiro faux. Live: openLiveSession (api-key ou assinatura). */
+async function prepareEngine(options: SmokeOptions, decision: RouterDecision & { kind: "run" }): Promise<Engine> {
 	const ref = decision.model;
 	const key = `${ref.provider}/${ref.modelId}`;
 	if (options.authMode === "offline-faux") {
@@ -241,17 +243,20 @@ function prepareEngine(options: SmokeOptions, decision: RouterDecision & { kind:
 		return {
 			model: runtime.modelOf(id),
 			streamFn: runtime.streamFn,
-			priceBook: { id: "dv-smoke-offline", source: "preço fixo do roteiro faux", entries: { [key]: OFFLINE_PRICE } },
+			priceBook: {
+				kind: "metered",
+				id: "dv-smoke-offline",
+				source: "preço fixo do roteiro faux",
+				entries: { [key]: OFFLINE_PRICE },
+			},
 		};
 	}
-	// Entrada da CLI é validada pelo catálogo: getBuiltinModel devolve undefined ou lança para id desconhecido.
-	const model = getBuiltinModel(ref.provider as BuiltinProvider, ref.modelId as never) as Model<string> | undefined;
-	if (model === undefined) throw new Error(`modelo ausente no catálogo pi-ai: ${key}`);
-	return {
-		model,
-		streamFn: (m, c, o) => streamSimple(m, c, o),
-		priceBook: { id: "pi-catalog", source: "pi-ai model catalog (Model.cost)", entries: { [key]: model.cost } },
-	};
+	return openLiveSession({
+		authMode: options.authMode,
+		provider: ref.provider,
+		modelId: ref.modelId,
+		authPath: options.authPath ?? resolveAuthPath(),
+	});
 }
 
 function finish(

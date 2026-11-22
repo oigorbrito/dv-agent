@@ -3,6 +3,7 @@ export { CONTRACT_FILE, CONTRACT_ID, LEDGER_SCHEMA } from "./contract.ts";
 export { BudgetGuard, type BudgetOptions, type CeilingStatus } from "./guards/budget.ts";
 export { type BeforeToolCallHook, composeBeforeToolCall } from "./guards/compose.ts";
 export { DoomLoopDetector, type DoomLoopOptions } from "./guards/doom_loop.ts";
+export { argumentsSha256 } from "./guards/tool_signature.ts";
 export {
 	assertProviderCanRun,
 	capabilityFor,
@@ -16,6 +17,7 @@ export type { RunStatus } from "./ledger/events.ts";
 export type { PriceBook, PriceEntry } from "./ledger/prices.ts";
 export { redactText, redactValue } from "./ledger/redact.ts";
 export { buildCallTelemetry, type CallTelemetry } from "./ledger/telemetry.ts";
+export { type DeclaredToolCall, ToolOutcomeTracker } from "./ledger/tool_outcomes.ts";
 export { ledgerSha256, RunLedger } from "./ledger/writer.ts";
 export {
 	ArchitectEditorPolicy,

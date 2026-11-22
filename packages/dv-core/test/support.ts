@@ -19,7 +19,7 @@ export function tempDir(name: string): string {
 export function priceBookFor(keys: readonly string[]): PriceBook {
 	const entries: Record<string, PriceEntry> = {};
 	for (const key of keys) entries[key] = TEST_PRICE;
-	return { id: "test-prices-v1", source: "dv-core test fixture", entries };
+	return { kind: "metered", id: "test-prices-v1", source: "dv-core test fixture", entries };
 }
 
 /** Ferramenta de escrita em memória. Cada workspace é um Map próprio (workspace limpo por degrau). */

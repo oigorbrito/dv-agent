@@ -33,7 +33,10 @@ export function costForMessage(message: AssistantMessage, book: PriceBook): Call
 	if (rates === undefined) return null;
 	const u = message.usage;
 	const usd =
-		(u.input * rates.input + u.output * rates.output + u.cacheRead * rates.cacheRead + u.cacheWrite * rates.cacheWrite) /
+		(u.input * rates.input +
+			u.output * rates.output +
+			u.cacheRead * rates.cacheRead +
+			u.cacheWrite * rates.cacheWrite) /
 		1_000_000;
 	return { usd, basis: `price_book:${book.id}` };
 }

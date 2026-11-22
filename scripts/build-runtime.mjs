@@ -22,7 +22,9 @@ if (!existsSync(join(dataSrc, ".manifest.json"))) {
 	throw new Error("dados do pi-ai ausentes: rode npm run hydrate:pi-ai-data (requer rede)");
 }
 cpSync(dataSrc, join(runtime, "pi-ai", "dist", "providers", "data"), { recursive: true });
-const manifestSha = createHash("sha256").update(readFileSync(join(dataSrc, ".manifest.json"))).digest("hex");
+const manifestSha = createHash("sha256")
+	.update(readFileSync(join(dataSrc, ".manifest.json")))
+	.digest("hex");
 writeFileSync(
 	join(runtime, "BUILD-DATA.json"),
 	`${JSON.stringify({ schema: "dv-runtime-build-v1", pi_ai_data_manifest_sha256: manifestSha, note: "snapshot local de catálogo hidratado (gitignored upstream); não reproduzível sem a fonte de rede na mesma data" }, null, 2)}\n`,

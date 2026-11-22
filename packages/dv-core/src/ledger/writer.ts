@@ -1,11 +1,18 @@
 // Writer do ledger dv-run-ledger-v2: um evento JSON por linha, LF, com flush e fsync antes de a execução prosseguir.
+
+import { createHash } from "node:crypto";
 import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, writeSync } from "node:fs";
 import { dirname } from "node:path";
-import { createHash } from "node:crypto";
 import { LEDGER_SCHEMA } from "../contract.ts";
 import { canonicalJson } from "../util/canonical.ts";
+import type {
+	CallFinishedPayload,
+	CallStartedPayload,
+	RunFinishedPayload,
+	RunStartedPayload,
+	ToolFinishedPayload,
+} from "./events.ts";
 import { redactValue } from "./redact.ts";
-import type { CallFinishedPayload, CallStartedPayload, RunFinishedPayload, RunStartedPayload, ToolFinishedPayload } from "./events.ts";
 
 /** Ledger append-only de uma execução (um degrau = um ledger). Não grava nada que não passe pela redação. */
 export class RunLedger {

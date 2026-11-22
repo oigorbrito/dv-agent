@@ -7,7 +7,17 @@ export interface ModelRef {
 }
 
 /** Status de verificação externa. `fail` é veredito; os demais são ausência de veredito. */
-export type VerificationStatus = "pass" | "fail" | "timeout" | "provider_error" | "budget_unverifiable";
+export type VerificationStatus =
+	| "pass"
+	| "fail"
+	| "doom_loop"
+	| "budget_exceeded"
+	| "timeout"
+	| "provider_error"
+	| "budget_unverifiable";
+
+/** Status que promovem ao próximo degrau por padrão. provider_error fica fora: erro de infraestrutura não é evidência sobre o modelo. */
+export const DEFAULT_ESCALATE_ON_STATUSES: readonly VerificationStatus[] = ["fail", "doom_loop", "budget_exceeded"];
 
 export interface Verification {
 	oracle_pass: boolean | null;
@@ -45,9 +55,9 @@ export interface LadderOptions {
 	globalMaxCostUsd: number;
 	/**
 	 * Status que promovem ao próximo degrau. O contrato v4 cita `escalate_on_statuses` sem fixar o valor;
-	 * o padrão `["fail"]` é uma escolha deste código, não um valor congelado.
+	 * o padrão é DEFAULT_ESCALATE_ON_STATUSES (decisão deste código, aprovada pelo usuário).
 	 */
-	escalateOnStatuses: readonly VerificationStatus[];
+	escalateOnStatuses?: readonly VerificationStatus[];
 }
 
 /** Soma do limite inferior de todos os degraus executados, incluindo os reprovados (regra c). */
@@ -89,7 +99,8 @@ export class ExecutionGuidedLadderPolicy implements RouterPolicy {
 	}
 
 	decide(history: readonly Attempt[]): RouterDecision {
-		const { rungs, globalMaxCostUsd, escalateOnStatuses } = this.options;
+		const { rungs, globalMaxCostUsd } = this.options;
+		const escalateOnStatuses = this.options.escalateOnStatuses ?? DEFAULT_ESCALATE_ON_STATUSES;
 		const spent = totalSpent(history);
 		const last = history.at(-1);
 

@@ -1,0 +1,40 @@
+{
+  "schema": "dv-provider-probe-v1",
+  "mode": "offline",
+  "status": "OFFLINE_SHAPE_CHECKED",
+  "scope": "transporte faux do pi-ai (sem rede); não é evidência de provedor real",
+  "transport_table_violations": [],
+  "usage_shape_violations": [],
+  "cache_semantics": {
+    "first": {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 0,
+      "cacheWrite": 997,
+      "totalTokens": 997,
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0
+      }
+    },
+    "second": {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 997,
+      "cacheWrite": 0,
+      "totalTokens": 997,
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0
+      }
+    },
+    "violations": []
+  },
+  "provider_statuses": "unchanged: PROVISIONAL até probe live VERIFIED"
+}

@@ -8,16 +8,16 @@ import {
 	type StreamFn,
 } from "@earendil-works/pi-agent-core";
 import type { Api, AssistantMessage, Model, TextContent, ToolResultMessage } from "@earendil-works/pi-ai";
+import { CONTRACT_ID } from "../contract.ts";
 import { BudgetGuard, type CeilingStatus } from "../guards/budget.ts";
-import { DoomLoopDetector } from "../guards/doom_loop.ts";
 import { composeBeforeToolCall } from "../guards/compose.ts";
+import { DoomLoopDetector } from "../guards/doom_loop.ts";
 import { argumentsSha256 } from "../guards/tool_signature.ts";
 import { assertProviderCanRun } from "../ledger/capabilities.ts";
-import { RunLedger, ledgerSha256 } from "../ledger/writer.ts";
 import type { RunStatus } from "../ledger/events.ts";
 import type { PriceBook } from "../ledger/prices.ts";
 import { buildCallTelemetry } from "../ledger/telemetry.ts";
-import { CONTRACT_ID } from "../contract.ts";
+import { ledgerSha256, RunLedger } from "../ledger/writer.ts";
 import { sha256Hex } from "../util/canonical.ts";
 
 export interface RungRunOptions {
@@ -83,10 +83,7 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 		return options.streamFn(model, context, streamOptions);
 	};
 
-	const beforeToolCall = composeBeforeToolCall([
-		budget.beforeToolCall.bind(budget),
-		doom.beforeToolCall.bind(doom),
-	]);
+	const beforeToolCall = composeBeforeToolCall([budget.beforeToolCall.bind(budget), doom.beforeToolCall.bind(doom)]);
 	const recordingHook = async (context: BeforeToolCallContext): Promise<BeforeToolCallResult | undefined> => {
 		const result = await beforeToolCall(context);
 		if (result?.block) blockedToolCalls.set(context.toolCall.id, result.reason ?? "bloqueada");

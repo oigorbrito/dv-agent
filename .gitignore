@@ -6,3 +6,4 @@ dist/
 # Dados de catálogo hidratados do pi-ai (gitignored upstream; gerados por npm run hydrate-model-data)
 packages/runtime-pi/pi-ai/src/providers/data/
 .artifacts/
+runs/

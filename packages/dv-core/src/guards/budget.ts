@@ -1,6 +1,6 @@
 // Guarda de orçamento: soma o limite inferior de custo em message_end e corta a execução ao exceder o teto.
 import type { AgentMessage, BeforeToolCallContext, BeforeToolCallResult } from "@earendil-works/pi-agent-core";
-import { type PriceBook, costForMessage } from "../ledger/prices.ts";
+import { costForMessage, type PriceBook } from "../ledger/prices.ts";
 
 export interface BudgetOptions {
 	maxCostUsd: number;

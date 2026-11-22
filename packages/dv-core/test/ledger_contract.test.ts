@@ -4,16 +4,14 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import {
-	BudgetGuard,
-	CONTRACT_ID,
-	LEDGER_SCHEMA,
-	checkLedgerConformance,
-	executeRung,
-} from "../src/index.ts";
+import { BudgetGuard, CONTRACT_ID, checkLedgerConformance, executeRung, LEDGER_SCHEMA } from "../src/index.ts";
 import { fauxRuntime, priceBookFor, tempDir, textTurn, toolTurn, usage, writeFileTool } from "./support.ts";
 
-const PROVENANCE = { harness: "dv-core", dv_agent_commit: "uncommitted-test", pi_mono: "69a6993486acee850d14a4a1547daa4a167228ad" };
+const PROVENANCE = {
+	harness: "dv-core",
+	dv_agent_commit: "uncommitted-test",
+	pi_mono: "69a6993486acee850d14a4a1547daa4a167228ad",
+};
 const DATASET = "a".repeat(64);
 const TASK = "b".repeat(64);
 const SECRET = "sk-ant-api03-SEGREDOdeTESTE0123456789";
@@ -31,7 +29,11 @@ test("run anthropic-capável gera ledger conforme ao contrato v4 com telemetria 
 	const ledgerPath = join(tempDir("ledger-conf"), "ledger.jsonl");
 	runtime.script([
 		toolTurn("write_file", { path: "out.txt", content: "41" }, usage(1000, 50, { cacheRead: 200, reasoning: 0 })),
-		toolTurn("write_file", { path: "out.txt", content: `42 ${SECRET}` }, usage(1100, 60, { cacheRead: 200, reasoning: 0 })),
+		toolTurn(
+			"write_file",
+			{ path: "out.txt", content: `42 ${SECRET}` },
+			usage(1100, 60, { cacheRead: 200, reasoning: 0 }),
+		),
 		textTurn("concluído", usage(1200, 10, { cacheRead: 200, reasoning: 0 })),
 	]);
 
@@ -63,9 +65,14 @@ test("run anthropic-capável gera ledger conforme ao contrato v4 com telemetria 
 		events.map((ev) => ev.event),
 		[
 			"run_started",
-			"call_started", "call_finished", "tool_finished",
-			"call_started", "call_finished", "tool_finished",
-			"call_started", "call_finished",
+			"call_started",
+			"call_finished",
+			"tool_finished",
+			"call_started",
+			"call_finished",
+			"tool_finished",
+			"call_started",
+			"call_finished",
 			"run_finished",
 		],
 	);
@@ -155,7 +162,8 @@ test("provedor sem regra de capacidade: telemetria INCONCLUSIVE e teto não veri
 	assert.equal(call.record.telemetry.telemetry_complete, false);
 	assert.equal(call.record.telemetry.cost_accounting_status, "INCONCLUSIVE");
 	assert.equal(call.record.telemetry.cost_usd, null);
-	assert.deepEqual(call.record.telemetry.missing_buckets, ["uncached_input_tokens", "reasoning_tokens", "cost_usd"]);
+	// reasoning é declarado não exposto pelo transporte faux, então não é faltante; uncached e custo faltam.
+	assert.deepEqual(call.record.telemetry.missing_buckets, ["uncached_input_tokens", "cost_usd"]);
 	assert.deepEqual(checkLedgerConformance(ledgerPath).violations, []);
 });
 

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import type { BeforeToolCallContext } from "@earendil-works/pi-agent-core";
 import { fauxAssistantMessage, type JsonObject } from "@earendil-works/pi-ai";
-import { DoomLoopDetector, checkLedgerConformance, executeRung } from "../src/index.ts";
+import { checkLedgerConformance, DoomLoopDetector, executeRung } from "../src/index.ts";
 import { fauxRuntime, priceBookFor, tempDir, textTurn, toolTurn, usage, writeFileTool } from "./support.ts";
 
 function ctx(name: string, args: JsonObject, id: string): BeforeToolCallContext {
@@ -41,7 +41,9 @@ test("run com repetição: ferramenta executa até o limite, chamadas seguintes 
 	const ledgerPath = join(tempDir("doom"), "ledger.jsonl");
 	const repeated = { path: "out.txt", content: "41" };
 	runtime.script([
-		...Array.from({ length: 5 }, (_, i) => toolTurn("write_file", repeated, usage(100, 10, { reasoning: 0 }), `call_${i}`)),
+		...Array.from({ length: 5 }, (_, i) =>
+			toolTurn("write_file", repeated, usage(100, 10, { reasoning: 0 }), `call_${i}`),
+		),
 		textTurn("desisti", usage(100, 10, { reasoning: 0 })),
 	]);
 
@@ -53,7 +55,11 @@ test("run com repetição: ferramenta executa até o limite, chamadas seguintes 
 		datasetSha256: "c".repeat(64),
 		taskDefinitionSha256: "d".repeat(64),
 		model: runtime.modelOf("dv-cheap"),
-		tools: [writeFileTool(workspace, () => (executions += 1))],
+		tools: [
+			writeFileTool(workspace, () => {
+				executions += 1;
+			}),
+		],
 		prompt: "grave 41",
 		streamFn: runtime.streamFn,
 		priceBook: priceBookFor(["anthropic/dv-cheap"]),
@@ -64,12 +70,15 @@ test("run com repetição: ferramenta executa até o limite, chamadas seguintes 
 	assert.equal(result.status, "completed");
 	assert.equal(executions, 3, "ferramenta executa somente até o limite de repetição");
 
-	const lines = readFileSync(ledgerPath, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as Record<string, unknown>);
-	const toolStatuses = lines
-		.filter((ev) => ev.event === "tool_finished")
-		.map((ev) => ev.status);
+	const lines = readFileSync(ledgerPath, "utf8")
+		.split("\n")
+		.filter(Boolean)
+		.map((l) => JSON.parse(l) as Record<string, unknown>);
+	const toolStatuses = lines.filter((ev) => ev.event === "tool_finished").map((ev) => ev.status);
 	assert.deepEqual(toolStatuses, ["ok", "ok", "ok", "blocked", "blocked"]);
-	const blockedEvent = lines.find((ev) => ev.event === "tool_finished" && ev.status === "blocked") as { block_reason: string };
+	const blockedEvent = lines.find((ev) => ev.event === "tool_finished" && ev.status === "blocked") as {
+		block_reason: string;
+	};
 	assert.match(blockedEvent.block_reason, /doom_loop/);
 
 	const finished = lines.at(-1) as { guard_events: { doom_loop_blocks: number } };

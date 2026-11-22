@@ -1,0 +1,290 @@
+// Smoke runner end-to-end: uma tarefa calibrada, uma política (single | ladder | architect-editor), oráculo externo
+// a cada degrau (workspace limpo por degrau) e artefatos em outdir.
+// - offline-faux: provider faux com roteiros determinísticos (ver offline_scripts.ts). Não avalia modelo real.
+// - api-key: provedor real via catálogo do pi-ai. Só executa se a regra de capacidade (contract v4, regra b) permitir.
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import {
+	ArchitectEditorPolicy,
+	type Attempt,
+	createWorkspaceTools,
+	ExecutionGuidedLadderPolicy,
+	executeRung,
+	fauxRuntime,
+	type ModelRef,
+	type PriceBook,
+	type RouterDecision,
+	type RouterPolicy,
+	SingleModelPolicy,
+} from "@dv-agent/core";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
+import type { AssistantMessage, Model } from "@earendil-works/pi-ai";
+import { streamSimple } from "@earendil-works/pi-ai/compat";
+import { type BuiltinProvider, getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
+import { hashTree, loadTask, type OracleResult, runOracle } from "../oracle/verifier.ts";
+import { loadApprovedProbes } from "../probe/provider_probe.ts";
+import { offlineTurns } from "./offline_scripts.ts";
+
+export type PolicyName = "single" | "ladder" | "architect-editor";
+export type AuthMode = "offline-faux" | "api-key";
+
+export interface SmokeOptions {
+	taskDir: string;
+	policy: PolicyName;
+	authMode: AuthMode;
+	/** Modelo principal em api-key, formato provider/modelId. */
+	model?: string;
+	/** Modelo do degrau 1 (ladder) ou do editor (architect-editor) em api-key. Opcional: sem ele, reusa --model. */
+	escalationModel?: string;
+	outdir: string;
+	maxCostUsd: number;
+	probesDir: string;
+}
+
+export interface StepRecord {
+	step: number;
+	rung: number;
+	role: string;
+	model: string;
+	cap_usd: number;
+	run_status: string;
+	ceiling_status: string;
+	spent_lower_bound_usd: number;
+	ledger_path: string;
+	ledger_sha256: string;
+	oracle: { verdict: string; outcome: string; result_path: string } | null;
+	verification: Attempt["verification"];
+	plan_from_architect: boolean;
+}
+
+export interface SmokeSummary {
+	schema: "dv-smoke-summary-v1";
+	task_id: string;
+	policy: PolicyName;
+	auth_mode: AuthMode;
+	final_outcome: "solved" | "unsolved" | "inconclusive" | "budget_exhausted" | "blocked";
+	blocked_reason?: string;
+	steps: StepRecord[];
+	reference_provenance: Record<string, string>;
+	dataset_sha256: string;
+	task_definition_sha256: string;
+}
+
+const OFFLINE_PROVIDER = "anthropic";
+const OFFLINE_PRICE = { input: 1, output: 4, cacheRead: 0.1, cacheWrite: 1.25 };
+
+/** Converte provider/modelId da CLI em ModelRef. Formato inválido é erro de configuração. */
+export function parseModelRef(text: string): ModelRef {
+	const slash = text.indexOf("/");
+	if (slash <= 0 || slash === text.length - 1) throw new Error(`modelo deve ser provider/modelId: ${text}`);
+	return { provider: text.slice(0, slash), modelId: text.slice(slash + 1) };
+}
+
+/** Política e modelos por papel. Em offline, o id do modelo escolhe o roteiro faux. */
+export function buildPolicy(options: SmokeOptions): RouterPolicy {
+	const primary = resolveRef(options, "primary");
+	const secondary = resolveRef(options, "secondary");
+	if (options.policy === "single") return new SingleModelPolicy(primary, options.maxCostUsd);
+	if (options.policy === "ladder") {
+		return new ExecutionGuidedLadderPolicy({
+			rungs: [
+				{ model: primary, costShareCap: 0.5 },
+				{ model: secondary, costShareCap: 1 },
+			],
+			globalMaxCostUsd: options.maxCostUsd,
+		});
+	}
+	return new ArchitectEditorPolicy({
+		architect: primary,
+		editor: secondary,
+		globalMaxCostUsd: options.maxCostUsd,
+		maxEditorAttempts: 2,
+	});
+}
+
+/** Modelos faux por papel (roteiros em offline_scripts.ts). */
+const OFFLINE_MODELS: Record<PolicyName, { primary: string; secondary: string }> = {
+	single: { primary: "faux-cheap", secondary: "faux-cheap" },
+	ladder: { primary: "faux-cheap", secondary: "faux-strong" },
+	"architect-editor": { primary: "faux-architect", secondary: "faux-editor" },
+};
+
+function resolveRef(options: SmokeOptions, slot: "primary" | "secondary"): ModelRef {
+	if (options.authMode === "offline-faux") {
+		return { provider: OFFLINE_PROVIDER, modelId: OFFLINE_MODELS[options.policy][slot] };
+	}
+	const text = slot === "primary" ? options.model : (options.escalationModel ?? options.model);
+	if (text === undefined) throw new Error("--model é obrigatório em api-key (provider/modelId)");
+	return parseModelRef(text);
+}
+
+function gitCommit(root: string): string {
+	try {
+		return execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+	} catch {
+		return "unknown";
+	}
+}
+
+/** Executa a política até parar. Cada degrau: workspace limpo, run com ledger próprio e oráculo externo. */
+export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
+	const root = resolve(import.meta.dirname, "../../../..");
+	const taskDir = resolve(options.taskDir);
+	const task = loadTask(taskDir);
+	const workspaceSrc = join(taskDir, task.workspace_dir);
+	const policy = buildPolicy(options);
+	const approved = loadApprovedProbes(options.probesDir);
+	const pin = JSON.parse(readFileSync(join(root, "UPSTREAM_PIN.json"), "utf8")) as { upstream: { commit: string } };
+	const provenance = { dv_agent_commit: gitCommit(root), pi_mono_commit: pin.upstream.commit };
+	const datasetSha = createHash("sha256")
+		.update(JSON.stringify(hashTree(workspaceSrc)))
+		.digest("hex");
+	const taskSha = createHash("sha256")
+		.update(readFileSync(join(taskDir, "task.json")))
+		.digest("hex");
+	mkdirSync(options.outdir, { recursive: true });
+
+	const attempts: Attempt[] = [];
+	const steps: StepRecord[] = [];
+	let plan: string | undefined;
+	let decision: RouterDecision = policy.decide(attempts);
+	const context = { task, workspaceSrc, taskDir, provenance, datasetSha, taskSha, approved };
+	while (decision.kind === "run") {
+		const step = attempts.length;
+		const stepDir = join(options.outdir, `step-${step}-${decision.role}`);
+		const workspace = mkdtempSync(join(tmpdir(), "dv-smoke-ws-"));
+		cpSync(workspaceSrc, workspace, { recursive: true });
+		const isArchitect = decision.role === "architect";
+		const prompt = isArchitect
+			? "Planeje a correção de calc.py conforme SPEC.md em até 5 linhas. Não edite arquivos."
+			: plan === undefined
+				? task.prompt
+				: `${task.prompt}\n\nPlano do arquiteto:\n${plan}`;
+
+		let run: Awaited<ReturnType<typeof executeRung>>;
+		try {
+			const engine = prepareEngine(options, decision);
+			run = await executeRung({
+				ledgerPath: join(stepDir, "ledger.jsonl"),
+				runId: `smoke-${task.id}-${step}`,
+				harnessVariant: `dv-smoke:${options.policy}:${options.authMode}`,
+				referenceProvenance: provenance,
+				datasetSha256: datasetSha,
+				taskDefinitionSha256: taskSha,
+				model: engine.model,
+				systemPrompt: "Você é um agente de código. Use as ferramentas do workspace.",
+				tools: isArchitect ? [] : createWorkspaceTools({ workspaceRoot: workspace }),
+				prompt,
+				streamFn: engine.streamFn,
+				priceBook: engine.priceBook,
+				maxCostUsd: decision.cap_usd,
+				doomLoopMaxIdenticalConsecutive: 3,
+				approvedProbes: approved,
+			});
+		} catch (error) {
+			// Gate de capacidade (PROVISIONAL sem probe) ou erro de configuração: parada registrada, não falha silenciosa.
+			return finish(options, context, steps, "blocked", (error as Error).message);
+		}
+
+		if (isArchitect) plan = lastAssistantText(run.messages);
+		const oracle: OracleResult | null = isArchitect
+			? null
+			: await runOracle({ taskDir, candidateDir: workspace, outdir: stepDir, ledgerPath: run.ledgerPath });
+		const verification: Attempt["verification"] = oracle?.verification ?? null;
+		attempts.push({
+			rung: decision.rung,
+			role: decision.role,
+			model: decision.model,
+			verification,
+			spent_lower_bound_usd: run.spentLowerBoundUsd,
+		});
+		steps.push({
+			step,
+			rung: decision.rung,
+			role: decision.role,
+			model: `${decision.model.provider}/${decision.model.modelId}`,
+			cap_usd: decision.cap_usd,
+			run_status: run.status,
+			ceiling_status: run.ceilingStatus,
+			spent_lower_bound_usd: run.spentLowerBoundUsd,
+			ledger_path: run.ledgerPath,
+			ledger_sha256: run.ledgerSha256,
+			oracle:
+				oracle === null
+					? null
+					: { verdict: oracle.verdict, outcome: oracle.outcome, result_path: join(stepDir, "result.json") },
+			verification,
+			plan_from_architect: !isArchitect && plan !== undefined,
+		});
+		decision = policy.decide(attempts);
+	}
+	return finish(options, context, steps, decision.outcome, decision.reason);
+}
+
+interface Engine {
+	model: Model<string>;
+	streamFn: StreamFn;
+	priceBook: PriceBook;
+}
+
+/** Modelo, stream e tabela de preço do degrau. Offline: roteiro faux. Api-key: catálogo real do pi-ai. */
+function prepareEngine(options: SmokeOptions, decision: RouterDecision & { kind: "run" }): Engine {
+	const ref = decision.model;
+	const key = `${ref.provider}/${ref.modelId}`;
+	if (options.authMode === "offline-faux") {
+		const id = ref.modelId;
+		const runtime = fauxRuntime(OFFLINE_PROVIDER, [id]);
+		runtime.script(offlineTurns(id));
+		return {
+			model: runtime.modelOf(id),
+			streamFn: runtime.streamFn,
+			priceBook: { id: "dv-smoke-offline", source: "preço fixo do roteiro faux", entries: { [key]: OFFLINE_PRICE } },
+		};
+	}
+	// Entrada da CLI é validada pelo catálogo: getBuiltinModel devolve undefined ou lança para id desconhecido.
+	const model = getBuiltinModel(ref.provider as BuiltinProvider, ref.modelId as never) as Model<string> | undefined;
+	if (model === undefined) throw new Error(`modelo ausente no catálogo pi-ai: ${key}`);
+	return {
+		model,
+		streamFn: (m, c, o) => streamSimple(m, c, o),
+		priceBook: { id: "pi-catalog", source: "pi-ai model catalog (Model.cost)", entries: { [key]: model.cost } },
+	};
+}
+
+function finish(
+	options: SmokeOptions,
+	context: { task: { id: string }; provenance: Record<string, string>; datasetSha: string; taskSha: string },
+	steps: StepRecord[],
+	outcome: SmokeSummary["final_outcome"],
+	reason: string,
+): SmokeSummary {
+	const summary: SmokeSummary = {
+		schema: "dv-smoke-summary-v1",
+		task_id: context.task.id,
+		policy: options.policy,
+		auth_mode: options.authMode,
+		final_outcome: outcome,
+		...(outcome === "blocked" ? { blocked_reason: reason } : {}),
+		steps,
+		reference_provenance: context.provenance,
+		dataset_sha256: context.datasetSha,
+		task_definition_sha256: context.taskSha,
+	};
+	mkdirSync(options.outdir, { recursive: true });
+	writeFileSync(join(options.outdir, "summary.json"), `${JSON.stringify(summary, null, 2)}\n`, "utf8");
+	return summary;
+}
+
+function lastAssistantText(messages: readonly unknown[]): string {
+	const last = [...messages]
+		.reverse()
+		.find((m): m is AssistantMessage => (m as { role?: string }).role === "assistant");
+	if (last === undefined) return "";
+	return last.content
+		.map((part) => (part.type === "text" ? part.text : ""))
+		.join("\n")
+		.trim();
+}

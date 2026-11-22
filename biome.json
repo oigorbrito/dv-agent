@@ -1,0 +1,15 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.3.5/schema.json",
+	"vcs": { "enabled": false, "clientKind": "git", "useIgnoreFile": true },
+	"files": {
+		"ignoreUnknown": true,
+		"includes": ["packages/dv-core/**", "packages/dv-eval/**", "scripts/**", "!**/probe-results/**", "!**/tasks/**"]
+	},
+	"formatter": { "enabled": true, "indentStyle": "tab", "lineWidth": 120 },
+	"linter": {
+		"enabled": true,
+		"rules": { "recommended": true, "style": { "noNonNullAssertion": "off", "useTemplate": "off" } }
+	},
+	"javascript": { "formatter": { "quoteStyle": "double", "semicolons": "always" } },
+	"assist": { "enabled": true, "actions": { "source": { "organizeImports": "on" } } }
+}

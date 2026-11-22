@@ -11,7 +11,12 @@ const ONE_DOLLAR_CALL = usage(1_000_000, 0, { reasoning: 0 });
 
 test("guard: custo conhecido acima do teto dispara o corte; abaixo ou igual não", () => {
 	const guard = new BudgetGuard({ maxCostUsd: 1.5, priceBook: priceBookFor(["anthropic/m"]) });
-	const msg = () => ({ ...toolTurn("t", {}, ONE_DOLLAR_CALL).message, usage: ONE_DOLLAR_CALL, provider: "anthropic", model: "m" });
+	const msg = () => ({
+		...toolTurn("t", {}, ONE_DOLLAR_CALL).message,
+		usage: ONE_DOLLAR_CALL,
+		provider: "anthropic",
+		model: "m",
+	});
 	assert.equal(guard.onMessageEnd(msg()), false);
 	assert.equal(guard.ceilingStatus(), "within_verified");
 	assert.equal(guard.onMessageEnd(msg()), true);
@@ -39,7 +44,11 @@ test("run: corte por orçamento interrompe o agente, bloqueia a ferramenta segui
 		datasetSha256: "e".repeat(64),
 		taskDefinitionSha256: "f".repeat(64),
 		model: runtime.modelOf("dv-cheap"),
-		tools: [writeFileTool(workspace, () => (executions += 1))],
+		tools: [
+			writeFileTool(workspace, () => {
+				executions += 1;
+			}),
+		],
 		prompt: "grave três arquivos",
 		streamFn: runtime.streamFn,
 		priceBook: priceBookFor(["anthropic/dv-cheap"]),
@@ -54,10 +63,16 @@ test("run: corte por orçamento interrompe o agente, bloqueia a ferramenta segui
 	assert.equal(executions, 1, "só a primeira ferramenta roda; a do estouro e as seguintes são bloqueadas");
 	assert.equal(workspace.has("b.txt"), false);
 
-	const lines = readFileSync(ledgerPath, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as Record<string, unknown>);
+	const lines = readFileSync(ledgerPath, "utf8")
+		.split("\n")
+		.filter(Boolean)
+		.map((l) => JSON.parse(l) as Record<string, unknown>);
 	// O corte ocorre em message_end. O loop devolve resultado de erro (abortado) para a ferramenta do turno, sem executá-la.
 	const toolStatuses = lines.filter((ev) => ev.event === "tool_finished").map((ev) => [ev.tool_call_id, ev.status]);
-	assert.deepEqual(toolStatuses, [["c1", "ok"], ["c2", "error"]]);
+	assert.deepEqual(toolStatuses, [
+		["c1", "ok"],
+		["c2", "error"],
+	]);
 	const finished = lines.at(-1) as { status: string; guard_events: { budget_blocked_tools: number } };
 	assert.equal(finished.status, "budget_exceeded");
 	assert.equal(finished.guard_events.budget_blocked_tools, 0);
@@ -68,7 +83,12 @@ test("run: corte por orçamento interrompe o agente, bloqueia a ferramenta segui
 
 test("guard: após o corte, before_tool_call bloqueia a ferramenta com motivo budget_exceeded", () => {
 	const guard = new BudgetGuard({ maxCostUsd: 0.5, priceBook: priceBookFor(["anthropic/m"]) });
-	const turn = { ...toolTurn("write_file", { path: "a", content: "b" }, ONE_DOLLAR_CALL).message, usage: ONE_DOLLAR_CALL, provider: "anthropic", model: "m" };
+	const turn = {
+		...toolTurn("write_file", { path: "a", content: "b" }, ONE_DOLLAR_CALL).message,
+		usage: ONE_DOLLAR_CALL,
+		provider: "anthropic",
+		model: "m",
+	};
 	guard.onMessageEnd(turn);
 	assert.equal(guard.tripped, true);
 	const toolCall = turn.content.find((block) => block.type === "toolCall");

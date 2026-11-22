@@ -1,27 +1,45 @@
 // API pública do dv-core: ledger dv-run-ledger-v2, guards, router e execução de um degrau.
-export { CONTRACT_ID, CONTRACT_FILE, LEDGER_SCHEMA } from "./contract.ts";
-export { RunLedger, ledgerSha256 } from "./ledger/writer.ts";
-export { checkLedgerConformance, type ConformanceReport } from "./ledger/conformance.ts";
+export { CONTRACT_FILE, CONTRACT_ID, LEDGER_SCHEMA } from "./contract.ts";
+export { BudgetGuard, type BudgetOptions, type CeilingStatus } from "./guards/budget.ts";
+export { type BeforeToolCallHook, composeBeforeToolCall } from "./guards/compose.ts";
+export { DoomLoopDetector, type DoomLoopOptions } from "./guards/doom_loop.ts";
+export {
+	assertProviderCanRun,
+	capabilityFor,
+	type FieldExposure,
+	PI_TRANSPORT_CAPABILITIES,
+	type TransportCapability,
+	transportFor,
+} from "./ledger/capabilities.ts";
+export { type ConformanceReport, checkLedgerConformance } from "./ledger/conformance.ts";
+export type { RunStatus } from "./ledger/events.ts";
+export type { PriceBook, PriceEntry } from "./ledger/prices.ts";
 export { redactText, redactValue } from "./ledger/redact.ts";
 export { buildCallTelemetry, type CallTelemetry } from "./ledger/telemetry.ts";
-export { assertProviderCanRun, capabilityFor } from "./ledger/capabilities.ts";
-export type { PriceBook, PriceEntry } from "./ledger/prices.ts";
-export type { RunStatus } from "./ledger/events.ts";
-export { DoomLoopDetector, type DoomLoopOptions } from "./guards/doom_loop.ts";
-export { BudgetGuard, type BudgetOptions, type CeilingStatus } from "./guards/budget.ts";
-export { composeBeforeToolCall, type BeforeToolCallHook } from "./guards/compose.ts";
+export { ledgerSha256, RunLedger } from "./ledger/writer.ts";
 export {
-	SingleModelPolicy,
-	ExecutionGuidedLadderPolicy,
 	ArchitectEditorPolicy,
 	type Attempt,
+	DEFAULT_ESCALATE_ON_STATUSES,
+	ExecutionGuidedLadderPolicy,
 	type LadderOptions,
 	type ModelRef,
 	type RouterDecision,
 	type RouterPolicy,
 	type RungSpec,
+	SingleModelPolicy,
 	type StopOutcome,
 	type Verification,
 	type VerificationStatus,
 } from "./router/policy.ts";
+export { classifyVerification, type OracleVerdict, type RunSignals } from "./router/verification.ts";
 export { executeRung, type RungRunOptions, type RungRunResult } from "./run/execute_rung.ts";
+// Runtime faux (provider mockado com usage declarado): testes e smoke offline. Não usar em runs reais.
+export { type FauxRuntime, fauxRuntime, type Turn, textTurn, toolTurn, usage } from "./testing/faux_runtime.ts";
+export { assertCommandAllowed, resolveInWorkspace, WorkspaceViolation } from "./tools/confinement.ts";
+export {
+	atomicWriteFile,
+	createWorkspaceTools,
+	truncateHeadTail,
+	type WorkspaceToolsOptions,
+} from "./tools/workspace_tools.ts";

@@ -55,4 +55,6 @@ const out = {
 };
 
 writeFileSync(join(import.meta.dirname, "..", "UPSTREAM_PIN.json"), JSON.stringify(out, null, 2) + "\n");
-console.log(packages.map((p) => `${p.vendored_path} ${p.version} files=${p.tracked_files} tree=${p.subtree_git_tree}`).join("\n"));
+console.log(
+	packages.map((p) => `${p.vendored_path} ${p.version} files=${p.tracked_files} tree=${p.subtree_git_tree}`).join("\n"),
+);

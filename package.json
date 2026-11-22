@@ -9,15 +9,21 @@
 		"packages/runtime-pi/pi-telemetry",
 		"packages/runtime-pi/pi-ai",
 		"packages/runtime-pi/pi-agent-core",
-		"packages/dv-core"
+		"packages/dv-core",
+		"packages/dv-eval"
 	],
 	"scripts": {
 		"build:runtime": "node scripts/build-runtime.mjs",
 		"hydrate:pi-ai-data": "npm run hydrate-model-data -w @earendil-works/pi-ai",
-		"typecheck": "tsc -p packages/dv-core/tsconfig.json",
-		"test": "node --test packages/dv-core/test/*.test.ts"
+		"probe:providers": "node packages/dv-eval/src/probe/cli.ts",
+		"smoke": "node scripts/dv-smoke.ts",
+		"typecheck": "tsc -p packages/dv-core/tsconfig.json && tsc -p packages/dv-eval/tsconfig.json",
+		"test": "node --test packages/dv-core/test/*.test.ts packages/dv-eval/test/*.test.ts",
+		"lint": "biome check packages/dv-core packages/dv-eval scripts",
+		"lint:fix": "biome check --write packages/dv-core packages/dv-eval scripts"
 	},
 	"devDependencies": {
+		"@biomejs/biome": "2.3.5",
 		"@types/node": "22.19.19",
 		"typescript": "7.0.2"
 	},

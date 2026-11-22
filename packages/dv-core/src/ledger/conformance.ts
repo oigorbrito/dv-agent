@@ -114,19 +114,29 @@ function checkTelemetry(index: number, t: Json, violations: string[]): void {
 	const label = `call ${index}`;
 	const missing = (t.missing_buckets as string[] | undefined) ?? [];
 	const measured = missing.length === 0;
-	if (t.telemetry_complete !== measured) violations.push(`${label}: telemetry_complete inconsistente com missing_buckets`);
+	if (t.telemetry_complete !== measured)
+		violations.push(`${label}: telemetry_complete inconsistente com missing_buckets`);
 	const expectedStatus = measured ? "MEASURED" : "INCONCLUSIVE";
-	if (t.cost_accounting_status !== expectedStatus) violations.push(`${label}: cost_accounting_status deve ser ${expectedStatus}`);
+	if (t.cost_accounting_status !== expectedStatus)
+		violations.push(`${label}: cost_accounting_status deve ser ${expectedStatus}`);
 	for (const field of ["prompt_tokens", "completion_tokens", "total_tokens"]) {
 		if (typeof t[field] !== "number") violations.push(`${label}: ${field} não medido`);
 	}
 	if (t.total_tokens !== (t.prompt_tokens as number) + (t.completion_tokens as number)) {
 		violations.push(`${label}: total_tokens != prompt_tokens + completion_tokens`);
 	}
-	for (const bucket of ["uncached_input_tokens", "reasoning_tokens", "cost_usd"]) {
-		if (t[bucket] === null && !missing.includes(bucket)) violations.push(`${label}: ${bucket} nulo sem declaração`);
+	// Nulo só com justificativa: faltante (missing_buckets) ou declarado não exposto pelo transporte (declared_not_exposed).
+	const declared = (t.declared_not_exposed as string[] | undefined) ?? [];
+	for (const bucket of ["uncached_input_tokens", "reasoning_tokens", "cache_read_tokens", "cache_write_tokens"]) {
+		if (t[bucket] === null && !missing.includes(bucket) && !declared.includes(bucket)) {
+			violations.push(`${label}: ${bucket} nulo sem declaração`);
+		}
+		if (declared.includes(bucket) && t[bucket] !== null)
+			violations.push(`${label}: ${bucket} declarado não exposto mas com valor`);
 	}
-	if (t.cost_usd === null && t.cost_basis !== "unknown") violations.push(`${label}: cost_basis deve ser unknown sem custo`);
+	if (t.cost_usd === null && !missing.includes("cost_usd")) violations.push(`${label}: cost_usd nulo sem declaração`);
+	if (t.cost_usd === null && t.cost_basis !== "unknown")
+		violations.push(`${label}: cost_basis deve ser unknown sem custo`);
 	if (t.cost_usd !== null && t.cost_basis === "unknown") violations.push(`${label}: custo com cost_basis unknown`);
 }
 
@@ -144,7 +154,8 @@ function checkTools(events: Json[], violations: string[]): void {
 			const id = ev.tool_call_id as string;
 			reported.add(id);
 			if (!declared.has(id)) violations.push(`tool_finished ${id} sem tool_call declarada`);
-			else if (declared.get(id) !== ev.arguments_sha256) violations.push(`tool_finished ${id}: arguments_sha256 divergente`);
+			else if (declared.get(id) !== ev.arguments_sha256)
+				violations.push(`tool_finished ${id}: arguments_sha256 divergente`);
 			if (typeof ev.raw_output_sha256 !== "string" || !HEX64.test(ev.raw_output_sha256)) {
 				violations.push(`tool_finished ${id}: raw_output_sha256 inválido`);
 			}
@@ -168,7 +179,8 @@ function checkRunFinished(events: Json[], violations: string[]): void {
 	if (run.calls_started !== costs.length || run.calls_finished !== costs.length) {
 		violations.push("contagem de chamadas no run_finished diverge do ledger");
 	}
-	if ((run.in_flight_call_indices as unknown[] | undefined)?.length) violations.push("run_finished com chamadas em voo");
+	if ((run.in_flight_call_indices as unknown[] | undefined)?.length)
+		violations.push("run_finished com chamadas em voo");
 	if (Math.abs((run.spent_lower_bound_usd as number) - knownSum) > TOLERANCE) {
 		violations.push("spent_lower_bound_usd diverge da soma dos custos conhecidos");
 	}
@@ -177,5 +189,6 @@ function checkRunFinished(events: Json[], violations: string[]): void {
 	if (run.ceiling_status === "within_verified" && (unknownCalls > 0 || knownSum > max + TOLERANCE)) {
 		violations.push("ceiling_status within_verified incoerente com os custos");
 	}
-	if (run.ceiling_status === "exceeded" && knownSum <= max) violations.push("ceiling_status exceeded sem excesso no ledger");
+	if (run.ceiling_status === "exceeded" && knownSum <= max)
+		violations.push("ceiling_status exceeded sem excesso no ledger");
 }

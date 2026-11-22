@@ -1,0 +1,13 @@
+{
+  "schema": "dv-contract-provenance-v1",
+  "file": "contracts/run-accounting-contract-v4.json",
+  "contract_id": "p1-run-accounting-v4",
+  "sha256": "11b4d5453e0964a7eb88decb5cbf7d1c5f5eebf4fbbdd458fb4e38686baef486",
+  "copied_byte_for_byte_from": "D:/projetos/dv-baseline/experiments/p1/run-accounting-contract-v4.json",
+  "source_repository": "dv-baseline (oigorbrito/dv)",
+  "source_head_at_copy": "504b5d5",
+  "identical_at_source_commits": ["e067dc7", "504b5d5"],
+  "source_last_changed_commit": "fd9b96e",
+  "anchored_commit_inside_contract": "dfda77c",
+  "note": "Contrato congelado. Não editar aqui: mudança de semântica exige nova versão (AGENTS.md, regra 3)."
+}

@@ -1,0 +1,27 @@
+{
+	"name": "dv-agent",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "DV agent workspace: dv-core (ledger, guards, router) sobre runtime Pi vendorado e fixado.",
+	"workspaces": [
+		"packages/runtime-pi/pi-schema",
+		"packages/runtime-pi/pi-telemetry",
+		"packages/runtime-pi/pi-ai",
+		"packages/runtime-pi/pi-agent-core",
+		"packages/dv-core"
+	],
+	"scripts": {
+		"build:runtime": "node scripts/build-runtime.mjs",
+		"hydrate:pi-ai-data": "npm run hydrate-model-data -w @earendil-works/pi-ai",
+		"typecheck": "tsc -p packages/dv-core/tsconfig.json",
+		"test": "node --test packages/dv-core/test/*.test.ts"
+	},
+	"devDependencies": {
+		"@types/node": "22.19.19",
+		"typescript": "7.0.2"
+	},
+	"engines": {
+		"node": ">=22.19.0"
+	}
+}

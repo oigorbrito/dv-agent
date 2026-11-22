@@ -1,0 +1,126 @@
+{
+  "contract_id": "p1-run-accounting-v4",
+  "supersedes": "p1-run-accounting-v3",
+  "status": "FROZEN_SPECIFICATION",
+  "anchored_commit": "dfda77c",
+  "supersedes_note": "v3 (experiments/p1/run-accounting-contract-v3.json) permanece intacto. v4 muda semantica (regra b: derivacao de uncached por capacidade do provedor; regra a: separacao oracle_pass x telemetry_complete), portanto e uma nova versao (AGENTS.md, regra 3). Todas as regras de v3 que nao estao em normative_rules continuam valendo sem alteracao.",
+  "anchor_scope": "normative_rules a-d. Campos aditivos de telemetria ja emitidos pelo harness (harness_variant, reference_provenance, tokens_lower_bound, cost_lower_bound) nao mudam de significado.",
+  "frozen_references": {
+    "v1_file": "experiments/p1/run-accounting-contract-v1.json",
+    "v1_sha256": "3f1366846c095f3630e2f4bbaf0eb2555d8281fce8f1d9882f2952130813d86b",
+    "v2_file": "experiments/p1/run-accounting-contract-v2.json",
+    "v2_sha256": "922f9a544468d69a60649fd59ff785e46b60d348815a9ce4e13419002d5e5d36",
+    "v3_file": "experiments/p1/run-accounting-contract-v3.json",
+    "v3_sha256": "6f50e1187d1f9e9c9c268122532e58dda451f55ec538581fa860fb33301fef94",
+    "immutability_check": "tests/test_protocol.py (v1, v2, v3) e tests/test_governance_contracts.py (v1, v2, v3, v4 e ancoragem em dfda77c)"
+  },
+  "normative_rules": {
+    "a_orthogonality": {
+      "statement": "oracle_pass (veredito isolado do oraculo externo) e telemetry_complete (integridade dos baldes obrigatorios) sao dimensoes independentes. Telemetria nunca altera oracle_pass.",
+      "fields": {
+        "oracle_pass": "true | false | null. null significa sem veredito do oraculo (por exemplo, timeout do verificador).",
+        "telemetry_complete": "true quando todos os baldes obrigatorios estao medidos ou declarados ausentes pela tabela de capacidades (regra b). false caso contrario.",
+        "cost_accounting_status": "MEASURED quando telemetry_complete=true; INCONCLUSIVE quando telemetry_complete=false."
+      },
+      "required_buckets": ["prompt_tokens", "completion_tokens", "total_tokens", "cost_usd (com cost_basis)"],
+      "declared_missing_allowed": "uncached_input_tokens, cache_read_tokens e reasoning_tokens podem ser null somente quando a tabela de capacidades (regra b) declarar o campo como nao exposto pelo provedor. Null por omissao de um provedor que expoe o campo torna telemetry_complete=false.",
+      "rule": "telemetry_complete=false marca cost_accounting_status=INCONCLUSIVE e o run e reportado em separado na analise de custo. Nunca e descartado em silencio e nunca tem oracle_pass alterado."
+    },
+    "b_uncached_and_lower_bound": {
+      "statement": "uncached_input_tokens passa a ser derivado somente por regra registrada da capacidade do provedor, e nunca por subtracao generica. Substitui a premissa de v3 de que litellm 1.110.1 nao expoe o campo, que e falsa para o caminho Anthropic.",
+      "capability_table": {
+        "anthropic": {
+          "uncached_source": "usage.prompt_tokens_details.text_tokens (raw_input_tokens = prompt - cache_read - cache_creation, calculado pelo litellm)",
+          "evidence": "litellm 1.110.1, AnthropicConfig.calculate_usage (transformation.py:3050-3077), verificado por execucao offline",
+          "status": "CODE_VERIFIED_OFFLINE"
+        },
+        "gemini": {
+          "uncached_source": "prompt_tokens - prompt_tokens_details.cached_tokens, somente quando cached_tokens esta presente (0 explicito e medido zero; ausente e null)",
+          "evidence": "litellm 1.110.1, VertexGeminiConfig._calculate_usage (vertex_and_google_ai_studio_gemini.py:2520-2623). Semantica inclusiva de promptTokenCount ainda nao validada por probe.",
+          "status": "PROVISIONAL_PROBE_REQUIRED"
+        },
+        "openai": {
+          "uncached_source": "prompt_tokens - prompt_tokens_details.cached_tokens, somente quando cached_tokens esta presente",
+          "evidence": "passthrough do litellm (Usage). Semantica inclusiva assumida, nao verificada contra a documentacao do provedor nesta versao.",
+          "status": "PROVISIONAL_PROBE_REQUIRED"
+        },
+        "unknown_provider": {
+          "uncached_source": null,
+          "reason": "sem regra registrada: o campo fica null e telemetry_complete depende da regra a)"
+        }
+      },
+      "capability_probe": "Antes da primeira execucao com um provedor, um probe de capacidade deve confirmar, com chamadas controladas: (i) prompt_tokens >= cached_tokens; (ii) para provedores inclusivos, prompt_tokens cresce com o cache hit. Capacidade PROVISIONAL sem probe aprovado bloqueia a execucao daquele provedor.",
+      "budget_rule": "max_cost_usd e decidido pelo limite inferior comprovado (spent_lower_bound_usd, soma somente de custos com preco conhecido). Valor desconhecido nunca e substituido por zero. Quando alguma chamada tem custo desconhecido, o limite inferior e valido mas nao comprova cumprimento do teto (ver regra c)."
+    },
+    "c_multi_rung_accounting": {
+      "schema": "dv-laddering-summary-v1",
+      "schema_note": "Nome normativo. O codigo atual emite dv-laddering-v1 por tarefa e dv-laddering-batch-v1 no agregado. Alias ou renomeacao e lacuna de implementacao (ver implementation_gaps).",
+      "total_cost_rule": "total_cost_lower_bound_usd = soma estrita dos custos de todos os degraus executados (Rung_0 ate Rung_k), incluindo integralmente os degraus anteriores reprovados pelo oraculo.",
+      "ceiling_rule": "total_cost_lower_bound_usd <= global_max_cost_usd em todo run. Violacao invalida o run como erro de implementacao. Quando telemetry_complete=false em algum degrau, a conformidade com o teto e INCONCLUSIVE e nao pode ser declarada aprovada.",
+      "per_rung_cap": "cap_i = min(global_max_cost_usd * cost_share_cap_i, global_max_cost_usd - spent_before_i)",
+      "workspace_rule": "clean_workspace: cada degrau parte do snapshot da tarefa. Nenhum estado do degrau anterior e carregado.",
+      "stop_rule": "parada somente pelo oraculo externo. Escalonamento somente quando o status esta em escalate_on_statuses e ha saldo positivo. INCONCLUSIVE somente quando o ultimo degrau termina sem veredito (provider_error ou budget_unverifiable)."
+    },
+    "d_traceability": {
+      "required_fields_per_run": [
+        "harness_variant",
+        "reference_provenance (hashes HEAD dos checkouts de referencia)",
+        "dataset_sha256 (emitido por scripts/dv_validate_tasks.py --strict)",
+        "task_definition_sha256 (manifest_sha256 do validador de integridade)",
+        "ledger_sha256 (SHA-256 do arquivo ledger.jsonl do run)"
+      ],
+      "rule": "Nenhum run entra na analise sem todos os campos acima. Campo ausente e falha de rastreabilidade, nao zero."
+    }
+  },
+  "implementation_gaps": [
+    {
+      "id": "GAP-1",
+      "gap": "ToolEvent nao registra digest dos argumentos. A sequencia de repeticao (doom loop) exigida pela H1 nao e derivavel dos artefatos atuais.",
+      "blocks": "wp08 H1 (metrica doom_loop_streak)",
+      "owner_file": "src/dv_harness/agent_loop.py (ToolEvent)"
+    },
+    {
+      "id": "GAP-2",
+      "gap": "telemetry_complete e cost_accounting_status nao sao emitidos pelo harness.",
+      "blocks": "regra a) e wp08 (tratamento de INCONCLUSIVE)",
+      "owner_file": "src/dv_harness/llm_client.py e batch.py"
+    },
+    {
+      "id": "GAP-3",
+      "gap": "dataset_sha256 nao e gravado nos resumos de lote e de laddering. Existe apenas na saida de scripts/dv_validate_tasks.py.",
+      "blocks": "regra d) e wp08 pre-condicao",
+      "owner_file": "scripts/dv_batch_run.py, scripts/dv_ladder_run.py"
+    },
+    {
+      "id": "GAP-4",
+      "gap": "ledger_sha256 nao e calculado nem gravado.",
+      "blocks": "regra d)",
+      "owner_file": "src/dv_harness/batch.py, src/dv_harness/laddering.py"
+    },
+    {
+      "id": "GAP-5",
+      "gap": "Nome de schema: o codigo emite dv-laddering-v1 e dv-laddering-batch-v1; a regra c) normatiza dv-laddering-summary-v1.",
+      "blocks": "regra c)",
+      "owner_file": "src/dv_harness/laddering.py, scripts/dv_ladder_run.py"
+    },
+    {
+      "id": "GAP-6",
+      "gap": "Probe de capacidade da regra b) nao implementado.",
+      "blocks": "regra b) para gemini e openai (status PROVISIONAL)",
+      "owner_file": "a implementar (script de probe offline com chamadas controladas)"
+    },
+    {
+      "id": "GAP-7",
+      "gap": "Bindings de modelo para Rung_0 e Rung_1 e valor de global_max_cost_usd nao estao fixados.",
+      "blocks": "wp08 pre-condicao",
+      "owner_file": "experiments/p1/ (binding de executor no padrao wp04-executor-binding-v2)"
+    },
+    {
+      "id": "GAP-8",
+      "gap": "Codigo de analise estatistica (bootstrap pareado da secao statistics de wp08) nao esta commitado nem tem hash congelado.",
+      "blocks": "wp08 decisao H1 e H2",
+      "owner_file": "a implementar, com hash registrado antes da rodada"
+    }
+  ],
+  "no_composite_score": true
+}

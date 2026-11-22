@@ -1,0 +1,60 @@
+{
+  "schema": "dv-upstream-pin-v1",
+  "upstream": {
+    "repository": "https://github.com/badlogic/pi-mono",
+    "commit": "69a6993486acee850d14a4a1547daa4a167228ad",
+    "commit_date": "2026-11-22T20:36:12+01:00",
+    "license": "MIT",
+    "license_file": "packages/runtime-pi/LICENSE"
+  },
+  "method": "git archive <commit>:packages/<name> (somente arquivos rastreados pelo git; artefatos gitignored e node_modules nao copiados). Sem modificacoes de conteudo.",
+  "packages": [
+    {
+      "npm_name": "@earendil-works/pi-ai",
+      "upstream_path": "packages/ai",
+      "vendored_path": "packages/runtime-pi/pi-ai",
+      "version": "1.6.0",
+      "subtree_git_tree": "9119c3497c8dd43e68f2d6e594805fc993a48184",
+      "tracked_files": 481,
+      "role": "provider/stream runtime (EventStream, validateToolArguments, normalizeContext)"
+    },
+    {
+      "npm_name": "@earendil-works/pi-agent-core",
+      "upstream_path": "packages/agent",
+      "vendored_path": "packages/runtime-pi/pi-agent-core",
+      "version": "1.6.0",
+      "subtree_git_tree": "c720258cae7e957f005b77d264c424e9d0f3feaf",
+      "tracked_files": 21,
+      "role": "agent loop com hooks beforeToolCall/afterToolCall e eventos message_end"
+    },
+    {
+      "npm_name": "@earendil-works/pi-coding-agent",
+      "upstream_path": "packages/coding-agent",
+      "vendored_path": "packages/runtime-pi/pi-coding-agent",
+      "version": "1.6.0",
+      "subtree_git_tree": "93329f82e9affb01b2510a075124f6ccd61e1fcb",
+      "tracked_files": 883,
+      "role": "vendorado como fonte solicitado; NAO importado pelo dv-core; nao compilado nesta fase"
+    },
+    {
+      "npm_name": "@earendil-works/pi-schema",
+      "upstream_path": "packages/schema",
+      "vendored_path": "packages/runtime-pi/pi-schema",
+      "version": "1.6.0",
+      "subtree_git_tree": "5879a2dcf205c727356c2ed8293c1fa887ec21b7",
+      "tracked_files": 260,
+      "role": "dependencia de runtime transitiva de pi-ai (builders de schema)"
+    },
+    {
+      "npm_name": "@earendil-works/pi-telemetry",
+      "upstream_path": "packages/telemetry",
+      "vendored_path": "packages/runtime-pi/pi-telemetry",
+      "version": "1.6.0",
+      "subtree_git_tree": "9f2f19f3a4b88dd581ab8e315f077790d64be4eb",
+      "tracked_files": 20,
+      "role": "dependencia de runtime transitiva de pi-ai (TelemetrySpan)"
+    }
+  ],
+  "transitive_closure_note": "pi-coding-agent depende de pi-tui, pi-mcp, pi-codemode (nao vendorados). Nao sao necessarios para pi-ai/pi-agent-core. Vendorar pi-coding-agent executavel exige o fechamento completo.",
+  "npm_registry_reference": "@earendil-works/pi-agent-core@1.6.0 existe no registro npm (referencia de conferencia, nao fonte de codigo)"
+}

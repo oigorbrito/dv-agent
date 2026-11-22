@@ -1,0 +1,14 @@
+{
+	"name": "@dv-agent/core",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "DV core: ledger dv-run-ledger-v2, guards (doom loop, budget) e router (politicas de degrau).",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@earendil-works/pi-agent-core": "1.6.0",
+		"@earendil-works/pi-ai": "1.6.0"
+	}
+}

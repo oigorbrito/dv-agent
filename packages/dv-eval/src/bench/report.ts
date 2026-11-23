@@ -3,7 +3,7 @@
 import type { ConformanceStatus } from "@dv-agent/core";
 import type { LedgerMetrics } from "../smoke/ledger_metrics.ts";
 import type { PolicyName } from "../smoke/runner.ts";
-import { TIERS, type Tier } from "./corpus.ts";
+import { CORPUS_TIERS, type CorpusTier, TIERS } from "./corpus.ts";
 
 export const BENCH_SCHEMA = "dv-bench-summary-v2";
 
@@ -26,7 +26,7 @@ export interface RunStep {
 /** Uma combinação (tarefa x política). `escalated` é null em políticas sem degrau de escalonamento. */
 export interface RunRecord {
 	task_id: string;
-	tier: Tier;
+	tier: CorpusTier;
 	policy: PolicyName;
 	final_outcome: string;
 	solved: boolean;
@@ -39,7 +39,7 @@ export interface RunRecord {
 
 export interface GroupRow {
 	policy: PolicyName;
-	tier: Tier | "all";
+	tier: CorpusTier | "all";
 	runs: number;
 	solved: number;
 	solve_rate: number | null;
@@ -70,14 +70,14 @@ const CEILING_RANK: Record<CeilingStatus, number> = { within_verified: 1, unveri
 export function aggregate(
 	runs: readonly RunRecord[],
 	policies: readonly PolicyName[],
-	tiers: readonly Tier[],
+	tiers: readonly CorpusTier[],
 ): GroupRow[] {
 	const rows: GroupRow[] = [];
 	const allExecuted = TIERS.every((t) => tiers.includes(t));
 	for (const policy of policies) {
 		const byPolicy = runs.filter((r) => r.policy === policy);
 		if (allExecuted) rows.push(groupRow(policy, "all", byPolicy));
-		for (const tier of TIERS.filter((t) => tiers.includes(t))) {
+		for (const tier of CORPUS_TIERS.filter((t) => tiers.includes(t))) {
 			rows.push(
 				groupRow(
 					policy,
@@ -90,7 +90,7 @@ export function aggregate(
 	return rows;
 }
 
-function groupRow(policy: PolicyName, tier: Tier | "all", runs: readonly RunRecord[]): GroupRow {
+function groupRow(policy: PolicyName, tier: CorpusTier | "all", runs: readonly RunRecord[]): GroupRow {
 	const steps = runs.flatMap((r) => r.steps);
 	const sum = (pick: (m: LedgerMetrics) => number): number => steps.reduce((acc, s) => acc + pick(s.metrics), 0);
 	const solved = runs.filter((r) => r.solved).length;
@@ -140,9 +140,9 @@ export interface BenchReport {
 	contract_sha256: string;
 	auth_mode: string;
 	/** Filtro pedido em --tier. */
-	tier: Tier | "all";
+	tier: CorpusTier | "all";
 	/** Tiers efetivamente executados. */
-	tiers: Tier[];
+	tiers: CorpusTier[];
 	task: string | null;
 	policies: PolicyName[];
 	max_cost_usd: number;

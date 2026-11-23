@@ -16,7 +16,7 @@ import {
 	ConformanceFailure,
 	runBench,
 } from "../packages/dv-eval/src/bench/ablation.ts";
-import { TIERS, type Tier } from "../packages/dv-eval/src/bench/corpus.ts";
+import { CORPUS_TIERS, type CorpusTier } from "../packages/dv-eval/src/bench/corpus.ts";
 import { parseArgs } from "../packages/dv-eval/src/cli/args.ts";
 import type { AuthMode, PolicyName } from "../packages/dv-eval/src/smoke/runner.ts";
 
@@ -41,8 +41,8 @@ const positive = (name: string, fallback: number | undefined): number | undefine
 };
 
 const tier = text("tier") ?? "all";
-if (tier !== "all" && !(TIERS as readonly string[]).includes(tier)) {
-	throw new Error(`--tier deve ser all ou um de: ${TIERS.join(", ")}`);
+if (tier !== "all" && !(CORPUS_TIERS as readonly string[]).includes(tier)) {
+	throw new Error("--tier deve ser all, easy, medium, hard ou negative");
 }
 const policyList = (text("policies") ?? "single,ladder,architect-editor").split(",").map((p) => p.trim());
 for (const policy of policyList) {
@@ -58,7 +58,7 @@ const maxTokens = positive("max-tokens", undefined);
 
 const options: BenchOptions = {
 	corpusDir: resolve(text("corpus") ?? "packages/dv-eval/corpus"),
-	tier: tier as Tier | "all",
+	tier: tier as CorpusTier | "all",
 	...(text("task") === undefined ? {} : { task: text("task") }),
 	policies: policyList as PolicyName[],
 	authMode,

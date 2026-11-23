@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "medium-03-topo-build-planner",
+	"tier": "medium",
+	"title": "Planejador de build incremental: DAG, ciclo exato, hash transitivo e ondas",
+	"prompt": "Tarefa: implemente planner.py conforme SPEC.md (find_cycle, target_hash, plan, snapshot, CycleError). Use read_file para ler SPEC.md, write_file para gravar planner.py e run_bash para conferir. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 30000
+	}
+}

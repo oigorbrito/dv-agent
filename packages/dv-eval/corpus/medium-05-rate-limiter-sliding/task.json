@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "medium-05-rate-limiter-sliding",
+	"tier": "medium",
+	"title": "Rate limiter multi-tenant: janela deslizante por sub-janelas, burst e retry exato",
+	"prompt": "Tarefa: implemente limiter.py conforme SPEC.md (classe RateLimiter). Use read_file para ler SPEC.md, write_file para gravar limiter.py e run_bash para conferir. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 30000
+	}
+}

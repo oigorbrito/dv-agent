@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "medium-04-lru-ttl-cache",
+	"tier": "medium",
+	"title": "Cache LRU com TTL, relógio injetável e estatísticas exatas",
+	"prompt": "Tarefa: implemente ttlcache.py conforme SPEC.md (classe TTLCache). Use read_file para ler SPEC.md, write_file para gravar ttlcache.py e run_bash para conferir. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 30000
+	}
+}

@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "hard-04-crdt-lww-map",
+	"tier": "hard",
+	"title": "CRDTs replicados: HLC, relógio vetorial, LWW-Element-Set e OR-Map aninhado",
+	"prompt": "Tarefa: implemente crdtlib/hlc.py, crdtlib/vv.py, crdtlib/lwwset.py e crdtlib/ormap.py conforme SPEC.md. crdtlib/__init__.py já está pronto e não deve ser alterado. Leia SPEC.md inteiro antes de codificar: a semântica de remoção no OR-Map depende do contexto causal. Use read_file, write_file (um arquivo por vez) e run_bash. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 60000
+	}
+}

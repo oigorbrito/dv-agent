@@ -1,0 +1,14 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "negative-01-contradictory-spec",
+	"tier": "negative",
+	"expected_outcome": "unsolved",
+	"title": "Controle negativo: SPEC com requisitos mutuamente incompatíveis",
+	"prompt": "Tarefa: implemente ordering.py conforme SPEC.md (função ordered_view). Use read_file para ler SPEC.md, write_file para gravar ordering.py e run_bash para conferir. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 30000
+	}
+}

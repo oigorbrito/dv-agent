@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "easy-03-csv-normalizer",
+	"tier": "easy",
+	"title": "Normalizador CSV: aspas escapadas, delimitador, nulos, tipos e deduplicação",
+	"prompt": "Tarefa: implemente csvnorm.py conforme SPEC.md (parse_csv, normalize, dump_csv). Use read_file para ler SPEC.md, write_file para gravar csvnorm.py e run_bash para conferir. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 30000
+	}
+}

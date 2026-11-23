@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "hard-03-mini-sql-engine",
+	"tier": "hard",
+	"title": "Motor SQL em memória: parser, JOINs, agregação, HAVING e índices (4 módulos)",
+	"prompt": "Tarefa: implemente os módulos do pacote minisql conforme SPEC.md: tokenizer.py, parser.py, storage.py e planner.py. __init__.py já está pronto e não deve ser alterado. Leia SPEC.md inteiro antes de codificar, principalmente precedência de AND/OR, NULL e NULLS LAST. Use read_file, write_file (um arquivo por vez) e run_bash para conferir. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 60000
+	}
+}

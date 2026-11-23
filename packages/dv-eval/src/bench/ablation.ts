@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { type ConformanceStatus, checkLedgerConformance } from "@dv-agent/core";
 import { readLedgerMetrics } from "../smoke/ledger_metrics.ts";
 import { type AuthMode, type PolicyName, runSmoke } from "../smoke/runner.ts";
-import { type CorpusTask, discoverCorpus, selectTasks, TIERS, type Tier } from "./corpus.ts";
+import { CORPUS_TIERS, type CorpusTask, type CorpusTier, discoverCorpus, selectTasks } from "./corpus.ts";
 import { aggregate, BENCH_SCHEMA, type BenchReport, type RunRecord, type RunStep, renderMarkdown } from "./report.ts";
 
 /** SHA-256 congelado de contracts/run-accounting-contract-v4.json. Se o arquivo mudar, o bench não roda. */
@@ -16,7 +16,7 @@ const CONTRACT_ID = "p1-run-accounting-v4";
 
 export interface BenchOptions {
 	corpusDir: string;
-	tier: Tier | "all";
+	tier: CorpusTier | "all";
 	task?: string;
 	policies: readonly PolicyName[];
 	authMode: AuthMode;
@@ -81,7 +81,7 @@ export async function runBench(options: BenchOptions): Promise<BenchReport> {
 	const violations = runs
 		.filter((r) => r.conformance_violations.length > 0)
 		.map((r) => ({ run: `${r.task_id}/${r.policy}`, violations: r.conformance_violations }));
-	const tiers = TIERS.filter((t) => tasks.some((task) => task.tier === t));
+	const tiers = CORPUS_TIERS.filter((t) => tasks.some((task) => task.tier === t));
 	const report: BenchReport = {
 		schema: BENCH_SCHEMA,
 		contract_id: CONTRACT_ID,

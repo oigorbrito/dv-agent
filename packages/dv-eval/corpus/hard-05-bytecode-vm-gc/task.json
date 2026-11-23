@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "hard-05-bytecode-vm-gc",
+	"tier": "hard",
+	"title": "Compilador com closures, VM de pilha e GC mark-and-sweep (3 módulos)",
+	"prompt": "Tarefa: implemente os módulos do pacote vmgc conforme SPEC.md: compiler.py, vm.py e gc.py. __init__.py já está pronto e não deve ser alterado. Leia SPEC.md inteiro antes de codificar: a ordem de coleta e as raízes do GC determinam o comportamento. Use read_file, write_file (um arquivo por vez) e run_bash. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 60000
+	}
+}

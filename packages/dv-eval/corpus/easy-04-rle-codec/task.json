@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "easy-04-rle-codec",
+	"tier": "easy",
+	"title": "Codec Run-Length Encoding com escape e validação de payload",
+	"prompt": "Tarefa: implemente rle.py conforme SPEC.md (encode, decode, compression_ratio). Use read_file para ler SPEC.md, write_file para gravar rle.py e run_bash para conferir. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 30000
+	}
+}

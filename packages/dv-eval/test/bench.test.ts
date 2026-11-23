@@ -19,11 +19,21 @@ const PROBES = mkdtempSync(join(tmpdir(), "dv-bench-probes-"));
 const TASK_IDS = [
 	"easy-01-calc",
 	"easy-02-log-parser",
+	"easy-03-csv-normalizer",
+	"easy-04-rle-codec",
+	"easy-05-slug-dedup",
 	"medium-01-semver-resolver",
 	"medium-02-interval-scheduler",
+	"medium-03-topo-build-planner",
+	"medium-04-lru-ttl-cache",
+	"medium-05-rate-limiter-sliding",
 	"hard-01-mini-ini-ast",
 	"hard-02-wal-ledger-replay",
+	"hard-03-mini-sql-engine",
+	"hard-04-crdt-lww-map",
+	"hard-05-bytecode-vm-gc",
 ];
+const NEGATIVE_ID = "negative-01-contradictory-spec";
 
 function options(extra: Partial<BenchOptions> = {}): BenchOptions {
 	return {
@@ -51,24 +61,32 @@ function row(report: BenchReport, policy: string, tier: string): GroupRow {
 	return found;
 }
 
-test("corpus: seis tarefas em três tiers, com descoberta e filtros por tier e tarefa", () => {
+test("corpus: 15 tarefas positivas (5 por tier) + 1 negativa, com filtros por tier e tarefa", () => {
 	const tasks = discoverCorpus(CORPUS);
 	assert.deepEqual(
 		tasks.map((t) => t.id),
-		TASK_IDS,
+		[...TASK_IDS, NEGATIVE_ID],
 	);
-	assert.deepEqual(
-		tasks.map((t) => t.tier),
-		["easy", "easy", "medium", "medium", "hard", "hard"],
-	);
-	assert.equal(selectTasks(tasks, { tier: "all" }).length, 6);
+	const negative = tasks.find((t) => t.id === NEGATIVE_ID);
+	assert.equal(negative?.tier, "negative");
+	assert.equal(negative?.expectedOutcome, "unsolved");
+	assert.equal(selectTasks(tasks, { tier: "all" }).length, 15, "all exclui o controle negativo");
 	assert.deepEqual(
 		selectTasks(tasks, { tier: "medium" }).map((t) => t.id),
-		["medium-01-semver-resolver", "medium-02-interval-scheduler"],
+		TASK_IDS.filter((id) => id.startsWith("medium-")),
+	);
+	assert.equal(selectTasks(tasks, { tier: "hard" }).length, 5);
+	assert.deepEqual(
+		selectTasks(tasks, { tier: "negative" }).map((t) => t.id),
+		[NEGATIVE_ID],
 	);
 	assert.deepEqual(
 		selectTasks(tasks, { tier: "all", task: "hard-01-mini-ini-ast" }).map((t) => t.id),
 		["hard-01-mini-ini-ast"],
+	);
+	assert.deepEqual(
+		selectTasks(tasks, { tier: "all", task: NEGATIVE_ID }).map((t) => t.id),
+		[NEGATIVE_ID],
 	);
 	assert.throws(() => selectTasks(tasks, { tier: "all", task: "nao-existe" }), /inexistente/);
 	assert.throws(() => selectTasks(tasks, { tier: "easy", task: "hard-01-mini-ini-ast" }), /é do tier hard/);
@@ -145,7 +163,7 @@ test("conformidade v4 de todos os ledgers, hashes e relatórios summary.json e s
 
 test("filtros --tier e --task restringem as execuções", async () => {
 	const easy = await runBench(options({ tier: "easy", policies: ["ladder"] }));
-	assert.deepEqual(easy.runs.map((r) => r.task_id).sort(), ["easy-01-calc", "easy-02-log-parser"]);
+	assert.deepEqual(easy.runs.map((r) => r.task_id).sort(), TASK_IDS.filter((id) => id.startsWith("easy-")).sort());
 	const one = await runBench(options({ task: "hard-02-wal-ledger-replay", policies: ["single", "ladder"] }));
 	assert.equal(one.runs.length, 2);
 	assert.ok(one.runs.every((r) => r.task_id === "hard-02-wal-ledger-replay"));

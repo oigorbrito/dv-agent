@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "easy-05-slug-dedup",
+	"tier": "easy",
+	"title": "Slugs ASCII determinísticos com limite por palavra e colisões",
+	"prompt": "Tarefa: implemente slugs.py conforme SPEC.md (make_slug e Slugger). Use read_file para ler SPEC.md, write_file para gravar slugs.py e run_bash para conferir. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 30000
+	}
+}

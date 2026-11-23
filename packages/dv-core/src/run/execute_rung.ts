@@ -7,7 +7,15 @@ import {
 	type BeforeToolCallResult,
 	type StreamFn,
 } from "@earendil-works/pi-agent-core";
-import type { Api, AssistantMessage, Model, TextContent, ToolResultMessage } from "@earendil-works/pi-ai";
+import {
+	type Api,
+	type AssistantMessage,
+	type AssistantMessageEventStream,
+	createAssistantMessageEventStream,
+	type Model,
+	type TextContent,
+	type ToolResultMessage,
+} from "@earendil-works/pi-ai";
 import { CONTRACT_ID } from "../contract.ts";
 import { BudgetGuard, type CeilingStatus } from "../guards/budget.ts";
 import { composeBeforeToolCall } from "../guards/compose.ts";
@@ -69,12 +77,17 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 	const toolArgumentDigests = new Map<string, string>();
 	const tools = new ToolOutcomeTracker();
 	const blockedToolCalls = new Map<string, string>();
+	// Ferramentas que chegaram ao hook (antes da execução). Pendentes após a parada nunca chegam.
+	const hookSeen = new Set<string>();
 	let callCount = 0;
 	let callsFinished = 0;
 	let thrown: unknown;
 	let outputTokens = 0;
 	// Motivo de corte por limite (contrato v4 não fixa; registrado no ledger para auditoria).
 	let limitReason = undefined as LimitReason | undefined;
+	// Parada após guard (budget, limite de turno/output ou doom loop encerrado). Depois de fixada, nenhuma chamada
+	// nova chega ao provedor e as ferramentas pendentes da resposta são bloqueadas como not_executed.
+	let haltReason = undefined as string | undefined;
 
 	ledger.appendRunStarted({
 		run_id: options.runId,
@@ -90,6 +103,7 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 
 	// Registra call_started antes de qualquer tentativa do provedor (I1: chamada iniciada sem fim fica em voo).
 	const streamFn: StreamFn = (model, context, streamOptions) => {
+		if (haltReason !== undefined) return haltedStream(model, haltReason);
 		callCount += 1;
 		ledger.appendCallStarted({ call_index: callCount, provider: model.provider, model_id: model.id, api: model.api });
 		pendingCalls.push(callCount);
@@ -98,8 +112,18 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 
 	const beforeToolCall = composeBeforeToolCall([budget.beforeToolCall.bind(budget), doom.beforeToolCall.bind(doom)]);
 	const recordingHook = async (context: BeforeToolCallContext): Promise<BeforeToolCallResult | undefined> => {
+		hookSeen.add(context.toolCall.id);
+		if (haltReason !== undefined) {
+			const reason = `not_executed: ${haltReason}`;
+			blockedToolCalls.set(context.toolCall.id, reason);
+			return { block: true, reason };
+		}
+		const blocksBefore = doom.blocks;
 		const result = await beforeToolCall(context);
 		if (result?.block) blockedToolCalls.set(context.toolCall.id, result.reason ?? "bloqueada");
+		// Bloqueio do doom loop: a chamada é recusada e as demais ferramentas da resposta não são executadas.
+		// A run segue até a próxima chamada, que é vetada pelo haltReason (comportamento testado em doom_loop.test).
+		if (doom.blocks > blocksBefore) haltReason ??= "doom_loop";
 		return result;
 	};
 
@@ -113,12 +137,15 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 		if (event.type !== "message_end") return;
 		const message = event.message;
 		if (message.role === "assistant") {
+			// Resposta sintética do stream vetado: não é chamada ao provedor, então não tem call_started nem usage.
+			if (pendingCalls.length === 0 && haltReason !== undefined) return;
 			const index = pendingCalls.shift();
 			if (index === undefined) throw new Error("message_end de assistente sem call_started");
 			recordAssistant(index, message);
 			callsFinished += 1;
 			outputTokens += message.usage.output;
 			if (budget.onMessageEnd(message)) {
+				haltReason ??= "budget_exceeded";
 				agent.abort();
 			} else if (limitReason === undefined) {
 				const wantsTools = message.content.some((block) => block.type === "toolCall");
@@ -127,7 +154,10 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 				} else if (options.maxTurns !== undefined && callsFinished >= options.maxTurns && wantsTools) {
 					limitReason = "max_turns";
 				}
-				if (limitReason !== undefined) agent.abort();
+				if (limitReason !== undefined) {
+					haltReason ??= limitReason;
+					agent.abort();
+				}
 			}
 		} else if (message.role === "toolResult") {
 			recordToolResult(message);
@@ -164,7 +194,10 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 
 	const recordToolResult = (message: ToolResultMessage): void => {
 		tools.report(message.toolCallId);
-		const blockReason = blockedToolCalls.get(message.toolCallId);
+		// Sem passar pelo hook, a ferramenta foi cortada pela parada (o handler não roda): not_executed explícito.
+		const blockReason =
+			blockedToolCalls.get(message.toolCallId) ??
+			(haltReason !== undefined && !hookSeen.has(message.toolCallId) ? `not_executed: ${haltReason}` : undefined);
 		const rawOutput = message.content
 			.map((part) => (part.type === "text" ? (part as TextContent).text : "[imagem]"))
 			.join("\n");
@@ -190,7 +223,10 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 	tools.finalize(ledger, "run terminada antes da execução da ferramenta");
 
 	const messages = [...agent.state.messages];
-	const lastAssistant = [...messages].reverse().find((m): m is AssistantMessage => m.role === "assistant");
+	// A resposta sintética de parada não é resposta do modelo: o status final vem da última resposta real.
+	const lastAssistant = [...messages]
+		.reverse()
+		.find((m): m is AssistantMessage => m.role === "assistant" && !m.errorMessage?.startsWith("parada por guard:"));
 	const status = finalStatus(
 		budget.tripped || budget.tokensTripped,
 		limitReason !== undefined,
@@ -236,4 +272,30 @@ function finalStatus(
 	if (threw || last?.stopReason === "error") return "provider_error";
 	if (last?.stopReason === "aborted") return "aborted";
 	return "completed";
+}
+
+/** Mensagem de erro `aborted` sem conteúdo nem usage: usada para encerrar o loop sem chamar o provedor. */
+function haltedStream(model: Model<Api>, reason: string): AssistantMessageEventStream {
+	const message: AssistantMessage = {
+		role: "assistant",
+		content: [],
+		api: model.api,
+		provider: model.provider,
+		model: model.id,
+		usage: {
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+			cacheWrite: 0,
+			totalTokens: 0,
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0, totalFromProvider: false },
+		},
+		stopReason: "aborted",
+		errorMessage: `parada por guard: ${reason}`,
+		timestamp: Date.now(),
+	};
+	const stream = createAssistantMessageEventStream();
+	stream.push({ type: "error", reason: "aborted", error: message });
+	stream.end();
+	return stream;
 }

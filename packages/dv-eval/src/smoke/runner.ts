@@ -38,7 +38,8 @@ export interface RoleLimits {
 	maxTurns: number;
 	maxOutputTokens: number;
 }
-export const EDITOR_LIMITS: RoleLimits = { maxTurns: 8, maxOutputTokens: 8000 };
+/** Revisado após a ablação hard (5/5 editores cortados): 16 turnos e 32000 tokens de saída. */
+export const EDITOR_LIMITS: RoleLimits = { maxTurns: 16, maxOutputTokens: 32000 };
 export type AuthMode = "offline-faux" | "api-key" | "subscription";
 
 export interface SmokeOptions {

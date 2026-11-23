@@ -67,12 +67,14 @@ test("run: corte por orçamento interrompe o agente, bloqueia a ferramenta segui
 		.split("\n")
 		.filter(Boolean)
 		.map((l) => JSON.parse(l) as Record<string, unknown>);
-	// O corte ocorre em message_end. O loop devolve resultado de erro (abortado) para a ferramenta do turno, sem executá-la.
+	// O corte ocorre em message_end. A ferramenta pendente do turno do estouro não executa: registro explícito not_executed.
 	const toolStatuses = lines.filter((ev) => ev.event === "tool_finished").map((ev) => [ev.tool_call_id, ev.status]);
 	assert.deepEqual(toolStatuses, [
 		["c1", "ok"],
-		["c2", "error"],
+		["c2", "blocked"],
 	]);
+	const cut = lines.find((ev) => ev.event === "tool_finished" && ev.tool_call_id === "c2") as { block_reason: string };
+	assert.equal(cut.block_reason, "not_executed: budget_exceeded");
 	const finished = lines.at(-1) as { status: string; guard_events: { budget_blocked_tools: number } };
 	assert.equal(finished.status, "budget_exceeded");
 	assert.equal(finished.guard_events.budget_blocked_tools, 0);

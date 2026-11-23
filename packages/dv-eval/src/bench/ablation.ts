@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join, resolve } from "node:path";
 import { type ConformanceStatus, checkLedgerConformance } from "@dv-agent/core";
 import { readLedgerMetrics } from "../smoke/ledger_metrics.ts";
-import { type AuthMode, type PolicyName, runSmoke } from "../smoke/runner.ts";
+import { type AuthMode, EDITOR_LIMITS, type PolicyName, type RoleLimits, runSmoke } from "../smoke/runner.ts";
 import { CORPUS_TIERS, type CorpusTask, type CorpusTier, discoverCorpus, selectTasks } from "./corpus.ts";
 import { aggregate, BENCH_SCHEMA, type BenchReport, type RunRecord, type RunStep, renderMarkdown } from "./report.ts";
 
@@ -24,6 +24,8 @@ export interface BenchOptions {
 	escalationModel?: string;
 	maxTokens?: number;
 	maxCostUsd: number;
+	/** Tetos do papel editor (architect-editor). Padrão: EDITOR_LIMITS. */
+	editorLimits?: RoleLimits;
 	outdir: string;
 	/** Diretório de probes aprovados (api-key/subscription). Padrão: packages/dv-eval/probe-results. */
 	probesDir: string;
@@ -93,6 +95,7 @@ export async function runBench(options: BenchOptions): Promise<BenchReport> {
 		policies: [...options.policies],
 		max_cost_usd: options.maxCostUsd,
 		max_tokens: options.maxTokens ?? null,
+		editor_limits: options.editorLimits ?? EDITOR_LIMITS,
 		runs,
 		rows: aggregate(runs, options.policies, tiers),
 		conformance_violations: violations,
@@ -114,6 +117,7 @@ async function runOne(task: CorpusTask, policy: PolicyName, options: BenchOption
 		outdir: runDir,
 		maxCostUsd: options.maxCostUsd,
 		...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),
+		editorLimits: options.editorLimits ?? EDITOR_LIMITS,
 		probesDir: options.probesDir,
 	});
 	const violations: string[] = [];

@@ -10,7 +10,14 @@ import { test } from "node:test";
 import { checkLedgerConformance } from "@dv-agent/core";
 import { type BenchOptions, CONTRACT_PATH, CONTRACT_SHA256, runBench } from "../src/bench/ablation.ts";
 import { discoverCorpus, selectTasks } from "../src/bench/corpus.ts";
-import { aggregate, type BenchReport, type GroupRow, groupConformance, type RunRecord } from "../src/bench/report.ts";
+import {
+	aggregate,
+	type BenchReport,
+	type GroupRow,
+	groupConformance,
+	type RunRecord,
+	renderMarkdown,
+} from "../src/bench/report.ts";
 import { runSmoke } from "../src/smoke/runner.ts";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
@@ -294,4 +301,48 @@ test("conformidade agregada: qualquer FAIL domina; INCONCLUSIVE rebaixa o grupo;
 	assert.equal(groupConformance([run("INCONCLUSIVE"), run("FAIL")]), "FAIL");
 	const rows: GroupRow[] = aggregate([run("INCONCLUSIVE")], ["single"], ["easy"]);
 	assert.equal(rows[0]?.conformance_v4, "INCONCLUSIVE");
+});
+
+test("relatório: subscription mostra teto de custo n/a; budget_exceeded marca tokens_total com †", () => {
+	const row = (budget: number): GroupRow => ({
+		policy: "single",
+		tier: "hard",
+		runs: 1,
+		solved: 0,
+		solve_rate: 0,
+		escalation_rate: null,
+		tokens_total: 1000,
+		tokens_input: 10,
+		tokens_cached_read: 900,
+		tokens_cache_write: 50,
+		tokens_output: 40,
+		cost_usd: null,
+		spent_lower_bound_usd: 0,
+		budget_exceeded_runs: budget,
+		ceiling_status: "unverifiable",
+		telemetry_status: "MEASURED",
+		conformance_v4: "INCONCLUSIVE",
+	});
+	const base = {
+		schema: "dv-bench-summary-v2" as const,
+		contract_id: "p1-run-accounting-v4",
+		contract_sha256: "x",
+		auth_mode: "subscription",
+		tier: "hard" as const,
+		tiers: ["hard" as const],
+		task: null,
+		policies: ["single" as const],
+		max_cost_usd: 0.05,
+		max_tokens: 600000,
+		editor_limits: { maxTurns: 16, maxOutputTokens: 32000 },
+		runs: [],
+		conformance_violations: [],
+	};
+	const md = renderMarkdown({ ...base, rows: [row(0)] });
+	assert.match(md, /teto de custo: n\/a \(subscription\)/);
+	assert.doesNotMatch(md, /0\.05 USD/);
+	assert.match(md, /tetos do editor: 16 turnos, 32000 tokens de saída/);
+	assert.match(md, /\| 1000 \|/);
+	const flagged = renderMarkdown({ ...base, rows: [row(1)] });
+	assert.match(flagged, /\| 1000 † \|/);
 });

@@ -6,6 +6,7 @@
 //   --policies single,ladder,architect-editor  --auth-mode faux|subscription|api-key
 //   --model provider/modelId (degrau 0 / editor)  --escalation-model provider/modelId (degrau 1 / architect)
 //   --max-tokens N (teto de tokens por execução, somado entre degraus; obrigatório em subscription)  --max-cost USD (padrão 0.05)
+//   --editor-max-turns N  --editor-max-output-tokens N (tetos do papel editor; padrão EDITOR_LIMITS)
 //   --outdir DIR (padrão runs/bench-<timestamp>)
 // Códigos de saída: 0 ok (inclusive INCONCLUSIVE por teto não verificável); 1 erro de uso ou execução;
 // 2 violação estrutural de conformidade v4 (relatório gravado mesmo assim).
@@ -18,7 +19,7 @@ import {
 } from "../packages/dv-eval/src/bench/ablation.ts";
 import { CORPUS_TIERS, type CorpusTier } from "../packages/dv-eval/src/bench/corpus.ts";
 import { parseArgs } from "../packages/dv-eval/src/cli/args.ts";
-import type { AuthMode, PolicyName } from "../packages/dv-eval/src/smoke/runner.ts";
+import { type AuthMode, EDITOR_LIMITS, type PolicyName } from "../packages/dv-eval/src/smoke/runner.ts";
 
 const POLICIES: readonly PolicyName[] = ["single", "ladder", "architect-editor"];
 const AUTH_FLAG_TO_MODE: Record<string, AuthMode> = {
@@ -55,6 +56,8 @@ const authMode = AUTH_FLAG_TO_MODE[authFlag];
 if (authMode === undefined) throw new Error("--auth-mode deve ser faux, subscription ou api-key");
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const maxTokens = positive("max-tokens", undefined);
+const editorTurns = positive("editor-max-turns", undefined);
+const editorOutput = positive("editor-max-output-tokens", undefined);
 
 const options: BenchOptions = {
 	corpusDir: resolve(text("corpus") ?? "packages/dv-eval/corpus"),
@@ -65,6 +68,14 @@ const options: BenchOptions = {
 	...(text("model") === undefined ? {} : { model: text("model") }),
 	...(text("escalation-model") === undefined ? {} : { escalationModel: text("escalation-model") }),
 	...(maxTokens === undefined ? {} : { maxTokens }),
+	...(editorTurns === undefined && editorOutput === undefined
+		? {}
+		: {
+				editorLimits: {
+					maxTurns: editorTurns ?? EDITOR_LIMITS.maxTurns,
+					maxOutputTokens: editorOutput ?? EDITOR_LIMITS.maxOutputTokens,
+				},
+			}),
 	maxCostUsd: positive("max-cost", 0.05) ?? 0.05,
 	outdir: resolve(text("outdir") ?? `runs/bench-${stamp}`),
 	probesDir: resolve("packages/dv-eval/probe-results"),

@@ -2,7 +2,7 @@
 // teto e conformidade v4). Linha "all" só existe quando todos os tiers do corpus foram executados.
 import type { ConformanceStatus } from "@dv-agent/core";
 import type { LedgerMetrics } from "../smoke/ledger_metrics.ts";
-import type { PolicyName } from "../smoke/runner.ts";
+import type { PolicyName, RoleLimits } from "../smoke/runner.ts";
 import { CORPUS_TIERS, type CorpusTier, TIERS } from "./corpus.ts";
 
 export const BENCH_SCHEMA = "dv-bench-summary-v2";
@@ -52,6 +52,8 @@ export interface GroupRow {
 	/** Soma de cost_usd; null se algum passo não tem custo em USD (sessão de assinatura ou preço desconhecido). */
 	cost_usd: number | null;
 	spent_lower_bound_usd: number;
+	/** Runs do grupo cortados por budget_exceeded: o tokens_total inclui a chamada que cruzou o teto. */
+	budget_exceeded_runs: number;
 	/** Pior teto do grupo: exceeded > unverifiable > within_verified. n/a sem passos. */
 	ceiling_status: CeilingStatus | "n/a";
 	telemetry_status: "MEASURED" | "INCONCLUSIVE";
@@ -117,6 +119,7 @@ function groupRow(policy: PolicyName, tier: CorpusTier | "all", runs: readonly R
 		tokens_output: sum((m) => m.completion_tokens),
 		cost_usd: costs.some((c) => c === null) ? null : costs.reduce<number>((acc, c) => acc + (c ?? 0), 0),
 		spent_lower_bound_usd: steps.reduce((acc, s) => acc + s.spent_lower_bound_usd, 0),
+		budget_exceeded_runs: runs.filter((r) => r.steps.some((s) => s.run_status === "budget_exceeded")).length,
 		ceiling_status: worst ?? "n/a",
 		telemetry_status: telemetryMeasured ? "MEASURED" : "INCONCLUSIVE",
 		conformance_v4: groupConformance(runs),
@@ -147,6 +150,7 @@ export interface BenchReport {
 	policies: PolicyName[];
 	max_cost_usd: number;
 	max_tokens: number | null;
+	editor_limits: RoleLimits;
 	runs: RunRecord[];
 	rows: GroupRow[];
 	conformance_violations: { run: string; violations: string[] }[];
@@ -180,7 +184,10 @@ export function renderMarkdown(report: BenchReport): string {
 		`- auth_mode: \`${report.auth_mode}\`; tier pedido: \`${report.tier}\`; tiers executados: \`${report.tiers.join(", ")}\`; tarefa: \`${report.task ?? "todas"}\``,
 	);
 	lines.push(
-		`- políticas: ${report.policies.join(", ")}; teto de custo: ${report.max_cost_usd} USD; teto de tokens: ${report.max_tokens ?? "n/a"}`,
+		`- políticas: ${report.policies.join(", ")}; teto de custo: ${report.auth_mode === "subscription" ? "n/a (subscription)" : `${report.max_cost_usd} USD`}; teto de tokens: ${report.max_tokens ?? "n/a"}`,
+	);
+	lines.push(
+		`- tetos do editor: ${report.editor_limits.maxTurns} turnos, ${report.editor_limits.maxOutputTokens} tokens de saída`,
 	);
 	if (report.auth_mode === "offline-faux") {
 		lines.push(
@@ -192,12 +199,16 @@ export function renderMarkdown(report: BenchReport): string {
 	lines.push("", "## Tabela por política e tier", "");
 	lines.push(`| ${COLUMNS.join(" | ")} |`, `| ${COLUMNS.map(() => "---").join(" | ")} |`);
 	for (const row of report.rows) {
-		lines.push(`| ${COLUMNS.map((c) => cell(row[c])).join(" | ")} |`);
+		const cells = COLUMNS.map((c) => cell(row[c]));
+		const tokensIdx = COLUMNS.indexOf("tokens_total");
+		if (row.budget_exceeded_runs > 0) cells[tokensIdx] = `${cells[tokensIdx]} †`;
+		lines.push(`| ${cells.join(" | ")} |`);
 	}
 	lines.push(
 		"",
 		"Legenda: `cost_usd` n/a = sessão de assinatura ou preço desconhecido (custo não somável em USD).",
 		"`ceiling_status` unverifiable = teto de custo não verificável; a conformidade então fica INCONCLUSIVE (contract v4, regra c).",
+		"† tokens_total inclui a chamada que cruzou o teto de tokens/custo no grupo (budget_exceeded); nenhuma chamada posterior é enviada.",
 		"",
 		"## Runs",
 		"",

@@ -34,7 +34,7 @@ test("detector: argumentos diferentes ou outra ferramenta reiniciam o streak", (
 	assert.equal(detector.blocks, 0);
 });
 
-test("run com repetição: ferramenta executa até o limite, chamadas seguintes são bloqueadas e registradas", async () => {
+test("run com repetição: ferramenta executa até o limite; o bloqueio para a run (nenhuma chamada seguinte) e fica registrado", async () => {
 	const runtime = fauxRuntime("anthropic", ["dv-cheap"]);
 	const workspace = new Map<string, string>();
 	let executions = 0;
@@ -75,13 +75,15 @@ test("run com repetição: ferramenta executa até o limite, chamadas seguintes 
 		.filter(Boolean)
 		.map((l) => JSON.parse(l) as Record<string, unknown>);
 	const toolStatuses = lines.filter((ev) => ev.event === "tool_finished").map((ev) => ev.status);
-	assert.deepEqual(toolStatuses, ["ok", "ok", "ok", "blocked", "blocked"]);
+	// Contrato v4 pós-guard: a 4ª chamada é bloqueada e a run para; a 5ª nunca é enviada ao provedor.
+	assert.deepEqual(toolStatuses, ["ok", "ok", "ok", "blocked"]);
 	const blockedEvent = lines.find((ev) => ev.event === "tool_finished" && ev.status === "blocked") as {
 		block_reason: string;
 	};
 	assert.match(blockedEvent.block_reason, /doom_loop/);
 
 	const finished = lines.at(-1) as { guard_events: { doom_loop_blocks: number } };
-	assert.equal(finished.guard_events.doom_loop_blocks, 2);
+	assert.equal(finished.guard_events.doom_loop_blocks, 1);
+	assert.equal(lines.filter((ev) => ev.event === "call_started").length, 4);
 	assert.deepEqual(checkLedgerConformance(ledgerPath).violations, []);
 });

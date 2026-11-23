@@ -16,10 +16,11 @@ Cada tarefa é uma pasta com:
 | easy | 5 | parsers, codecs e funções puras de um arquivo |
 | medium | 5 | estruturas de dados, grafos/dependências e algoritmos stateful |
 | hard | 5 | multi-arquivo com invariantes densos (SQL, CRDT, compilador+VM+GC) |
+| frontier | 3 | alta densidade algorítmica e acoplamento cruzado (SSA+SCCP, Raft com partições, Hindley-Milner com linhas); pensado para discriminar Haiku vs Sonnet |
 | negative | 1 | controle irresolvível (`negative-01-contradictory-spec`) |
 
 ### Regra de seleção
-- `--tier all` (padrão) e `--tier easy|medium|hard`: somente tiers positivos.
+- `--tier all` (padrão) e `--tier easy|medium|hard|frontier`: somente tiers positivos.
 - `--tier negative`: somente o controle negativo.
 - `--task <id>`: qualquer tarefa, inclusive a negativa.
 

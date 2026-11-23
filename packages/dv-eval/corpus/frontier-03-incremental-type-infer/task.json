@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "frontier-03-incremental-type-infer",
+	"tier": "frontier",
+	"title": "Inferência Hindley-Milner (Algorithm W) com let-polimorfismo, occurs check, registros com polimorfismo de linha e origem de erro (3 módulos)",
+	"prompt": "Tarefa: implemente ast_types.py, unify.py e infer.py conforme SPEC.md. Leia o SPEC inteiro antes de codificar: a forma canônica de impressão, a regra de linhas e a generalização determinam a saída. Use read_file, write_file (um arquivo por vez) e run_bash. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 60000
+	}
+}

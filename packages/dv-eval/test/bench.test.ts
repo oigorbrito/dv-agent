@@ -39,6 +39,9 @@ const TASK_IDS = [
 	"hard-03-mini-sql-engine",
 	"hard-04-crdt-lww-map",
 	"hard-05-bytecode-vm-gc",
+	"frontier-01-ssa-dominator-opt",
+	"frontier-02-raft-consensus-sim",
+	"frontier-03-incremental-type-infer",
 ];
 const NEGATIVE_ID = "negative-01-contradictory-spec";
 
@@ -68,7 +71,7 @@ function row(report: BenchReport, policy: string, tier: string): GroupRow {
 	return found;
 }
 
-test("corpus: 15 tarefas positivas (5 por tier) + 1 negativa, com filtros por tier e tarefa", () => {
+test("corpus: 18 tarefas positivas (5 por tier, 3 em frontier) + 1 negativa, com filtros por tier e tarefa", () => {
 	const tasks = discoverCorpus(CORPUS);
 	assert.deepEqual(
 		tasks.map((t) => t.id),
@@ -77,7 +80,7 @@ test("corpus: 15 tarefas positivas (5 por tier) + 1 negativa, com filtros por ti
 	const negative = tasks.find((t) => t.id === NEGATIVE_ID);
 	assert.equal(negative?.tier, "negative");
 	assert.equal(negative?.expectedOutcome, "unsolved");
-	assert.equal(selectTasks(tasks, { tier: "all" }).length, 15, "all exclui o controle negativo");
+	assert.equal(selectTasks(tasks, { tier: "all" }).length, 18, "all exclui o controle negativo");
 	assert.deepEqual(
 		selectTasks(tasks, { tier: "medium" }).map((t) => t.id),
 		TASK_IDS.filter((id) => id.startsWith("medium-")),
@@ -142,7 +145,7 @@ test("conformidade v4 de todos os ledgers, hashes e relatórios summary.json e s
 		}
 	}
 	assert.equal(report.contract_sha256, CONTRACT_SHA256);
-	assert.equal(report.rows.length, 3 * (1 + 3));
+	assert.equal(report.rows.length, 3 * (1 + 4));
 
 	const ladderAll = row(report, "ladder", "all");
 	assert.equal(ladderAll.solve_rate, 1);

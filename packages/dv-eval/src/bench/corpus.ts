@@ -5,7 +5,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { loadTask } from "../oracle/verifier.ts";
 
-export const TIERS = ["easy", "medium", "hard"] as const;
+/** Tiers positivos: easy, medium, hard e frontier (tarefas de alta densidade para discriminar modelos menores). */
+export const TIERS = ["easy", "medium", "hard", "frontier"] as const;
 export type Tier = (typeof TIERS)[number];
 export const NEGATIVE_TIER = "negative" as const;
 /** Todos os tiers válidos no corpus, incluindo o controle negativo. */

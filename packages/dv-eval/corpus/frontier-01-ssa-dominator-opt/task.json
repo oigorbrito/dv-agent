@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "frontier-01-ssa-dominator-opt",
+	"tier": "frontier",
+	"title": "Otimizador SSA: CFG, dominadores (CHK), phi mínimo, SCCP e eliminação de código morto (3 módulos)",
+	"prompt": "Tarefa: implemente cfg.py, ssa.py e opt.py conforme SPEC.md. Leia o SPEC inteiro antes de codificar: a ordem dos módulos importa (ssa usa cfg; opt usa ssa). Use read_file, write_file (um arquivo por vez) e run_bash. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 60000
+	}
+}

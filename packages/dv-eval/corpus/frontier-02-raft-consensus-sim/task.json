@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "frontier-02-raft-consensus-sim",
+	"tier": "frontier",
+	"title": "Simulador determinístico de Raft: eleição, replicação com recuo, commit do termo corrente (Figura 8) e partições assimétricas",
+	"prompt": "Tarefa: implemente log.py, node.py e cluster.py conforme SPEC.md. Leia o SPEC inteiro antes de codificar: as regras de voto, de recuo do nextIndex e de commit determinam os cenários do oráculo. Use read_file, write_file (um arquivo por vez) e run_bash. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 60000
+	}
+}

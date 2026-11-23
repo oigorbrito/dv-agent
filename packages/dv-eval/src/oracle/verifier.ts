@@ -1,6 +1,6 @@
 // Oráculo externo: executa o verificador da tarefa fora do loop do agente, em cópia isolada, e grava result.json.
 // O verificador vem da pasta da tarefa (não do workspace do agente), e o workspace é copiado sem symlinks.
-import { spawn } from "node:child_process";
+import { type ChildProcess, type SpawnOptions, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { cpSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -180,43 +180,58 @@ interface VerifierRun {
 	stderr: string;
 }
 
-/** Executa o comando do verificador com cwd no workspace copiado e PYTHONPATH apontando para ele. */
-function execVerifier(
+/** Forma mínima de spawn usada pelo oráculo (injetável em teste). */
+export type SpawnFn = (command: string, args: string[], options: SpawnOptions) => ChildProcess;
+
+/** Executável alternativo para `python` quando ele não existe no PATH (ex.: WSL/Linux sem python-is-python3). */
+const PYTHON_FALLBACK = "python3";
+
+/**
+ * Executa o comando do verificador com cwd no workspace copiado e PYTHONPATH apontando para ele.
+ * Se o programa `python` falhar com ENOENT, tenta `python3`; qualquer outro caso mantém o comportamento original.
+ */
+export function execVerifier(
 	command: string[],
 	verifierDir: string,
 	workDir: string,
 	timeoutMs: number,
+	spawnFn: SpawnFn = spawn,
 ): Promise<VerifierRun> {
 	const [program, ...args] = command;
 	if (program === undefined) throw new Error("comando do verificador vazio");
 	const scriptArgs = args.map((arg) => (arg.endsWith(".py") ? join(verifierDir, arg) : arg));
-	return new Promise((done, fail) => {
-		const child = spawn(program, scriptArgs, {
-			cwd: workDir,
-			env: { ...process.env, PYTHONPATH: workDir, PYTHONDONTWRITEBYTECODE: "1" },
-			stdio: ["ignore", "pipe", "pipe"],
-			windowsHide: true,
+	const launch = (exe: string): Promise<VerifierRun> =>
+		new Promise((done, fail) => {
+			const child = spawnFn(exe, scriptArgs, {
+				cwd: workDir,
+				env: { ...process.env, PYTHONPATH: workDir, PYTHONDONTWRITEBYTECODE: "1" },
+				stdio: ["ignore", "pipe", "pipe"],
+				windowsHide: true,
+			});
+			let stdout = "";
+			let stderr = "";
+			let timedOut = false;
+			child.stdout?.on("data", (chunk: Buffer) => {
+				stdout += chunk.toString("utf8");
+			});
+			child.stderr?.on("data", (chunk: Buffer) => {
+				stderr += chunk.toString("utf8");
+			});
+			const timer = setTimeout(() => {
+				timedOut = true;
+				child.kill("SIGKILL");
+			}, timeoutMs);
+			child.on("error", (error) => {
+				clearTimeout(timer);
+				fail(error);
+			});
+			child.on("close", (code) => {
+				clearTimeout(timer);
+				done({ exitCode: code, timedOut, stdout, stderr });
+			});
 		});
-		let stdout = "";
-		let stderr = "";
-		let timedOut = false;
-		child.stdout.on("data", (chunk: Buffer) => {
-			stdout += chunk.toString("utf8");
-		});
-		child.stderr.on("data", (chunk: Buffer) => {
-			stderr += chunk.toString("utf8");
-		});
-		const timer = setTimeout(() => {
-			timedOut = true;
-			child.kill("SIGKILL");
-		}, timeoutMs);
-		child.on("error", (error) => {
-			clearTimeout(timer);
-			fail(error);
-		});
-		child.on("close", (code) => {
-			clearTimeout(timer);
-			done({ exitCode: code, timedOut, stdout, stderr });
-		});
+	return launch(program).catch((error: NodeJS.ErrnoException) => {
+		if (program === "python" && error.code === "ENOENT") return launch(PYTHON_FALLBACK);
+		throw error;
 	});
 }

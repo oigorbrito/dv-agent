@@ -1,10 +1,13 @@
 // Oráculo externo: veredito fora do loop do agente, isolamento da cópia, timeout como NO_VERDICT, e result.json.
 import assert from "node:assert/strict";
+import type { ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { PassThrough } from "node:stream";
 import { test } from "node:test";
-import { copyCandidate, type OracleResult, runOracle } from "../src/oracle/verifier.ts";
+import { copyCandidate, execVerifier, type OracleResult, runOracle, type SpawnFn } from "../src/oracle/verifier.ts";
 
 const TASK = resolve(import.meta.dirname, "../tasks/calc-basic");
 
@@ -94,4 +97,61 @@ test("timeout do verificador é NO_VERDICT / INCONCLUSIVE, não FAIL", async () 
 	assert.equal(result.timed_out, true);
 	assert.deepEqual(result.verification, { oracle_pass: null, status: "timeout" });
 	assert.ok(Date.now() - started < 20_000);
+});
+
+/** Processo falso: emite 'error' (ENOENT) para os executáveis listados em `missing`, senão fecha com exit 0. */
+function fakeSpawn(missing: string[], calls: string[]): SpawnFn {
+	return (command) => {
+		calls.push(command);
+		const child = new EventEmitter() as EventEmitter & Partial<ChildProcess>;
+		const out = new PassThrough();
+		const err = new PassThrough();
+		child.stdout = out as unknown as ChildProcess["stdout"];
+		child.stderr = err as unknown as ChildProcess["stderr"];
+		child.kill = () => true;
+		setImmediate(() => {
+			if (missing.includes(command)) {
+				const failure = Object.assign(new Error(`spawn ${command} ENOENT`), { code: "ENOENT" });
+				child.emit("error", failure);
+				return;
+			}
+			out.end();
+			err.end();
+			child.emit("close", 0);
+		});
+		return child as ChildProcess;
+	};
+}
+
+test("python ausente (ENOENT) é resolvido para python3", async () => {
+	const calls: string[] = [];
+	const run = await execVerifier(["python", "check.py"], tmpdir(), tmpdir(), 5_000, fakeSpawn(["python"], calls));
+	assert.deepEqual(calls, ["python", "python3"]);
+	assert.equal(run.exitCode, 0);
+	assert.equal(run.timedOut, false);
+});
+
+test("python presente não dispara fallback", async () => {
+	const calls: string[] = [];
+	const run = await execVerifier(["python", "check.py"], tmpdir(), tmpdir(), 5_000, fakeSpawn([], calls));
+	assert.deepEqual(calls, ["python"]);
+	assert.equal(run.exitCode, 0);
+});
+
+test("ENOENT de outro executável não é remapeado e propaga o erro", async () => {
+	const calls: string[] = [];
+	await assert.rejects(
+		execVerifier(["ruby", "check.rb"], tmpdir(), tmpdir(), 5_000, fakeSpawn(["ruby"], calls)),
+		/ENOENT/,
+	);
+	assert.deepEqual(calls, ["ruby"]);
+});
+
+test("python e python3 ausentes propagam ENOENT sem loop", async () => {
+	const calls: string[] = [];
+	await assert.rejects(
+		execVerifier(["python", "check.py"], tmpdir(), tmpdir(), 5_000, fakeSpawn(["python", "python3"], calls)),
+		/ENOENT/,
+	);
+	assert.deepEqual(calls, ["python", "python3"]);
 });

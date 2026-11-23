@@ -1,0 +1,46 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # Piso declarado em package.json ("engines": ">=22.19.0"). Node 22 executa
+      # os testes .ts diretamente (type stripping), sem flags.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+          cache: npm
+
+      - name: Instalar dependências (lockfile)
+        run: npm ci
+
+      # Dados do catálogo pi-ai são gitignored e gerados localmente (sem rede).
+      # Sem este passo, src/ não importa e a suíte não roda.
+      - name: Hidratar dados do catálogo pi-ai
+        run: npm run hydrate:pi-ai-data
+
+      - name: Compilar runtime vendorado
+        run: npm run build:runtime
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint (Biome)
+        run: npm run lint
+
+      - name: Testes offline
+        run: npm test

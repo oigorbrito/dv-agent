@@ -7,6 +7,7 @@
 //   --model provider/modelId (degrau 0 / editor)  --escalation-model provider/modelId (degrau 1 / architect)
 //   --max-tokens N (teto de tokens por execução, somado entre degraus; obrigatório em subscription)  --max-cost USD (padrão 0.05)
 //   --editor-max-turns N  --editor-max-output-tokens N (tetos do papel editor; padrão EDITOR_LIMITS)
+//   --repeats N (réplicas independentes por célula, em rep-0..rep-N-1; padrão 1)  --temperature T (>= 0; só vai a modelos que suportam)
 //   --outdir DIR (padrão runs/bench-<timestamp>)
 // Códigos de saída: 0 ok (inclusive INCONCLUSIVE por teto não verificável); 1 erro de uso ou execução;
 // 2 violação estrutural de conformidade v4 (relatório gravado mesmo assim).
@@ -58,6 +59,12 @@ const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const maxTokens = positive("max-tokens", undefined);
 const editorTurns = positive("editor-max-turns", undefined);
 const editorOutput = positive("editor-max-output-tokens", undefined);
+const repeats = positive("repeats", undefined);
+const temperatureText = text("temperature");
+const temperature = temperatureText === undefined ? undefined : Number(temperatureText);
+if (temperature !== undefined && (!Number.isFinite(temperature) || temperature < 0)) {
+	throw new Error(`--temperature deve ser um número >= 0: ${temperatureText}`);
+}
 
 const options: BenchOptions = {
 	corpusDir: resolve(text("corpus") ?? "packages/dv-eval/corpus"),
@@ -68,6 +75,8 @@ const options: BenchOptions = {
 	...(text("model") === undefined ? {} : { model: text("model") }),
 	...(text("escalation-model") === undefined ? {} : { escalationModel: text("escalation-model") }),
 	...(maxTokens === undefined ? {} : { maxTokens }),
+	...(repeats === undefined ? {} : { repeats }),
+	...(temperature === undefined ? {} : { temperature }),
 	...(editorTurns === undefined && editorOutput === undefined
 		? {}
 		: {

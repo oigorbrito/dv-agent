@@ -26,6 +26,8 @@ export interface RunStep {
 /** Uma combinação (tarefa x política). `escalated` é null em políticas sem degrau de escalonamento. */
 export interface RunRecord {
 	task_id: string;
+	/** Índice da réplica (0-based): rep-N no diretório. */
+	repeat: number;
 	tier: CorpusTier;
 	policy: PolicyName;
 	final_outcome: string;
@@ -54,6 +56,9 @@ export interface GroupRow {
 	spent_lower_bound_usd: number;
 	/** Runs do grupo cortados por budget_exceeded: o tokens_total inclui a chamada que cruzou o teto. */
 	budget_exceeded_runs: number;
+	/** Tarefas distintas no grupo e quantas foram resolvidas em todas as réplicas (pass^k). */
+	tasks: number;
+	pass_all: number;
 	/** Pior teto do grupo: exceeded > unverifiable > within_verified. n/a sem passos. */
 	ceiling_status: CeilingStatus | "n/a";
 	telemetry_status: "MEASURED" | "INCONCLUSIVE";
@@ -120,10 +125,23 @@ function groupRow(policy: PolicyName, tier: CorpusTier | "all", runs: readonly R
 		cost_usd: costs.some((c) => c === null) ? null : costs.reduce<number>((acc, c) => acc + (c ?? 0), 0),
 		spent_lower_bound_usd: steps.reduce((acc, s) => acc + s.spent_lower_bound_usd, 0),
 		budget_exceeded_runs: runs.filter((r) => r.steps.some((s) => s.run_status === "budget_exceeded")).length,
+		...passStats(runs),
 		ceiling_status: worst ?? "n/a",
 		telemetry_status: telemetryMeasured ? "MEASURED" : "INCONCLUSIVE",
 		conformance_v4: groupConformance(runs),
 	};
+}
+
+/** pass^k: tarefas resolvidas em todas as réplicas. Cada tarefa conta uma vez, qualquer que seja o número de réplicas. */
+export function passStats(runs: readonly RunRecord[]): { tasks: number; pass_all: number } {
+	const byTask = new Map<string, boolean[]>();
+	for (const r of runs) {
+		const list = byTask.get(r.task_id) ?? [];
+		list.push(r.solved);
+		byTask.set(r.task_id, list);
+	}
+	const values = [...byTask.values()];
+	return { tasks: values.length, pass_all: values.filter((v) => v.every(Boolean)).length };
 }
 
 /** Regra (c): qualquer FAIL domina; depois INCONCLUSIVE (teto não verificável); PASS só se todos forem PASS. */
@@ -151,6 +169,10 @@ export interface BenchReport {
 	max_cost_usd: number;
 	max_tokens: number | null;
 	editor_limits: RoleLimits;
+	/** Réplicas por célula, temperatura pedida (null = padrão) e estado de suporte por modelo. */
+	repeats: number;
+	temperature: number | null;
+	temperature_notes: string[];
 	runs: RunRecord[];
 	rows: GroupRow[];
 	conformance_violations: { run: string; violations: string[] }[];
@@ -189,6 +211,8 @@ export function renderMarkdown(report: BenchReport): string {
 	lines.push(
 		`- tetos do editor: ${report.editor_limits.maxTurns} turnos, ${report.editor_limits.maxOutputTokens} tokens de saída`,
 	);
+	lines.push(`- réplicas por célula: ${report.repeats}; temperatura pedida: ${report.temperature ?? "padrão"}`);
+	for (const note of report.temperature_notes) lines.push(`  - temperatura, ${note}`);
 	if (report.auth_mode === "offline-faux") {
 		lines.push(
 			"",
@@ -197,12 +221,12 @@ export function renderMarkdown(report: BenchReport): string {
 		);
 	}
 	lines.push("", "## Tabela por política e tier", "");
-	lines.push(`| ${COLUMNS.join(" | ")} |`, `| ${COLUMNS.map(() => "---").join(" | ")} |`);
+	lines.push(`| ${[...COLUMNS, "pass^k"].join(" | ")} |`, `| ${[...COLUMNS, "pass^k"].map(() => "---").join(" | ")} |`);
 	for (const row of report.rows) {
 		const cells = COLUMNS.map((c) => cell(row[c]));
 		const tokensIdx = COLUMNS.indexOf("tokens_total");
 		if (row.budget_exceeded_runs > 0) cells[tokensIdx] = `${cells[tokensIdx]} †`;
-		lines.push(`| ${cells.join(" | ")} |`);
+		lines.push(`| ${[...cells, `${row.pass_all}/${row.tasks}`].join(" | ")} |`);
 	}
 	lines.push(
 		"",

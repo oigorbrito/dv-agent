@@ -1,9 +1,10 @@
-// Runner de ablação: cada (tarefa x política) em workspace isolado (via runSmoke), ledger de cada degrau verificado
-// contra o contrato v4, e relatório agregado gravado em summary.json e summary.md. Falha explícita em violação.
+// Runner de ablação: cada (tarefa x política x réplica) em workspace isolado (via runSmoke), ledger de cada degrau
+// verificado contra o contrato v4, e relatório agregado gravado em summary.json e summary.md. Falha explícita em violação.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { type ConformanceStatus, checkLedgerConformance } from "@dv-agent/core";
+import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import { readLedgerMetrics } from "../smoke/ledger_metrics.ts";
 import { type AuthMode, EDITOR_LIMITS, type PolicyName, type RoleLimits, runSmoke } from "../smoke/runner.ts";
 import { CORPUS_TIERS, type CorpusTask, type CorpusTier, discoverCorpus, selectTasks } from "./corpus.ts";
@@ -26,6 +27,10 @@ export interface BenchOptions {
 	maxCostUsd: number;
 	/** Tetos do papel editor (architect-editor). Padrão: EDITOR_LIMITS. */
 	editorLimits?: RoleLimits;
+	/** Réplicas independentes de cada célula (tarefa x política). Padrão: 1. */
+	repeats?: number;
+	/** Temperatura de amostragem. Só é enviada aos modelos que suportam (ver temperatureNotes). */
+	temperature?: number;
 	outdir: string;
 	/** Diretório de probes aprovados (api-key/subscription). Padrão: packages/dv-eval/probe-results. */
 	probesDir: string;
@@ -54,12 +59,38 @@ export function assertGovernance(options: BenchOptions): void {
 			"--auth-mode subscription exige --max-tokens: sem cobrança por token o teto de custo USD não é verificável, e o teto de tokens é o único limite efetivo",
 		);
 	}
+	const repeats = options.repeats ?? 1;
+	if (!Number.isInteger(repeats) || repeats < 1) throw new Error(`--repeats deve ser inteiro >= 1: ${repeats}`);
 	const outdir = resolve(options.outdir);
 	if (existsSync(outdir) && readdirSync(outdir).length > 0) {
 		throw new Error(
 			`--outdir ${outdir} já existe e não está vazio: escolha um diretório novo (evidência não é sobrescrita)`,
 		);
 	}
+}
+
+/**
+ * Estado da temperatura por modelo usado no bench. Regra espelhada do adaptador anthropic-messages: a temperatura
+ * só vai à API quando `compat.supportsTemperature` não é falso (ausente = true). Outros provedores: não verificado.
+ */
+export function temperatureNotes(options: BenchOptions): string[] {
+	if (options.temperature === undefined) return [];
+	if (options.authMode === "offline-faux") return ["modelos faux: temperatura não se aplica"];
+	const refs = [options.model, options.escalationModel].filter((r): r is string => r !== undefined);
+	return [...new Set(refs)].map((ref) => {
+		const slash = ref.indexOf("/");
+		const provider = ref.slice(0, slash);
+		const modelId = ref.slice(slash + 1);
+		if (provider !== "anthropic") return `${ref}: não verificado (adaptador ${provider})`;
+		const model = getBuiltinModel("anthropic", modelId as never) as
+			| { compat?: { supportsTemperature?: boolean } }
+			| undefined;
+		if (model === undefined) return `${ref}: modelo ausente no catálogo`;
+		const applied = model.compat?.supportsTemperature ?? true;
+		return applied
+			? `${ref}: aplicada (temperatura ${options.temperature})`
+			: `${ref}: NÃO aplicada (compat.supportsTemperature=false; o valor é descartado pelo adaptador)`;
+	});
 }
 
 /** Executa a ablação e grava outdir/summary.json e outdir/summary.md. */
@@ -69,6 +100,7 @@ export async function runBench(options: BenchOptions): Promise<BenchReport> {
 		throw new Error(`contrato v4 alterado: sha256 ${contractSha} != ${CONTRACT_SHA256} (${options.contractPath})`);
 	}
 	assertGovernance(options);
+	const repeats = options.repeats ?? 1;
 	const tasks = selectTasks(discoverCorpus(options.corpusDir), { tier: options.tier, task: options.task });
 	const outdir = resolve(options.outdir);
 	mkdirSync(outdir, { recursive: true });
@@ -76,13 +108,15 @@ export async function runBench(options: BenchOptions): Promise<BenchReport> {
 	const runs: RunRecord[] = [];
 	for (const task of tasks) {
 		for (const policy of options.policies) {
-			runs.push(await runOne(task, policy, options, outdir));
+			for (let rep = 0; rep < repeats; rep += 1) {
+				runs.push(await runOne(task, policy, rep, options, outdir));
+			}
 		}
 	}
 
 	const violations = runs
 		.filter((r) => r.conformance_violations.length > 0)
-		.map((r) => ({ run: `${r.task_id}/${r.policy}`, violations: r.conformance_violations }));
+		.map((r) => ({ run: `${r.task_id}/${r.policy}/rep-${r.repeat}`, violations: r.conformance_violations }));
 	const tiers = CORPUS_TIERS.filter((t) => tasks.some((task) => task.tier === t));
 	const report: BenchReport = {
 		schema: BENCH_SCHEMA,
@@ -96,6 +130,9 @@ export async function runBench(options: BenchOptions): Promise<BenchReport> {
 		max_cost_usd: options.maxCostUsd,
 		max_tokens: options.maxTokens ?? null,
 		editor_limits: options.editorLimits ?? EDITOR_LIMITS,
+		repeats,
+		temperature: options.temperature ?? null,
+		temperature_notes: temperatureNotes(options),
 		runs,
 		rows: aggregate(runs, options.policies, tiers),
 		conformance_violations: violations,
@@ -106,8 +143,14 @@ export async function runBench(options: BenchOptions): Promise<BenchReport> {
 	return report;
 }
 
-async function runOne(task: CorpusTask, policy: PolicyName, options: BenchOptions, outdir: string): Promise<RunRecord> {
-	const runDir = join(outdir, task.id, policy);
+async function runOne(
+	task: CorpusTask,
+	policy: PolicyName,
+	rep: number,
+	options: BenchOptions,
+	outdir: string,
+): Promise<RunRecord> {
+	const runDir = join(outdir, task.id, policy, `rep-${rep}`);
 	const summary = await runSmoke({
 		taskDir: task.dir,
 		policy,
@@ -117,13 +160,16 @@ async function runOne(task: CorpusTask, policy: PolicyName, options: BenchOption
 		outdir: runDir,
 		maxCostUsd: options.maxCostUsd,
 		...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),
+		...(options.temperature === undefined ? {} : { temperature: options.temperature }),
 		editorLimits: options.editorLimits ?? EDITOR_LIMITS,
 		probesDir: options.probesDir,
 	});
 	const violations: string[] = [];
 	const steps: RunStep[] = summary.steps.map((step) => {
 		const check = checkLedgerConformance(step.ledger_path);
-		for (const item of check.violations) violations.push(`${task.id}/${policy}/${step.role}#${step.step}: ${item}`);
+		for (const item of check.violations) {
+			violations.push(`${task.id}/${policy}/rep-${rep}/${step.role}#${step.step}: ${item}`);
+		}
 		return {
 			rung: step.rung,
 			role: step.role,
@@ -142,6 +188,7 @@ async function runOne(task: CorpusTask, policy: PolicyName, options: BenchOption
 		task_id: task.id,
 		tier: task.tier,
 		policy,
+		repeat: rep,
 		final_outcome: summary.final_outcome,
 		solved: summary.final_outcome === "solved",
 		escalated: policy === "ladder" ? steps.some((s) => s.rung >= 1) : null,

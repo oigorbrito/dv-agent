@@ -8,17 +8,24 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { checkLedgerConformance } from "@dv-agent/core";
-import { type BenchOptions, CONTRACT_PATH, CONTRACT_SHA256, runBench } from "../src/bench/ablation.ts";
+import {
+	type BenchOptions,
+	CONTRACT_PATH,
+	CONTRACT_SHA256,
+	runBench,
+	temperatureNotes,
+} from "../src/bench/ablation.ts";
 import { discoverCorpus, selectTasks } from "../src/bench/corpus.ts";
 import {
 	aggregate,
 	type BenchReport,
 	type GroupRow,
 	groupConformance,
+	passStats,
 	type RunRecord,
 	renderMarkdown,
 } from "../src/bench/report.ts";
-import { runSmoke } from "../src/smoke/runner.ts";
+import { EDITOR_FINISH_HINT, EDITOR_LIMITS, runSmoke } from "../src/smoke/runner.ts";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
 const CORPUS = resolve(import.meta.dirname, "../corpus");
@@ -290,6 +297,7 @@ test("editor: limite de turnos corta o degrau com motivo max_turns registrado no
 test("conformidade agregada: qualquer FAIL domina; INCONCLUSIVE rebaixa o grupo; PASS só com todos PASS", () => {
 	const run = (conformance_status: RunRecord["conformance_status"]): RunRecord => ({
 		task_id: "t",
+		repeat: 0,
 		tier: "easy",
 		policy: "single",
 		final_outcome: "unsolved",
@@ -322,6 +330,8 @@ test("relatório: subscription mostra teto de custo n/a; budget_exceeded marca t
 		cost_usd: null,
 		spent_lower_bound_usd: 0,
 		budget_exceeded_runs: budget,
+		tasks: 1,
+		pass_all: 0,
 		ceiling_status: "unverifiable",
 		telemetry_status: "MEASURED",
 		conformance_v4: "INCONCLUSIVE",
@@ -337,15 +347,85 @@ test("relatório: subscription mostra teto de custo n/a; budget_exceeded marca t
 		policies: ["single" as const],
 		max_cost_usd: 0.05,
 		max_tokens: 600000,
-		editor_limits: { maxTurns: 16, maxOutputTokens: 32000 },
+		editor_limits: { maxTurns: 32, maxOutputTokens: 32000 },
+		repeats: 1,
+		temperature: null,
+		temperature_notes: [],
 		runs: [],
 		conformance_violations: [],
 	};
 	const md = renderMarkdown({ ...base, rows: [row(0)] });
 	assert.match(md, /teto de custo: n\/a \(subscription\)/);
 	assert.doesNotMatch(md, /0\.05 USD/);
-	assert.match(md, /tetos do editor: 16 turnos, 32000 tokens de saída/);
+	assert.match(md, /tetos do editor: 32 turnos, 32000 tokens de saída/);
 	assert.match(md, /\| 1000 \|/);
 	const flagged = renderMarkdown({ ...base, rows: [row(1)] });
 	assert.match(flagged, /\| 1000 † \|/);
+});
+
+test("repetições: --repeats 2 gera rep-0 e rep-1; md mostra solved por execução e pass^k por tarefa", async () => {
+	const opts = options({ task: "easy-01-calc", policies: ["ladder"], repeats: 2 });
+	const report = await runBench(opts);
+	assert.equal(report.runs.length, 2);
+	assert.deepEqual(report.runs.map((r) => r.repeat).sort(), [0, 1]);
+	assert.equal(existsSync(join(opts.outdir, "easy-01-calc", "ladder", "rep-0", "summary.json")), true);
+	assert.equal(existsSync(join(opts.outdir, "easy-01-calc", "ladder", "rep-1", "summary.json")), true);
+	const md = readFileSync(join(opts.outdir, "summary.md"), "utf8");
+	assert.match(md, /réplicas por célula: 2/);
+	assert.match(md, /\| ladder \| easy \| 2 \| 2 \| 1 \|/);
+	assert.match(md, /\| pass\^k \|/);
+	assert.match(md, /\| 1\/1 \|$/m);
+	const row = report.rows.find((r) => r.policy === "ladder" && r.tier === "easy");
+	assert.equal(row?.tasks, 1);
+	assert.equal(row?.pass_all, 1);
+});
+
+test("pass^k: tarefa conta uma vez e só passa se resolvida em todas as réplicas", () => {
+	const rec = (task: string, solved: boolean, repeat: number): RunRecord => ({
+		task_id: task,
+		repeat,
+		tier: "easy",
+		policy: "single",
+		final_outcome: solved ? "solved" : "unsolved",
+		solved,
+		escalated: null,
+		steps: [],
+		conformance_status: "PASS",
+		conformance_violations: [],
+	});
+	const stats = passStats([rec("a", true, 0), rec("a", true, 1), rec("b", true, 0), rec("b", false, 1)]);
+	assert.deepEqual(stats, { tasks: 2, pass_all: 1 });
+});
+
+test("temperatura: offline não se aplica; Haiku 5.5 não recebe temperatura (compat), Sonnet 4.6 recebe", () => {
+	const base = {
+		authMode: "offline-faux" as const,
+		corpusDir: CORPUS,
+		tier: "all" as const,
+		policies: [],
+		maxCostUsd: 1,
+		outdir: "x",
+		probesDir: PROBES,
+		contractPath: "x",
+	};
+	assert.deepEqual(temperatureNotes({ ...base, temperature: 0 }), ["modelos faux: temperatura não se aplica"]);
+	assert.deepEqual(temperatureNotes({ ...base, authMode: "subscription", temperature: 0 }), []);
+	const live = temperatureNotes({
+		...base,
+		authMode: "subscription",
+		temperature: 0,
+		model: "anthropic/claude-haiku-5-5",
+		escalationModel: "anthropic/claude-sonnet-4-6",
+	});
+	assert.equal(live.length, 2);
+	assert.match(live[0] ?? "", /claude-haiku-5-5: NÃO aplicada/);
+	assert.match(live[1] ?? "", /claude-sonnet-4-6: aplicada/);
+});
+
+test("editor: instrução de término e teto padrão de 32 turnos", () => {
+	assert.match(
+		EDITOR_FINISH_HINT,
+		/Assim que os testes locais passarem, responda imediatamente sem chamar novas ferramentas\./,
+	);
+	assert.equal(EDITOR_LIMITS.maxTurns, 32);
 });

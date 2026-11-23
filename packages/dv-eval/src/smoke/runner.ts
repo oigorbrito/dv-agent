@@ -38,8 +38,17 @@ export interface RoleLimits {
 	maxTurns: number;
 	maxOutputTokens: number;
 }
-/** Revisado após a ablação hard (5/5 editores cortados): 16 turnos e 32000 tokens de saída. */
-export const EDITOR_LIMITS: RoleLimits = { maxTurns: 16, maxOutputTokens: 32000 };
+/** Tetos do editor: 32 turnos (16 cortava a verificação final) e 32000 tokens de saída. */
+export const EDITOR_LIMITS: RoleLimits = { maxTurns: 32, maxOutputTokens: 32000 };
+/** Instrução de término do editor: evita chamadas extras de ferramenta depois dos testes passarem. */
+export const EDITOR_FINISH_HINT =
+	"Assim que os testes locais passarem, responda imediatamente sem chamar novas ferramentas.";
+
+/** Repassa a temperatura ao stream. O adaptador só a envia quando o modelo suporta (compat.supportsTemperature). */
+export function withTemperature(streamFn: StreamFn, temperature: number | undefined): StreamFn {
+	if (temperature === undefined) return streamFn;
+	return (model, context, options) => streamFn(model, context, { ...options, temperature });
+}
 export type AuthMode = "offline-faux" | "api-key" | "subscription";
 
 export interface SmokeOptions {
@@ -56,6 +65,8 @@ export interface SmokeOptions {
 	maxCostUsd: number;
 	/** Teto de tokens (prompt + completion) somado a todos os degraus. Opcional. */
 	maxTokens?: number;
+	/** Temperatura de amostragem (repassada ao provedor quando suportada). */
+	temperature?: number;
 	/** Limites do papel editor. Padrão: EDITOR_LIMITS. */
 	editorLimits?: RoleLimits;
 	probesDir: string;
@@ -181,11 +192,12 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 		try {
 			cpSync(workspaceSrc, workspace, { recursive: true });
 			const isArchitect = decision.role === "architect";
-			const prompt = isArchitect
+			const basePrompt = isArchitect
 				? "Planeje a correção de calc.py conforme SPEC.md em até 5 linhas. Não edite arquivos."
 				: plan === undefined
 					? task.prompt
 					: `${task.prompt}\n\nPlano do arquiteto:\n${plan}`;
+			const prompt = decision.role === "editor" ? `${basePrompt}\n\n${EDITOR_FINISH_HINT}` : basePrompt;
 
 			let run: Awaited<ReturnType<typeof executeRung>>;
 			try {
@@ -201,7 +213,7 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 					systemPrompt: "Você é um agente de código. Use as ferramentas do workspace.",
 					tools: isArchitect ? [] : createWorkspaceTools({ workspaceRoot: workspace }),
 					prompt,
-					streamFn: engine.streamFn,
+					streamFn: withTemperature(engine.streamFn, options.temperature),
 					priceBook: engine.priceBook,
 					maxCostUsd: decision.cap_usd,
 					...(options.maxTokens === undefined ? {} : { maxTotalTokens: options.maxTokens - tokensSpent }),

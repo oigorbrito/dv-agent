@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "easy-02-log-parser",
+	"tier": "easy",
+	"title": "Parser de logs com métricas agregadas",
+	"prompt": "Tarefa: implemente logparse.py conforme SPEC.md (parse_line e summarize). Use read_file para ler SPEC.md, write_file para gravar logparse.py e run_bash para conferir o import. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 30000
+	}
+}

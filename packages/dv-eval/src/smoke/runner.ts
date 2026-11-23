@@ -26,6 +26,8 @@ import { openLiveSession } from "../auth/live_session.ts";
 import { resolveAuthPath } from "../auth/subscription.ts";
 import { hashTree, loadTask, type OracleResult, runOracle } from "../oracle/verifier.ts";
 import { loadApprovedProbes } from "../probe/provider_probe.ts";
+import { readLedgerMetrics } from "./ledger_metrics.ts";
+import { fixtureTurns } from "./offline_fixtures.ts";
 import { offlineTurns } from "./offline_scripts.ts";
 
 export type PolicyName = "single" | "ladder" | "architect-editor";
@@ -43,6 +45,8 @@ export interface SmokeOptions {
 	escalationModel?: string;
 	outdir: string;
 	maxCostUsd: number;
+	/** Teto de tokens (prompt + completion) somado a todos os degraus. Opcional. */
+	maxTokens?: number;
 	probesDir: string;
 }
 
@@ -151,10 +155,14 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 
 	const attempts: Attempt[] = [];
 	const steps: StepRecord[] = [];
+	let tokensSpent = 0;
 	let plan: string | undefined;
 	let decision: RouterDecision = policy.decide(attempts);
 	const context = { task, workspaceSrc, taskDir, provenance, datasetSha, taskSha, approved };
 	while (decision.kind === "run") {
+		if (options.maxTokens !== undefined && tokensSpent >= options.maxTokens) {
+			return finish(options, context, steps, "budget_exhausted", "teto de tokens esgotado");
+		}
 		const step = attempts.length;
 		const stepDir = join(options.outdir, `step-${step}-${decision.role}`);
 		const workspace = mkdtempSync(join(tmpdir(), "dv-smoke-ws-"));
@@ -183,6 +191,7 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 				streamFn: engine.streamFn,
 				priceBook: engine.priceBook,
 				maxCostUsd: decision.cap_usd,
+				...(options.maxTokens === undefined ? {} : { maxTotalTokens: options.maxTokens - tokensSpent }),
 				doomLoopMaxIdenticalConsecutive: 3,
 				approvedProbes: approved,
 			});
@@ -191,6 +200,7 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 			return finish(options, context, steps, "blocked", (error as Error).message);
 		}
 
+		tokensSpent += readLedgerMetrics(run.ledgerPath).total_tokens;
 		if (isArchitect) plan = lastAssistantText(run.messages);
 		const oracle: OracleResult | null = isArchitect
 			? null
@@ -239,7 +249,7 @@ async function prepareEngine(options: SmokeOptions, decision: RouterDecision & {
 	if (options.authMode === "offline-faux") {
 		const id = ref.modelId;
 		const runtime = fauxRuntime(OFFLINE_PROVIDER, [id]);
-		runtime.script(offlineTurns(id));
+		runtime.script(fixtureTurns(options.taskDir, id) ?? offlineTurns(id));
 		return {
 			model: runtime.modelOf(id),
 			streamFn: runtime.streamFn,

@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "hard-02-wal-ledger-replay",
+	"tier": "hard",
+	"title": "kvdb: WAL, savepoints, checkpoint e recuperação após falha",
+	"prompt": "Tarefa: implemente kvdb/wal.py (WriteAheadLog, scan, truncate_torn_tail) e kvdb/engine.py (Database, TransactionError) conforme SPEC.md. Os dois arquivos se relacionam: leia SPEC.md inteiro antes de codificar, principalmente a seção Recuperação. Use read_file, write_file e run_bash para conferir. Não altere SPEC.md nem kvdb/__init__.py.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 30000
+	}
+}

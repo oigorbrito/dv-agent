@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "easy-01-calc",
+	"tier": "easy",
+	"title": "Calculadora: corrigir add",
+	"prompt": "Tarefa: corrija calc.py para cumprir SPEC.md. Use read_file para ler, edit_file para alterar e run_bash para conferir. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 30000
+	}
+}

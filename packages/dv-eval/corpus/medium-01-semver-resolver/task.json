@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "medium-01-semver-resolver",
+	"tier": "medium",
+	"title": "Resolvedor de restrições SemVer com detecção de conflito",
+	"prompt": "Tarefa: implemente semver_resolver.py conforme SPEC.md (satisfies, max_satisfying, resolve, ResolutionConflict). Use read_file para ler SPEC.md, write_file para gravar semver_resolver.py e run_bash para conferir. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 30000
+	}
+}

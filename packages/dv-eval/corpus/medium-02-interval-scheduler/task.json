@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "medium-02-interval-scheduler",
+	"tier": "medium",
+	"title": "Agenda de salas: fusão, buffer mínimo e fusos horários",
+	"prompt": "Tarefa: implemente scheduler.py conforme SPEC.md (parse_instant, overlap_kind, merge_intervals, can_book, schedule). Use read_file para ler SPEC.md, write_file para gravar scheduler.py e run_bash para conferir. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 30000
+	}
+}

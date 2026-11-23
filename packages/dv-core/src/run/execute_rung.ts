@@ -35,6 +35,8 @@ export interface RungRunOptions {
 	streamFn: StreamFn;
 	priceBook: PriceBook;
 	maxCostUsd: number;
+	/** Teto de tokens do degrau (prompt + completion). Opcional; ao excedê-lo o degrau termina com budget_exceeded. */
+	maxTotalTokens?: number;
 	doomLoopMaxIdenticalConsecutive: number;
 	approvedProbes?: ReadonlySet<string>;
 }
@@ -54,7 +56,11 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 	assertProviderCanRun(options.model.provider, options.approvedProbes ?? new Set());
 	const ledger = new RunLedger(options.ledgerPath);
 	const doom = new DoomLoopDetector({ maxIdenticalConsecutive: options.doomLoopMaxIdenticalConsecutive });
-	const budget = new BudgetGuard({ maxCostUsd: options.maxCostUsd, priceBook: options.priceBook });
+	const budget = new BudgetGuard({
+		maxCostUsd: options.maxCostUsd,
+		priceBook: options.priceBook,
+		...(options.maxTotalTokens === undefined ? {} : { maxTotalTokens: options.maxTotalTokens }),
+	});
 	const pendingCalls: number[] = [];
 	const toolArgumentDigests = new Map<string, string>();
 	const tools = new ToolOutcomeTracker();
@@ -167,7 +173,7 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 
 	const messages = [...agent.state.messages];
 	const lastAssistant = [...messages].reverse().find((m): m is AssistantMessage => m.role === "assistant");
-	const status = finalStatus(budget.tripped, thrown !== undefined, lastAssistant);
+	const status = finalStatus(budget.tripped || budget.tokensTripped, thrown !== undefined, lastAssistant);
 	ledger.appendRunFinished({
 		status,
 		calls_started: callCount,

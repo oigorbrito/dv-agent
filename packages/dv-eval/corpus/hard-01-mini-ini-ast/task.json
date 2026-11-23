@@ -1,0 +1,13 @@
+{
+	"schema": "dv-eval-task-v1",
+	"id": "hard-01-mini-ini-ast",
+	"tier": "hard",
+	"title": "minicfg: parser, serializador round-trip e resolução de referências",
+	"prompt": "Tarefa: implemente minicfg/codec.py (parse, dumps) e minicfg/resolver.py (resolve) conforme SPEC.md. model.py e __init__.py já estão prontos e não devem ser alterados. Use read_file para ler SPEC.md e os módulos, write_file para gravar os dois arquivos e run_bash para conferir o import. Não altere SPEC.md.",
+	"workspace_dir": "workspace",
+	"oracle": {
+		"dir": "oracle",
+		"command": ["python", "check.py"],
+		"timeout_ms": 30000
+	}
+}

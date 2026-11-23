@@ -17,6 +17,7 @@
 		"hydrate:pi-ai-data": "npm run hydrate-model-data -w @earendil-works/pi-ai",
 		"probe:providers": "node packages/dv-eval/src/probe/cli.ts",
 		"smoke": "node scripts/dv-smoke.ts",
+		"bench": "node scripts/dv-bench.ts",
 		"typecheck": "tsc -p packages/dv-core/tsconfig.json && tsc -p packages/dv-eval/tsconfig.json",
 		"test": "node --test packages/dv-core/test/*.test.ts packages/dv-eval/test/*.test.ts",
 		"lint": "biome check packages/dv-core packages/dv-eval scripts",

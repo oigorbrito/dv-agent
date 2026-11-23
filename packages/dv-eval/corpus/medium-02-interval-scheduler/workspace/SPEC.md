@@ -1,7 +1,11 @@
 # SPEC scheduler
 
 Reservas de uma sala. Instantes são strings ISO 8601 com data, hora e deslocamento obrigatório
-(`Z` ou `±HH:MM`). Fração de segundo é opcional. Instante sem deslocamento é inválido.
+(`Z` ou `±HH:MM`).
+
+Formato da hora: `HH:MM` ou `HH:MM:SS`. Segundos são opcionais: `09:00-03:00` é válido, assim como
+`09:00:00-03:00`. Fração de segundo (`.ffffff`) também é opcional, e só pode aparecer após os segundos.
+Instante sem deslocamento é inválido.
 Duração zero ou negativa (fim <= início) é inválida.
 
 Todos os cálculos são feitos em UTC. Deslocamentos diferentes na mesma operação devem ser respeitados.

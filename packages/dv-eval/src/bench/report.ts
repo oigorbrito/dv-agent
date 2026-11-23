@@ -45,6 +45,9 @@ export interface GroupRow {
 	runs: number;
 	solved: number;
 	solve_rate: number | null;
+	/** Intervalo de confiança de Wilson 95% (z=1,96) sobre solved/runs. Null sem execuções. */
+	ci_95_low: number | null;
+	ci_95_high: number | null;
 	escalation_rate: number | null;
 	tokens_total: number;
 	tokens_input: number;
@@ -104,6 +107,7 @@ function groupRow(policy: PolicyName, tier: CorpusTier | "all", runs: readonly R
 	const telemetryMeasured =
 		runs.length > 0 && runs.every((r) => r.steps.length > 0 && r.steps.every((s) => s.metrics.telemetry_complete));
 	const escalating = ESCALATING_POLICIES.includes(policy);
+	const ci = wilsonInterval(solved, runs.length);
 	const costs = steps.map((s) => s.metrics.cost_usd);
 	const worst = steps.reduce<CeilingStatus | undefined>(
 		(acc, s) => (acc === undefined || CEILING_RANK[s.ceiling_status] > CEILING_RANK[acc] ? s.ceiling_status : acc),
@@ -115,6 +119,8 @@ function groupRow(policy: PolicyName, tier: CorpusTier | "all", runs: readonly R
 		runs: runs.length,
 		solved,
 		solve_rate: runs.length === 0 ? null : round4(solved / runs.length),
+		ci_95_low: ci === null ? null : round4(ci.low),
+		ci_95_high: ci === null ? null : round4(ci.high),
 		escalation_rate:
 			escalating && runs.length > 0 ? round4(runs.filter((r) => r.escalated === true).length / runs.length) : null,
 		tokens_total: sum((m) => m.total_tokens),
@@ -130,6 +136,20 @@ function groupRow(policy: PolicyName, tier: CorpusTier | "all", runs: readonly R
 		telemetry_status: telemetryMeasured ? "MEASURED" : "INCONCLUSIVE",
 		conformance_v4: groupConformance(runs),
 	};
+}
+
+/**
+ * Intervalo de confiança de Wilson (z padrão 1,96 = 95%) para uma proporção x/n, em frações de [0,1].
+ * Evita o intervalo de Wald, que é degenerado em 0/n e n/n e subestima a incerteza com n pequeno.
+ */
+export function wilsonInterval(successes: number, n: number, z = 1.96): { low: number; high: number } | null {
+	if (n <= 0) return null;
+	const p = successes / n;
+	const z2 = z * z;
+	const denom = 1 + z2 / n;
+	const center = (p + z2 / (2 * n)) / denom;
+	const half = (z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / denom;
+	return { low: Math.max(0, center - half), high: Math.min(1, center + half) };
 }
 
 /** pass^k: tarefas resolvidas em todas as réplicas. Cada tarefa conta uma vez, qualquer que seja o número de réplicas. */
@@ -221,11 +241,15 @@ export function renderMarkdown(report: BenchReport): string {
 		);
 	}
 	lines.push("", "## Tabela por política e tier", "");
-	lines.push(`| ${[...COLUMNS, "pass^k"].join(" | ")} |`, `| ${[...COLUMNS, "pass^k"].map(() => "---").join(" | ")} |`);
+	const headers = COLUMNS.map(String);
+	headers.splice(COLUMNS.indexOf("solve_rate") + 1, 0, "ci_95");
+	headers.push("pass^k");
+	lines.push(`| ${headers.join(" | ")} |`, `| ${headers.map(() => "---").join(" | ")} |`);
 	for (const row of report.rows) {
 		const cells = COLUMNS.map((c) => cell(row[c]));
 		const tokensIdx = COLUMNS.indexOf("tokens_total");
 		if (row.budget_exceeded_runs > 0) cells[tokensIdx] = `${cells[tokensIdx]} †`;
+		cells.splice(COLUMNS.indexOf("solve_rate") + 1, 0, ciCell(row));
 		lines.push(`| ${[...cells, `${row.pass_all}/${row.tasks}`].join(" | ")} |`);
 	}
 	lines.push(
@@ -233,6 +257,7 @@ export function renderMarkdown(report: BenchReport): string {
 		"Legenda: `cost_usd` n/a = sessão de assinatura ou preço desconhecido (custo não somável em USD).",
 		"`ceiling_status` unverifiable = teto de custo não verificável; a conformidade então fica INCONCLUSIVE (contract v4, regra c).",
 		"† tokens_total inclui a chamada que cruzou o teto de tokens/custo no grupo (budget_exceeded); nenhuma chamada posterior é enviada.",
+		"ci_95 = intervalo de Wilson 95% (z=1,96) sobre solved/runs. Com n pequeno o intervalo é largo por construção.",
 		"",
 		"## Runs",
 		"",
@@ -251,6 +276,11 @@ export function renderMarkdown(report: BenchReport): string {
 	if (report.conformance_violations.length === 0) lines.push("Nenhuma violação estrutural nos ledgers.");
 	for (const v of report.conformance_violations) lines.push(`- ${v.run}: ${v.violations.join("; ")}`);
 	return `${lines.join("\n")}\n`;
+}
+
+function ciCell(row: GroupRow): string {
+	if (row.ci_95_low === null || row.ci_95_high === null) return "n/a";
+	return `[${(row.ci_95_low * 100).toFixed(1)}%, ${(row.ci_95_high * 100).toFixed(1)}%]`;
 }
 
 function cell(value: unknown): string {

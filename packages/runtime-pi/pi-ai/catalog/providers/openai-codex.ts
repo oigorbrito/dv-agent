@@ -22,6 +22,10 @@ const MODELS = [
 	{ id: "gpt-6-astra", name: "GPT-6 Astra", contextWindow: 272000 },
 	{ id: "gpt-6-sol", name: "GPT-6 Sol", contextWindow: 272000 },
 	{ id: "gpt-6-luna", name: "GPT-6 Luna", contextWindow: 272000 },
+	// EXCEÇÃO à regra acima, registrada para teste: probe live (conta ChatGPT, 2026-11) respondeu
+	// "The 'gpt-6.1-luna' model is not supported when using Codex with a ChatGPT account".
+	// Registrado no catálogo local; não utilizável nesta conta até o backend aceitar.
+	{ id: "gpt-6.1-luna", name: "GPT-6.1 Luna", contextWindow: 272000 },
 	{ id: "gpt-5.6-luna", name: "GPT-5.6 Luna", contextWindow: 272000 },
 	{ id: "gpt-5.6-sol", name: "GPT-5.6 Sol", contextWindow: 272000 },
 	{ id: "gpt-5.6-terra", name: "GPT-5.6 Terra", contextWindow: 272000 },
@@ -35,6 +39,7 @@ const ADDITIONAL_TOOLS_MODEL_IDS = new Set([
 	"gpt-6-astra",
 	"gpt-6-sol",
 	"gpt-6-luna",
+	"gpt-6.1-luna",
 	"gpt-6.1-sol",
 	"gpt-6.1-terra",
 	"gpt-6.2-astra",

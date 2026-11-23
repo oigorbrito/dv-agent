@@ -24,6 +24,7 @@ import {
 	passStats,
 	type RunRecord,
 	renderMarkdown,
+	wilsonInterval,
 } from "../src/bench/report.ts";
 import { EDITOR_FINISH_HINT, EDITOR_LIMITS, runSmoke } from "../src/smoke/runner.ts";
 
@@ -321,6 +322,8 @@ test("relatório: subscription mostra teto de custo n/a; budget_exceeded marca t
 		runs: 1,
 		solved: 0,
 		solve_rate: 0,
+		ci_95_low: 0,
+		ci_95_high: 0.79,
 		escalation_rate: null,
 		tokens_total: 1000,
 		tokens_input: 10,
@@ -428,4 +431,72 @@ test("editor: instrução de término e teto padrão de 32 turnos", () => {
 		/Assim que os testes locais passarem, responda imediatamente sem chamar novas ferramentas\./,
 	);
 	assert.equal(EDITOR_LIMITS.maxTurns, 32);
+});
+
+const near = (actual: number | undefined, expected: number, tol = 1e-3): boolean =>
+	actual !== undefined && Math.abs(actual - expected) <= tol;
+
+test("Wilson 95%: extremos 0/n e n/n têm limite exato no lado não degenerado", () => {
+	const z2 = 1.96 * 1.96;
+	const zero = wilsonInterval(0, 10);
+	assert.equal(zero?.low, 0);
+	assert.ok(near(zero?.high, z2 / (10 + z2)), `0/10 high=${zero?.high}`);
+	const all = wilsonInterval(10, 10);
+	assert.equal(all?.high, 1);
+	assert.ok(near(all?.low, 10 / (10 + z2)), `10/10 low=${all?.low}`);
+	const two = wilsonInterval(2, 2);
+	assert.ok(near(two?.low, 2 / (2 + z2)), `2/2 low=${two?.low}`);
+});
+
+test("Wilson 95%: casos intermediários (valores de referência)", () => {
+	const half = wilsonInterval(5, 10);
+	assert.ok(near(half?.low, 0.2366) && near(half?.high, 0.7634), `5/10 = [${half?.low}, ${half?.high}]`);
+	const third = wilsonInterval(1, 3);
+	assert.ok(near(third?.low, 0.0615) && near(third?.high, 0.7923), `1/3 = [${third?.low}, ${third?.high}]`);
+});
+
+test("Wilson 95%: n=0 é null e o intervalo estreita com mais observações", () => {
+	assert.equal(wilsonInterval(0, 0), null);
+	const small = wilsonInterval(5, 10);
+	const large = wilsonInterval(50, 100);
+	assert.ok((small?.high ?? 0) - (small?.low ?? 0) > (large?.high ?? 0) - (large?.low ?? 0));
+});
+
+test("Wilson 95%: renderiza [low%, high%] e a coluna ci_95 antes de pass^k no summary.md", () => {
+	const rec = (task: string, repeat: number): RunRecord => ({
+		task_id: task,
+		repeat,
+		tier: "easy",
+		policy: "single",
+		final_outcome: "solved",
+		solved: true,
+		escalated: null,
+		steps: [],
+		conformance_status: "PASS",
+		conformance_violations: [],
+	});
+	const runs = [rec("a", 0), rec("a", 1)];
+	const rows = aggregate(runs, ["single"], ["easy"]);
+	const md = renderMarkdown({
+		schema: "dv-bench-summary-v2",
+		contract_id: "p1-run-accounting-v4",
+		contract_sha256: "x",
+		auth_mode: "subscription",
+		tier: "easy",
+		tiers: ["easy"],
+		task: null,
+		policies: ["single"],
+		max_cost_usd: 0.05,
+		max_tokens: 1000,
+		editor_limits: { maxTurns: 32, maxOutputTokens: 32000 },
+		repeats: 2,
+		temperature: null,
+		temperature_notes: [],
+		runs,
+		rows,
+		conformance_violations: [],
+	});
+	assert.match(md, /\| 2 \| 2 \| 1 \| \[34\.2%, 100\.0%\] \|/);
+	assert.match(md, /\| solve_rate \| ci_95 \|/);
+	assert.ok(md.indexOf("| ci_95 |") < md.indexOf("| pass^k |"));
 });

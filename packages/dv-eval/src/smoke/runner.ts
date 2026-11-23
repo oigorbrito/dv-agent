@@ -4,12 +4,13 @@
 // - api-key: provedor real via catálogo do pi-ai. Só executa se a regra de capacidade (contract v4, regra b) permitir.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
 	ArchitectEditorPolicy,
 	type Attempt,
+	type CeilingStatus,
 	createWorkspaceTools,
 	ExecutionGuidedLadderPolicy,
 	executeRung,
@@ -31,6 +32,13 @@ import { fixtureTurns } from "./offline_fixtures.ts";
 import { offlineTurns } from "./offline_scripts.ts";
 
 export type PolicyName = "single" | "ladder" | "architect-editor";
+
+/** Limites do papel editor (architect-editor): evita loops longos de ferramentas (auditoria: 12-13 turnos por run). */
+export interface RoleLimits {
+	maxTurns: number;
+	maxOutputTokens: number;
+}
+export const EDITOR_LIMITS: RoleLimits = { maxTurns: 8, maxOutputTokens: 8000 };
 export type AuthMode = "offline-faux" | "api-key" | "subscription";
 
 export interface SmokeOptions {
@@ -47,6 +55,8 @@ export interface SmokeOptions {
 	maxCostUsd: number;
 	/** Teto de tokens (prompt + completion) somado a todos os degraus. Opcional. */
 	maxTokens?: number;
+	/** Limites do papel editor. Padrão: EDITOR_LIMITS. */
+	editorLimits?: RoleLimits;
 	probesDir: string;
 }
 
@@ -57,7 +67,7 @@ export interface StepRecord {
 	model: string;
 	cap_usd: number;
 	run_status: string;
-	ceiling_status: string;
+	ceiling_status: CeilingStatus;
 	spent_lower_bound_usd: number;
 	ledger_path: string;
 	ledger_sha256: string;
@@ -166,71 +176,77 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 		const step = attempts.length;
 		const stepDir = join(options.outdir, `step-${step}-${decision.role}`);
 		const workspace = mkdtempSync(join(tmpdir(), "dv-smoke-ws-"));
-		cpSync(workspaceSrc, workspace, { recursive: true });
-		const isArchitect = decision.role === "architect";
-		const prompt = isArchitect
-			? "Planeje a correção de calc.py conforme SPEC.md em até 5 linhas. Não edite arquivos."
-			: plan === undefined
-				? task.prompt
-				: `${task.prompt}\n\nPlano do arquiteto:\n${plan}`;
-
-		let run: Awaited<ReturnType<typeof executeRung>>;
+		// Workspace temporário é removido ao fim do degrau, inclusive em erro (sem órfãos em %TEMP%).
 		try {
-			const engine = await prepareEngine(options, decision);
-			run = await executeRung({
-				ledgerPath: join(stepDir, "ledger.jsonl"),
-				runId: `smoke-${task.id}-${step}`,
-				harnessVariant: `dv-smoke:${options.policy}:${options.authMode}`,
-				referenceProvenance: provenance,
-				datasetSha256: datasetSha,
-				taskDefinitionSha256: taskSha,
-				model: engine.model,
-				systemPrompt: "Você é um agente de código. Use as ferramentas do workspace.",
-				tools: isArchitect ? [] : createWorkspaceTools({ workspaceRoot: workspace }),
-				prompt,
-				streamFn: engine.streamFn,
-				priceBook: engine.priceBook,
-				maxCostUsd: decision.cap_usd,
-				...(options.maxTokens === undefined ? {} : { maxTotalTokens: options.maxTokens - tokensSpent }),
-				doomLoopMaxIdenticalConsecutive: 3,
-				approvedProbes: approved,
-			});
-		} catch (error) {
-			// Gate de capacidade (PROVISIONAL sem probe) ou erro de configuração: parada registrada, não falha silenciosa.
-			return finish(options, context, steps, "blocked", (error as Error).message);
-		}
+			cpSync(workspaceSrc, workspace, { recursive: true });
+			const isArchitect = decision.role === "architect";
+			const prompt = isArchitect
+				? "Planeje a correção de calc.py conforme SPEC.md em até 5 linhas. Não edite arquivos."
+				: plan === undefined
+					? task.prompt
+					: `${task.prompt}\n\nPlano do arquiteto:\n${plan}`;
 
-		tokensSpent += readLedgerMetrics(run.ledgerPath).total_tokens;
-		if (isArchitect) plan = lastAssistantText(run.messages);
-		const oracle: OracleResult | null = isArchitect
-			? null
-			: await runOracle({ taskDir, candidateDir: workspace, outdir: stepDir, ledgerPath: run.ledgerPath });
-		const verification: Attempt["verification"] = oracle?.verification ?? null;
-		attempts.push({
-			rung: decision.rung,
-			role: decision.role,
-			model: decision.model,
-			verification,
-			spent_lower_bound_usd: run.spentLowerBoundUsd,
-		});
-		steps.push({
-			step,
-			rung: decision.rung,
-			role: decision.role,
-			model: `${decision.model.provider}/${decision.model.modelId}`,
-			cap_usd: decision.cap_usd,
-			run_status: run.status,
-			ceiling_status: run.ceilingStatus,
-			spent_lower_bound_usd: run.spentLowerBoundUsd,
-			ledger_path: run.ledgerPath,
-			ledger_sha256: run.ledgerSha256,
-			oracle:
-				oracle === null
-					? null
-					: { verdict: oracle.verdict, outcome: oracle.outcome, result_path: join(stepDir, "result.json") },
-			verification,
-			plan_from_architect: !isArchitect && plan !== undefined,
-		});
+			let run: Awaited<ReturnType<typeof executeRung>>;
+			try {
+				const engine = await prepareEngine(options, decision);
+				run = await executeRung({
+					ledgerPath: join(stepDir, "ledger.jsonl"),
+					runId: `smoke-${task.id}-${step}`,
+					harnessVariant: `dv-smoke:${options.policy}:${options.authMode}`,
+					referenceProvenance: provenance,
+					datasetSha256: datasetSha,
+					taskDefinitionSha256: taskSha,
+					model: engine.model,
+					systemPrompt: "Você é um agente de código. Use as ferramentas do workspace.",
+					tools: isArchitect ? [] : createWorkspaceTools({ workspaceRoot: workspace }),
+					prompt,
+					streamFn: engine.streamFn,
+					priceBook: engine.priceBook,
+					maxCostUsd: decision.cap_usd,
+					...(options.maxTokens === undefined ? {} : { maxTotalTokens: options.maxTokens - tokensSpent }),
+					...(decision.role === "editor" ? (options.editorLimits ?? EDITOR_LIMITS) : {}),
+					doomLoopMaxIdenticalConsecutive: 3,
+					approvedProbes: approved,
+				});
+			} catch (error) {
+				// Gate de capacidade (PROVISIONAL sem probe) ou erro de configuração: parada registrada, não falha silenciosa.
+				return finish(options, context, steps, "blocked", (error as Error).message);
+			}
+
+			tokensSpent += readLedgerMetrics(run.ledgerPath).total_tokens;
+			if (isArchitect) plan = lastAssistantText(run.messages);
+			const oracle: OracleResult | null = isArchitect
+				? null
+				: await runOracle({ taskDir, candidateDir: workspace, outdir: stepDir, ledgerPath: run.ledgerPath });
+			const verification: Attempt["verification"] = oracle?.verification ?? null;
+			attempts.push({
+				rung: decision.rung,
+				role: decision.role,
+				model: decision.model,
+				verification,
+				spent_lower_bound_usd: run.spentLowerBoundUsd,
+			});
+			steps.push({
+				step,
+				rung: decision.rung,
+				role: decision.role,
+				model: `${decision.model.provider}/${decision.model.modelId}`,
+				cap_usd: decision.cap_usd,
+				run_status: run.status,
+				ceiling_status: run.ceilingStatus,
+				spent_lower_bound_usd: run.spentLowerBoundUsd,
+				ledger_path: run.ledgerPath,
+				ledger_sha256: run.ledgerSha256,
+				oracle:
+					oracle === null
+						? null
+						: { verdict: oracle.verdict, outcome: oracle.outcome, result_path: join(stepDir, "result.json") },
+				verification,
+				plan_from_architect: !isArchitect && plan !== undefined,
+			});
+		} finally {
+			rmSync(workspace, { recursive: true, force: true });
+		}
 		decision = policy.decide(attempts);
 	}
 	return finish(options, context, steps, decision.outcome, decision.reason);

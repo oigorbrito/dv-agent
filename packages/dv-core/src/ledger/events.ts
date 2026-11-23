@@ -1,7 +1,11 @@
 // Payloads tipados dos eventos do ledger dv-run-ledger-v2 (o campo `schema` e `event` são acrescentados pelo writer).
 import type { CallTelemetry } from "./telemetry.ts";
 
-export type RunStatus = "completed" | "budget_exceeded" | "provider_error" | "aborted";
+/** limit_exceeded: teto de turnos ou de output do degrau (motivo em guard_events.limit_reason). */
+export type RunStatus = "completed" | "budget_exceeded" | "limit_exceeded" | "provider_error" | "aborted";
+
+/** Motivo explícito de corte por limite de turnos ou de output. */
+export type LimitReason = "max_turns" | "max_output_tokens";
 
 export interface RunStartedPayload {
 	run_id: string;
@@ -55,5 +59,5 @@ export interface RunFinishedPayload {
 	unknown_cost_calls: number;
 	ceiling_status: "within_verified" | "exceeded" | "unverifiable";
 	non_metered_cost_calls: number;
-	guard_events: { doom_loop_blocks: number; budget_blocked_tools: number };
+	guard_events: { doom_loop_blocks: number; budget_blocked_tools: number; limit_reason: LimitReason | null };
 }

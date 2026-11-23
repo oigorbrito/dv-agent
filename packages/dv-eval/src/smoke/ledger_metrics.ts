@@ -11,6 +11,8 @@ export interface LedgerMetrics {
 	uncached_input_tokens: number;
 	cache_read_tokens: number;
 	cache_write_tokens: number;
+	/** Soma do custo em USD; null se alguma chamada não tem custo em USD (desconhecido ou sessão de assinatura). */
+	cost_usd: number | null;
 }
 
 type Json = Record<string, unknown>;
@@ -26,6 +28,7 @@ export function readLedgerMetrics(path: string): LedgerMetrics {
 		uncached_input_tokens: 0,
 		cache_read_tokens: 0,
 		cache_write_tokens: 0,
+		cost_usd: 0,
 	};
 	for (const line of readFileSync(path, "utf8").split("\n")) {
 		if (line.length === 0) continue;
@@ -40,6 +43,8 @@ export function readLedgerMetrics(path: string): LedgerMetrics {
 		metrics.uncached_input_tokens += num(telemetry.uncached_input_tokens);
 		metrics.cache_read_tokens += num(telemetry.cache_read_tokens);
 		metrics.cache_write_tokens += num(telemetry.cache_write_tokens);
+		if (typeof telemetry.cost_usd === "number" && metrics.cost_usd !== null) metrics.cost_usd += telemetry.cost_usd;
+		else metrics.cost_usd = null;
 	}
 	return metrics;
 }

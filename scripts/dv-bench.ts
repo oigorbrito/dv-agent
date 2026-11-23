@@ -5,9 +5,10 @@
 // Opções: --corpus DIR (padrão packages/dv-eval/corpus)  --tier all|easy|medium|hard  --task ID
 //   --policies single,ladder,architect-editor  --auth-mode faux|subscription|api-key
 //   --model provider/modelId (degrau 0 / editor)  --escalation-model provider/modelId (degrau 1 / architect)
-//   --max-tokens N (teto de tokens por execução, somado entre degraus)  --max-cost USD (padrão 0.05)
+//   --max-tokens N (teto de tokens por execução, somado entre degraus; obrigatório em subscription)  --max-cost USD (padrão 0.05)
 //   --outdir DIR (padrão runs/bench-<timestamp>)
-// Códigos de saída: 0 ok; 1 erro de uso ou execução; 2 violação de conformidade v4 (relatório gravado mesmo assim).
+// Códigos de saída: 0 ok (inclusive INCONCLUSIVE por teto não verificável); 1 erro de uso ou execução;
+// 2 violação estrutural de conformidade v4 (relatório gravado mesmo assim).
 import { resolve } from "node:path";
 import {
 	type BenchOptions,
@@ -75,7 +76,7 @@ try {
 	console.log(`ok: ${report.runs.length} run(s). Relatório: ${options.outdir}/summary.md`);
 	for (const row of report.rows) {
 		console.log(
-			`${row.policy.padEnd(16)} ${String(row.tier).padEnd(7)} solved ${row.solved}/${row.runs}  tokens ${row.tokens_total}  telemetria ${row.telemetry_status}  v4 ${row.conformance_v4}`,
+			`${row.policy.padEnd(16)} ${String(row.tier).padEnd(7)} solved ${row.solved}/${row.runs}  tokens ${row.tokens_total}  teto ${row.ceiling_status}  telemetria ${row.telemetry_status}  v4 ${row.conformance_v4}`,
 		);
 	}
 } catch (error) {
@@ -84,6 +85,8 @@ try {
 		for (const v of error.violations) console.error(`- ${v.run}: ${v.violations.join("; ")}`);
 		process.exitCode = 2;
 	} else {
-		throw error;
+		// Erro de uso ou governança (ex.: subscription sem --max-tokens, outdir não vazio): mensagem limpa, sem stack.
+		console.error(`erro: ${error instanceof Error ? error.message : String(error)}`);
+		process.exitCode = 1;
 	}
 }

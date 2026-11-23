@@ -5,6 +5,7 @@ import { test } from "node:test";
 import {
 	type Attempt,
 	checkLedgerConformance,
+	classifyVerification,
 	ExecutionGuidedLadderPolicy,
 	executeRung,
 	SingleModelPolicy,
@@ -137,4 +138,79 @@ test("ponta a ponta: falha no degrau 0 promove ao degrau 1 com workspace limpo e
 	for (const ledgerPath of ledgers) {
 		assert.deepEqual(checkLedgerConformance(ledgerPath).violations, []);
 	}
+});
+
+test("escalonamento por corte de custo (USD): budget_exceeded no degrau 0 promove ao degrau 1 (escalação padrão)", async () => {
+	// Política com a escalação padrão (DEFAULT_ESCALATE_ON_STATUSES inclui budget_exceeded), sem override.
+	const ladder = new ExecutionGuidedLadderPolicy({
+		rungs: [
+			{ model: CHEAP, costShareCap: 0.5 },
+			{ model: STRONG, costShareCap: 1 },
+		],
+		globalMaxCostUsd: 2,
+	});
+	const runtime = fauxRuntime("anthropic", ["dv-cheap", "dv-strong"]);
+	const dir = tempDir("ladder-usd");
+	const expensive = usage(1_000_000, 1000, { reasoning: 0 }); // 1.004 USD: estoura o teto de 1.0 do degrau 0
+	const cheap = usage(100_000, 1000, { reasoning: 0 }); // 0.104 USD por chamada
+	// Degrau 0 consome só o primeiro turno (cortado pelo custo). Degrau 1 consome os seguintes.
+	runtime.script([
+		toolTurn("write_file", { path: "out.txt", content: "41" }, expensive, "r0"),
+		toolTurn("write_file", { path: "out.txt", content: "42" }, cheap, "r1"),
+		textTurn("feito", cheap),
+	]);
+	const attempts: Attempt[] = [];
+	const statuses: string[] = [];
+	let decision = ladder.decide(attempts);
+	while (decision.kind === "run") {
+		const workspace = new Map<string, string>();
+		const ledgerPath = join(dir, `ledger-rung-${decision.rung}.jsonl`);
+		const result = await executeRung({
+			ledgerPath,
+			runId: `ladder-usd-${decision.rung}`,
+			harnessVariant: "execution_guided_ladder_usd_test",
+			referenceProvenance: { harness: "dv-core" },
+			datasetSha256: "1".repeat(64),
+			taskDefinitionSha256: "2".repeat(64),
+			model: runtime.modelOf(decision.model.modelId),
+			tools: [writeFileTool(workspace)],
+			prompt: "grave 42 em out.txt",
+			streamFn: runtime.streamFn,
+			priceBook: priceBookFor(["anthropic/dv-cheap", "anthropic/dv-strong"]),
+			maxCostUsd: decision.cap_usd,
+			doomLoopMaxIdenticalConsecutive: 3,
+		});
+		statuses.push(result.status);
+		const oracleFail = workspace.get("out.txt") !== "42";
+		attempts.push({
+			rung: decision.rung,
+			role: decision.role,
+			model: decision.model,
+			verification: classifyVerification({
+				oracle: oracleFail ? "FAIL" : "PASS",
+				doomLoopBlocks: 0,
+				budgetTripped: result.status === "budget_exceeded",
+				budgetUnverifiable: false,
+				providerError: false,
+			}),
+			spent_lower_bound_usd: result.spentLowerBoundUsd,
+		});
+		decision = ladder.decide(attempts);
+	}
+
+	assert.deepEqual(statuses, ["budget_exceeded", "completed"]);
+	assert.equal(attempts[0]?.verification?.status, "budget_exceeded");
+	assert.equal(decision.kind, "stop");
+	assert.deepEqual(decision, { kind: "stop", outcome: "solved", reason: "oráculo aprovou" });
+	assert.deepEqual(
+		attempts.map((a) => [a.rung, a.model.modelId]),
+		[
+			[0, "dv-cheap"],
+			[1, "dv-strong"],
+		],
+	);
+	// O degrau 1 recebe o saldo restante (2 - 1.004), não o teto cheio.
+	assert.ok(attempts[0]!.spent_lower_bound_usd > 1);
+	assert.deepEqual(checkLedgerConformance(join(dir, "ledger-rung-0.jsonl")).violations, []);
+	assert.deepEqual(checkLedgerConformance(join(dir, "ledger-rung-1.jsonl")).violations, []);
 });

@@ -4,8 +4,13 @@ import { CONTRACT_ID, LEDGER_SCHEMA } from "../contract.ts";
 import { canonicalJson } from "../util/canonical.ts";
 import { redactText } from "./redact.ts";
 
+export type ConformanceStatus = "PASS" | "FAIL" | "INCONCLUSIVE";
+
 export interface ConformanceReport {
 	ok: boolean;
+	/** PASS; FAIL com violação; INCONCLUSIVE sem violação mas teto não verificável (contract v4, regra c). */
+	status: ConformanceStatus;
+	ceiling_status: string | null;
 	violations: string[];
 }
 
@@ -31,7 +36,7 @@ export function checkLedgerConformance(path: string): ConformanceReport {
 	}
 	if (events.length === 0) {
 		violations.push("ledger vazio");
-		return { ok: false, violations };
+		return { ok: false, status: "FAIL", ceiling_status: null, violations };
 	}
 	checkOrder(events, violations);
 	const runStarted = events.find((ev) => ev.event === "run_started");
@@ -39,7 +44,11 @@ export function checkLedgerConformance(path: string): ConformanceReport {
 	checkCalls(events, violations);
 	checkTools(events, violations);
 	checkRunFinished(events, violations);
-	return { ok: violations.length === 0, violations };
+	const ceiling = events.find((ev) => ev.event === "run_finished")?.ceiling_status;
+	const ceilingStatus = typeof ceiling === "string" ? ceiling : null;
+	const status: ConformanceStatus =
+		violations.length > 0 ? "FAIL" : ceilingStatus === "unverifiable" ? "INCONCLUSIVE" : "PASS";
+	return { ok: violations.length === 0, status, ceiling_status: ceilingStatus, violations };
 }
 
 function parseLine(line: string, lineNo: number, violations: string[]): Json | undefined {

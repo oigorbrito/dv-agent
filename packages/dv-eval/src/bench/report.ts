@@ -1,10 +1,13 @@
-// Agregação e renderização do benchmark: tabela por política e por tier (solve_rate, escalação, tokens, telemetria, conformidade v4).
-
+// Agregação e renderização do benchmark: tabela por política e por tier (solve_rate, escalação, tokens, custo,
+// teto e conformidade v4). Linha "all" só existe quando todos os tiers do corpus foram executados.
+import type { ConformanceStatus } from "@dv-agent/core";
 import type { LedgerMetrics } from "../smoke/ledger_metrics.ts";
 import type { PolicyName } from "../smoke/runner.ts";
-import type { Tier } from "./corpus.ts";
+import { TIERS, type Tier } from "./corpus.ts";
 
-export const BENCH_SCHEMA = "dv-bench-summary-v1";
+export const BENCH_SCHEMA = "dv-bench-summary-v2";
+
+export type CeilingStatus = "within_verified" | "exceeded" | "unverifiable";
 
 export interface RunStep {
 	rung: number;
@@ -12,9 +15,12 @@ export interface RunStep {
 	model: string;
 	verdict: string | null;
 	run_status: string;
+	ceiling_status: CeilingStatus;
+	spent_lower_bound_usd: number;
 	ledger_path: string;
 	ledger_sha256: string;
 	metrics: LedgerMetrics;
+	conformance_status: ConformanceStatus;
 }
 
 /** Uma combinação (tarefa x política). `escalated` é null em políticas sem degrau de escalonamento. */
@@ -26,6 +32,8 @@ export interface RunRecord {
 	solved: boolean;
 	escalated: boolean | null;
 	steps: RunStep[];
+	/** PASS só com todos os steps PASS; sem nenhum ledger (ex.: bloqueado) é INCONCLUSIVE. */
+	conformance_status: ConformanceStatus;
 	conformance_violations: string[];
 }
 
@@ -41,24 +49,35 @@ export interface GroupRow {
 	tokens_cached_read: number;
 	tokens_cache_write: number;
 	tokens_output: number;
+	/** Soma de cost_usd; null se algum passo não tem custo em USD (sessão de assinatura ou preço desconhecido). */
+	cost_usd: number | null;
+	spent_lower_bound_usd: number;
+	/** Pior teto do grupo: exceeded > unverifiable > within_verified. n/a sem passos. */
+	ceiling_status: CeilingStatus | "n/a";
 	telemetry_status: "MEASURED" | "INCONCLUSIVE";
-	conformance_v4: "PASS" | "FAIL";
+	conformance_v4: ConformanceStatus;
 }
 
 /** Políticas com degrau de escalonamento (promoção do degrau 0 para o 1). As demais reportam escalation_rate = null. */
 export const ESCALATING_POLICIES: readonly PolicyName[] = ["ladder"];
 
-/** Agrega por política (tier "all") e por política x tier. Ordem: política na ordem pedida; tiers na ordem canônica. */
+const CEILING_RANK: Record<CeilingStatus, number> = { within_verified: 1, unverifiable: 2, exceeded: 3 };
+
+/**
+ * Agrega por política. Linhas por tier executado; linha "all" somente quando os três tiers foram executados.
+ * `tiers` são os tiers efetivamente executados (não o filtro pedido).
+ */
 export function aggregate(
 	runs: readonly RunRecord[],
 	policies: readonly PolicyName[],
 	tiers: readonly Tier[],
 ): GroupRow[] {
 	const rows: GroupRow[] = [];
+	const allExecuted = TIERS.every((t) => tiers.includes(t));
 	for (const policy of policies) {
 		const byPolicy = runs.filter((r) => r.policy === policy);
-		rows.push(groupRow(policy, "all", byPolicy));
-		for (const tier of tiers) {
+		if (allExecuted) rows.push(groupRow(policy, "all", byPolicy));
+		for (const tier of TIERS.filter((t) => tiers.includes(t))) {
 			rows.push(
 				groupRow(
 					policy,
@@ -78,6 +97,11 @@ function groupRow(policy: PolicyName, tier: Tier | "all", runs: readonly RunReco
 	const telemetryMeasured =
 		runs.length > 0 && runs.every((r) => r.steps.length > 0 && r.steps.every((s) => s.metrics.telemetry_complete));
 	const escalating = ESCALATING_POLICIES.includes(policy);
+	const costs = steps.map((s) => s.metrics.cost_usd);
+	const worst = steps.reduce<CeilingStatus | undefined>(
+		(acc, s) => (acc === undefined || CEILING_RANK[s.ceiling_status] > CEILING_RANK[acc] ? s.ceiling_status : acc),
+		undefined,
+	);
 	return {
 		policy,
 		tier,
@@ -91,9 +115,19 @@ function groupRow(policy: PolicyName, tier: Tier | "all", runs: readonly RunReco
 		tokens_cached_read: sum((m) => m.cache_read_tokens),
 		tokens_cache_write: sum((m) => m.cache_write_tokens),
 		tokens_output: sum((m) => m.completion_tokens),
+		cost_usd: costs.some((c) => c === null) ? null : costs.reduce<number>((acc, c) => acc + (c ?? 0), 0),
+		spent_lower_bound_usd: steps.reduce((acc, s) => acc + s.spent_lower_bound_usd, 0),
+		ceiling_status: worst ?? "n/a",
 		telemetry_status: telemetryMeasured ? "MEASURED" : "INCONCLUSIVE",
-		conformance_v4: runs.some((r) => r.conformance_violations.length > 0) ? "FAIL" : "PASS",
+		conformance_v4: groupConformance(runs),
 	};
+}
+
+/** Regra (c): qualquer FAIL domina; depois INCONCLUSIVE (teto não verificável); PASS só se todos forem PASS. */
+export function groupConformance(runs: readonly RunRecord[]): ConformanceStatus {
+	if (runs.some((r) => r.conformance_status === "FAIL")) return "FAIL";
+	if (runs.some((r) => r.conformance_status === "INCONCLUSIVE")) return "INCONCLUSIVE";
+	return "PASS";
 }
 
 function round4(value: number): number {
@@ -105,7 +139,10 @@ export interface BenchReport {
 	contract_id: string;
 	contract_sha256: string;
 	auth_mode: string;
+	/** Filtro pedido em --tier. */
 	tier: Tier | "all";
+	/** Tiers efetivamente executados. */
+	tiers: Tier[];
 	task: string | null;
 	policies: PolicyName[];
 	max_cost_usd: number;
@@ -122,6 +159,9 @@ const COLUMNS: (keyof GroupRow)[] = [
 	"solved",
 	"solve_rate",
 	"escalation_rate",
+	"cost_usd",
+	"spent_lower_bound_usd",
+	"ceiling_status",
 	"tokens_total",
 	"tokens_input",
 	"tokens_cached_read",
@@ -131,12 +171,14 @@ const COLUMNS: (keyof GroupRow)[] = [
 	"conformance_v4",
 ];
 
-/** Relatório em Markdown. Não omite linhas nem colunas: campo sem valor aparece como n/a. */
+/** Relatório em Markdown. Campo sem valor aparece como n/a (ver legenda). */
 export function renderMarkdown(report: BenchReport): string {
 	const lines: string[] = [];
 	lines.push("# dv-bench: ablação empírica", "");
 	lines.push(`- contrato: \`${report.contract_id}\` (sha256 \`${report.contract_sha256}\`)`);
-	lines.push(`- auth_mode: \`${report.auth_mode}\`; tier: \`${report.tier}\`; tarefa: \`${report.task ?? "todas"}\``);
+	lines.push(
+		`- auth_mode: \`${report.auth_mode}\`; tier pedido: \`${report.tier}\`; tiers executados: \`${report.tiers.join(", ")}\`; tarefa: \`${report.task ?? "todas"}\``,
+	);
 	lines.push(
 		`- políticas: ${report.policies.join(", ")}; teto de custo: ${report.max_cost_usd} USD; teto de tokens: ${report.max_tokens ?? "n/a"}`,
 	);
@@ -154,18 +196,24 @@ export function renderMarkdown(report: BenchReport): string {
 	}
 	lines.push(
 		"",
+		"Legenda: `cost_usd` n/a = sessão de assinatura ou preço desconhecido (custo não somável em USD).",
+		"`ceiling_status` unverifiable = teto de custo não verificável; a conformidade então fica INCONCLUSIVE (contract v4, regra c).",
+		"",
 		"## Runs",
 		"",
-		"| tarefa | tier | política | outcome | degraus | escalou |",
-		"| --- | --- | --- | --- | --- | --- |",
+		"| tarefa | tier | política | outcome | degraus | escalou | ceiling | conformidade |",
+		"| --- | --- | --- | --- | --- | --- | --- | --- |",
 	);
 	for (const run of report.runs) {
 		const escalated = run.escalated === null ? "n/a" : run.escalated ? "sim" : "não";
 		const path = run.steps.map((s) => `${s.role}:${s.verdict ?? "-"}`).join(" → ") || "-";
-		lines.push(`| ${run.task_id} | ${run.tier} | ${run.policy} | ${run.final_outcome} | ${path} | ${escalated} |`);
+		const ceiling = [...new Set(run.steps.map((s) => s.ceiling_status))].join(",") || "n/a";
+		lines.push(
+			`| ${run.task_id} | ${run.tier} | ${run.policy} | ${run.final_outcome} | ${path} | ${escalated} | ${ceiling} | ${run.conformance_status} |`,
+		);
 	}
 	lines.push("", "## Conformidade v4", "");
-	if (report.conformance_violations.length === 0) lines.push("Todos os ledgers passaram no verificador v4.");
+	if (report.conformance_violations.length === 0) lines.push("Nenhuma violação estrutural nos ledgers.");
 	for (const v of report.conformance_violations) lines.push(`- ${v.run}: ${v.violations.join("; ")}`);
 	return `${lines.join("\n")}\n`;
 }

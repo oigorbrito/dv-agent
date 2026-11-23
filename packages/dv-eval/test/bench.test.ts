@@ -3,14 +3,14 @@
 // Não usa rede nem lê ~/.pi/agent/auth.json (auth-mode offline-faux).
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { checkLedgerConformance } from "@dv-agent/core";
 import { type BenchOptions, CONTRACT_PATH, CONTRACT_SHA256, runBench } from "../src/bench/ablation.ts";
 import { discoverCorpus, selectTasks } from "../src/bench/corpus.ts";
-import type { BenchReport, GroupRow, RunRecord } from "../src/bench/report.ts";
+import { aggregate, type BenchReport, type GroupRow, groupConformance, type RunRecord } from "../src/bench/report.ts";
 import { runSmoke } from "../src/smoke/runner.ts";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
@@ -136,7 +136,7 @@ test("conformidade v4 de todos os ledgers, hashes e relatórios summary.json e s
 	}
 
 	const persisted = JSON.parse(readFileSync(join(opts.outdir, "summary.json"), "utf8")) as BenchReport;
-	assert.equal(persisted.schema, "dv-bench-summary-v1");
+	assert.equal(persisted.schema, "dv-bench-summary-v2");
 	assert.equal(persisted.runs.length, report.runs.length);
 	const md = readFileSync(join(opts.outdir, "summary.md"), "utf8");
 	assert.match(md, /\| ladder \| all \|/);
@@ -172,4 +172,108 @@ test("contrato v4 alterado: o bench recusa executar", async () => {
 	const altered = join(mkdtempSync(join(tmpdir(), "dv-bench-contract-")), "contract.json");
 	writeFileSync(altered, "{}\n");
 	await assert.rejects(runBench(options({ contractPath: altered })), /contrato v4 alterado/);
+});
+
+test("governança: subscription sem --max-tokens é recusada antes de qualquer execução", async () => {
+	await assert.rejects(
+		runBench(options({ authMode: "subscription", model: "anthropic/claude-haiku-5-5" })),
+		/subscription exige --max-tokens/,
+	);
+});
+
+test("governança: --outdir existente e não vazio é recusado; arquivo existente não é alterado", async () => {
+	const outdir = mkdtempSync(join(tmpdir(), "dv-bench-occupied-"));
+	const marker = join(outdir, "evidencia.txt");
+	writeFileSync(marker, "run anterior\n");
+	await assert.rejects(runBench(options({ outdir })), /não está vazio/);
+	assert.equal(readFileSync(marker, "utf8"), "run anterior\n");
+	assert.equal(existsSync(join(outdir, "summary.json")), false);
+});
+
+test("higiene: workspace temporário do degrau é removido ao fim (sem órfãos em TEMP)", async () => {
+	const tmp = mkdtempSync(join(tmpdir(), "dv-bench-tmp-"));
+	const saved = { TEMP: process.env.TEMP, TMP: process.env.TMP, TMPDIR: process.env.TMPDIR };
+	process.env.TEMP = tmp;
+	process.env.TMP = tmp;
+	process.env.TMPDIR = tmp;
+	try {
+		await runSmoke({
+			taskDir: join(CORPUS, "easy-01-calc"),
+			policy: "ladder",
+			authMode: "offline-faux",
+			outdir: mkdtempSync(join(tmpdir(), "dv-bench-tmp-out-")),
+			maxCostUsd: 0.05,
+			probesDir: PROBES,
+		});
+	} finally {
+		for (const [key, value] of Object.entries(saved)) {
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
+		}
+	}
+	assert.deepEqual(
+		readdirSync(tmp).filter((name) => name.startsWith("dv-smoke-ws-")),
+		[],
+	);
+});
+
+test("agregado: linha tier 'all' só aparece quando os três tiers foram executados", async () => {
+	const partial = await runBench(options({ tier: "easy", policies: ["single"] }));
+	assert.deepEqual(partial.tiers, ["easy"]);
+	assert.equal(
+		partial.rows.some((r) => r.tier === "all"),
+		false,
+	);
+	assert.deepEqual(
+		partial.rows.map((r) => r.tier),
+		["easy"],
+	);
+});
+
+test("relatório: colunas de custo, teto e conformidade por linha", async () => {
+	const opts = options({ tier: "easy", policies: ["ladder"] });
+	await runBench(opts);
+	const md = readFileSync(join(opts.outdir, "summary.md"), "utf8");
+	assert.match(md, /\| cost_usd \| spent_lower_bound_usd \| ceiling_status \|/);
+	assert.match(md, /\| ladder \| easy \|.*\| within_verified \| \d+ \|.*\| MEASURED \| PASS \|/);
+});
+
+test("editor: limite de turnos corta o degrau com motivo max_turns registrado no ledger", async () => {
+	const summary = await runSmoke({
+		taskDir: join(CORPUS, "easy-01-calc"),
+		policy: "architect-editor",
+		authMode: "offline-faux",
+		outdir: mkdtempSync(join(tmpdir(), "dv-bench-editor-")),
+		maxCostUsd: 0.05,
+		probesDir: PROBES,
+		editorLimits: { maxTurns: 1, maxOutputTokens: 8000 },
+	});
+	const editor = summary.steps.find((s) => s.role === "editor");
+	assert.equal(editor?.run_status, "limit_exceeded");
+	const finished =
+		readFileSync(editor?.ledger_path ?? "", "utf8")
+			.trim()
+			.split("\n")
+			.at(-1) ?? "";
+	assert.match(finished, /"limit_reason":"max_turns"/);
+	assert.deepEqual(checkLedgerConformance(editor?.ledger_path ?? "").violations, []);
+});
+
+test("conformidade agregada: qualquer FAIL domina; INCONCLUSIVE rebaixa o grupo; PASS só com todos PASS", () => {
+	const run = (conformance_status: RunRecord["conformance_status"]): RunRecord => ({
+		task_id: "t",
+		tier: "easy",
+		policy: "single",
+		final_outcome: "unsolved",
+		solved: false,
+		escalated: null,
+		steps: [],
+		conformance_status,
+		conformance_violations: [],
+	});
+	assert.equal(groupConformance([run("PASS"), run("PASS")]), "PASS");
+	assert.equal(groupConformance([run("PASS"), run("INCONCLUSIVE")]), "INCONCLUSIVE");
+	assert.equal(groupConformance([run("INCONCLUSIVE"), run("FAIL")]), "FAIL");
+	const rows: GroupRow[] = aggregate([run("INCONCLUSIVE")], ["single"], ["easy"]);
+	assert.equal(rows[0]?.conformance_v4, "INCONCLUSIVE");
 });

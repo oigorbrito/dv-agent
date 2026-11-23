@@ -14,7 +14,7 @@ import { composeBeforeToolCall } from "../guards/compose.ts";
 import { DoomLoopDetector } from "../guards/doom_loop.ts";
 import { argumentsSha256 } from "../guards/tool_signature.ts";
 import { assertProviderCanRun } from "../ledger/capabilities.ts";
-import type { RunStatus } from "../ledger/events.ts";
+import type { LimitReason, RunStatus } from "../ledger/events.ts";
 import type { PriceBook } from "../ledger/prices.ts";
 import { buildCallTelemetry } from "../ledger/telemetry.ts";
 import { ToolOutcomeTracker } from "../ledger/tool_outcomes.ts";
@@ -37,6 +37,10 @@ export interface RungRunOptions {
 	maxCostUsd: number;
 	/** Teto de tokens do degrau (prompt + completion). Opcional; ao excedê-lo o degrau termina com budget_exceeded. */
 	maxTotalTokens?: number;
+	/** Teto de turnos (chamadas ao provedor) do degrau. Corta só quando o turno pediria mais ferramentas. */
+	maxTurns?: number;
+	/** Teto de output acumulado (tokens de saída) do degrau. */
+	maxOutputTokens?: number;
 	doomLoopMaxIdenticalConsecutive: number;
 	approvedProbes?: ReadonlySet<string>;
 }
@@ -68,6 +72,9 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 	let callCount = 0;
 	let callsFinished = 0;
 	let thrown: unknown;
+	let outputTokens = 0;
+	// Motivo de corte por limite (contrato v4 não fixa; registrado no ledger para auditoria).
+	let limitReason = undefined as LimitReason | undefined;
 
 	ledger.appendRunStarted({
 		run_id: options.runId,
@@ -110,7 +117,18 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 			if (index === undefined) throw new Error("message_end de assistente sem call_started");
 			recordAssistant(index, message);
 			callsFinished += 1;
-			if (budget.onMessageEnd(message)) agent.abort();
+			outputTokens += message.usage.output;
+			if (budget.onMessageEnd(message)) {
+				agent.abort();
+			} else if (limitReason === undefined) {
+				const wantsTools = message.content.some((block) => block.type === "toolCall");
+				if (options.maxOutputTokens !== undefined && outputTokens > options.maxOutputTokens) {
+					limitReason = "max_output_tokens";
+				} else if (options.maxTurns !== undefined && callsFinished >= options.maxTurns && wantsTools) {
+					limitReason = "max_turns";
+				}
+				if (limitReason !== undefined) agent.abort();
+			}
 		} else if (message.role === "toolResult") {
 			recordToolResult(message);
 		}
@@ -173,7 +191,12 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 
 	const messages = [...agent.state.messages];
 	const lastAssistant = [...messages].reverse().find((m): m is AssistantMessage => m.role === "assistant");
-	const status = finalStatus(budget.tripped || budget.tokensTripped, thrown !== undefined, lastAssistant);
+	const status = finalStatus(
+		budget.tripped || budget.tokensTripped,
+		limitReason !== undefined,
+		thrown !== undefined,
+		lastAssistant,
+	);
 	ledger.appendRunFinished({
 		status,
 		calls_started: callCount,
@@ -183,7 +206,11 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 		unknown_cost_calls: budget.unknownCostCalls,
 		non_metered_cost_calls: budget.nonMeteredCostCalls,
 		ceiling_status: budget.ceilingStatus(),
-		guard_events: { doom_loop_blocks: doom.blocks, budget_blocked_tools: budget.blockedTools },
+		guard_events: {
+			doom_loop_blocks: doom.blocks,
+			budget_blocked_tools: budget.blockedTools,
+			limit_reason: limitReason ?? null,
+		},
 	});
 	ledger.close();
 	return {
@@ -198,8 +225,14 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 }
 
 /** Estado final: orçamento vence; depois erro do provedor; depois aborto externo; senão concluído. */
-function finalStatus(tripped: boolean, threw: boolean, last: AssistantMessage | undefined): RunStatus {
+function finalStatus(
+	tripped: boolean,
+	limited: boolean,
+	threw: boolean,
+	last: AssistantMessage | undefined,
+): RunStatus {
 	if (tripped) return "budget_exceeded";
+	if (limited) return "limit_exceeded";
 	if (threw || last?.stopReason === "error") return "provider_error";
 	if (last?.stopReason === "aborted") return "aborted";
 	return "completed";

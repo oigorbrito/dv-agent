@@ -12,8 +12,8 @@ export {
 	type TransportCapability,
 	transportFor,
 } from "./ledger/capabilities.ts";
-export { type ConformanceReport, checkLedgerConformance } from "./ledger/conformance.ts";
-export type { RunStatus } from "./ledger/events.ts";
+export { type ConformanceReport, type ConformanceStatus, checkLedgerConformance } from "./ledger/conformance.ts";
+export type { LimitReason, RunStatus } from "./ledger/events.ts";
 export type { PriceBook, PriceEntry } from "./ledger/prices.ts";
 export { redactText, redactValue } from "./ledger/redact.ts";
 export { buildCallTelemetry, type CallTelemetry } from "./ledger/telemetry.ts";

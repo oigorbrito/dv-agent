@@ -1,13 +1,13 @@
 // Runner de ablação: cada (tarefa x política) em workspace isolado (via runSmoke), ledger de cada degrau verificado
 // contra o contrato v4, e relatório agregado gravado em summary.json e summary.md. Falha explícita em violação.
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { checkLedgerConformance } from "@dv-agent/core";
+import { type ConformanceStatus, checkLedgerConformance } from "@dv-agent/core";
 import { readLedgerMetrics } from "../smoke/ledger_metrics.ts";
 import { type AuthMode, type PolicyName, runSmoke } from "../smoke/runner.ts";
-import { type CorpusTask, discoverCorpus, selectTasks, type Tier } from "./corpus.ts";
-import { aggregate, BENCH_SCHEMA, type BenchReport, type RunRecord, renderMarkdown } from "./report.ts";
+import { type CorpusTask, discoverCorpus, selectTasks, TIERS, type Tier } from "./corpus.ts";
+import { aggregate, BENCH_SCHEMA, type BenchReport, type RunRecord, type RunStep, renderMarkdown } from "./report.ts";
 
 /** SHA-256 congelado de contracts/run-accounting-contract-v4.json. Se o arquivo mudar, o bench não roda. */
 export const CONTRACT_SHA256 = "11b4d5453e0964a7eb88decb5cbf7d1c5f5eebf4fbbdd458fb4e38686baef486";
@@ -31,7 +31,7 @@ export interface BenchOptions {
 	contractPath: string;
 }
 
-/** Violação de conformidade v4 em pelo menos um ledger. O relatório já foi gravado antes do erro. */
+/** Violação estrutural de conformidade v4 em pelo menos um ledger. O relatório já foi gravado antes do erro. */
 export class ConformanceFailure extends Error {
 	readonly violations: { run: string; violations: string[] }[];
 	constructor(violations: { run: string; violations: string[] }[]) {
@@ -45,12 +45,28 @@ export function sha256File(path: string): string {
 	return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
+/** Governança antes de qualquer execução: teto de tokens obrigatório em subscription; outdir novo ou vazio. */
+export function assertGovernance(options: BenchOptions): void {
+	if (options.authMode === "subscription" && options.maxTokens === undefined) {
+		throw new Error(
+			"--auth-mode subscription exige --max-tokens: sem cobrança por token o teto de custo USD não é verificável, e o teto de tokens é o único limite efetivo",
+		);
+	}
+	const outdir = resolve(options.outdir);
+	if (existsSync(outdir) && readdirSync(outdir).length > 0) {
+		throw new Error(
+			`--outdir ${outdir} já existe e não está vazio: escolha um diretório novo (evidência não é sobrescrita)`,
+		);
+	}
+}
+
 /** Executa a ablação e grava outdir/summary.json e outdir/summary.md. */
 export async function runBench(options: BenchOptions): Promise<BenchReport> {
 	const contractSha = sha256File(resolve(options.contractPath));
 	if (contractSha !== CONTRACT_SHA256) {
 		throw new Error(`contrato v4 alterado: sha256 ${contractSha} != ${CONTRACT_SHA256} (${options.contractPath})`);
 	}
+	assertGovernance(options);
 	const tasks = selectTasks(discoverCorpus(options.corpusDir), { tier: options.tier, task: options.task });
 	const outdir = resolve(options.outdir);
 	mkdirSync(outdir, { recursive: true });
@@ -65,13 +81,14 @@ export async function runBench(options: BenchOptions): Promise<BenchReport> {
 	const violations = runs
 		.filter((r) => r.conformance_violations.length > 0)
 		.map((r) => ({ run: `${r.task_id}/${r.policy}`, violations: r.conformance_violations }));
-	const tiers: Tier[] = [...new Set(tasks.map((t) => t.tier))];
+	const tiers = TIERS.filter((t) => tasks.some((task) => task.tier === t));
 	const report: BenchReport = {
 		schema: BENCH_SCHEMA,
 		contract_id: CONTRACT_ID,
 		contract_sha256: contractSha,
 		auth_mode: options.authMode,
 		tier: options.tier,
+		tiers,
 		task: options.task ?? null,
 		policies: [...options.policies],
 		max_cost_usd: options.maxCostUsd,
@@ -100,18 +117,21 @@ async function runOne(task: CorpusTask, policy: PolicyName, options: BenchOption
 		probesDir: options.probesDir,
 	});
 	const violations: string[] = [];
-	const steps = summary.steps.map((step) => {
-		const v = checkLedgerConformance(step.ledger_path).violations;
-		for (const item of v) violations.push(`${task.id}/${policy}/${step.role}#${step.step}: ${item}`);
+	const steps: RunStep[] = summary.steps.map((step) => {
+		const check = checkLedgerConformance(step.ledger_path);
+		for (const item of check.violations) violations.push(`${task.id}/${policy}/${step.role}#${step.step}: ${item}`);
 		return {
 			rung: step.rung,
 			role: step.role,
 			model: step.model,
 			verdict: step.oracle?.verdict ?? null,
 			run_status: step.run_status,
+			ceiling_status: step.ceiling_status,
+			spent_lower_bound_usd: step.spent_lower_bound_usd,
 			ledger_path: step.ledger_path,
 			ledger_sha256: step.ledger_sha256,
 			metrics: readLedgerMetrics(step.ledger_path),
+			conformance_status: check.status,
 		};
 	});
 	return {
@@ -122,6 +142,14 @@ async function runOne(task: CorpusTask, policy: PolicyName, options: BenchOption
 		solved: summary.final_outcome === "solved",
 		escalated: policy === "ladder" ? steps.some((s) => s.rung >= 1) : null,
 		steps,
+		conformance_status: runConformance(steps, violations),
 		conformance_violations: violations,
 	};
+}
+
+/** Run sem nenhum ledger (bloqueado) não tem evidência: INCONCLUSIVE, nunca PASS. */
+function runConformance(steps: readonly RunStep[], violations: readonly string[]): ConformanceStatus {
+	if (violations.length > 0) return "FAIL";
+	if (steps.length === 0) return "INCONCLUSIVE";
+	return steps.some((s) => s.conformance_status === "INCONCLUSIVE") ? "INCONCLUSIVE" : "PASS";
 }

@@ -116,7 +116,7 @@ test("checker aceita nulo declarado e rejeita nulo sem declaração", async () =
 				unknown_cost_calls: 0,
 				non_metered_cost_calls: 0,
 				ceiling_status: "within_verified",
-				guard_events: { doom_loop_blocks: 0, budget_blocked_tools: 0 },
+				guard_events: { doom_loop_blocks: 0, budget_blocked_tools: 0, limit_reason: null },
 			},
 		];
 		return `${events.map((ev) => canonicalJson(ev)).join("\n")}\n`;

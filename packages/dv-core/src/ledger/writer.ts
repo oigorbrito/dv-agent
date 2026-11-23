@@ -22,7 +22,8 @@ export class RunLedger {
 	constructor(path: string) {
 		this.path = path;
 		mkdirSync(dirname(path), { recursive: true });
-		this.fd = openSync(path, "a");
+		// "wx": falha se o ledger já existir. Evidência de run nunca é anexada nem sobrescrita.
+		this.fd = openSync(path, "wx");
 	}
 
 	appendRunStarted(payload: RunStartedPayload): void {

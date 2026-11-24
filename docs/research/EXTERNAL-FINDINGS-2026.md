@@ -56,4 +56,9 @@ Regras para referências e notas futuras (ver também `docs/research/UPSTREAM-RE
 | C-P1 — planejamento condicional ao porte do modelo | F1 | Executores fracos e fortes, com e sem scaffold de planejamento |
 | C-S1 — bash-only vs. ferramentas estruturadas | F1 | Por classe de tarefa e capacidade do executor, com custo e sucesso verificado |
 
+## Fila de Ingestão Automatizada de Estudos
+
+<!-- BEGIN:AUTO-INGEST -->
+<!-- END:AUTO-INGEST -->
+
 Nenhuma dessas hipóteses foi testada no DV. Os achados acima são de outros estudos, sob outras configurações de modelo e benchmark, e não se transferem automaticamente (ver `docs/EVIDENCE-POLICY.md`: suporte é sempre escopado).

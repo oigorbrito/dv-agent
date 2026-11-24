@@ -87,3 +87,43 @@ A avaliação estatística entre braços é realizada pelo procedimento de boots
    - `contracts/run-accounting-contract-v4.json`: `11b4d5453e0964a7eb88decb5cbf7d1c5f5eebf4fbbdd458fb4e38686baef486`
    - `contracts/run-accounting-contract-v5.json`: `5029e770865a8fdf6c70f1dad9283ff06d8bb6012018d613eb77a2363c3820ad`
 3. **Auditoria de Metadados:** O campo `reasoning_effort` e o modo `scaffold_mode` são obrigatoriamente persistidos nos artefatos `summary.json` para rastreabilidade de conformidade.
+
+---
+
+## 7. Validação Offline da Matriz de 4 Braços (2026-11-24)
+
+**Escopo:** `--auth-mode faux` (roteiros determinísticos), zero chamadas a provedores, subconjunto `holdout` (9 tarefas, 1 réplica).
+**Aviso:** os desfechos abaixo são **roteiros scriptados**. Medem o encanamento do harness (roteamento, scaffold, contabilidade, métricas), **não** a capacidade dos modelos. Nenhuma hipótese H1/H2 foi testada por este resultado.
+
+| Braço | Configuração (`dv-bench`) | Resolvidas | Tokens |
+|---|---|---:|---:|
+| A — harness econômico | `single` · `anthropic/claude-haiku-5-5` · `uniform` | 0/9 | 28.600 |
+| B — fronteira enxuta | `single` · `anthropic/claude-sonnet-4-6` · `adaptive` | 9/9 | 42.900 |
+| C — escada base | `predictive-harness-router` · haiku → sonnet · `uniform` | 9/9 | 57.200 |
+| D — adaptativo | `ladder` · `haiku:low, haiku:high, sonnet:medium` · `adaptive` | 9/9 | 100.100 |
+| Controle | `single` · sonnet · `uniform` | 9/9 | 42.900 |
+
+**Métricas (`dv-bench-metrics`):** PGR do roteador = 1,000; APGR = 0,500; AIQ do conjunto = 0,643; Pareto = {A, B}.
+**Bootstrap pareado** (seed `20261124`, 10.000 reamostragens; um único `single` por comparação, pois o pareamento usa o nome da política):
+
+| Par | Δ solve_rate | Δ tokens (IC 95%) |
+|---|---:|---|
+| A → D | +1,000 | +7.944 [5.744; 10.389] |
+| C → D | 0,000 | +4.767 [3.300; 6.478] |
+| B → C | 0,000 | +1.589 [733; 2.567] |
+| B → D | 0,000 | +6.356 [4.889; 8.067] |
+
+Com 1 réplica por tarefa, os IC de solve_rate são degenerados (todos os pares são 0 ou ±1 por tarefa) e não permitem inferência.
+
+### Defeitos encontrados e corrigidos durante a validação
+
+1. **`single` offline ignorava `--model`** (sempre `faux-cheap`). Agora o roteiro segue o porte do modelo pedido.
+2. **Escada offline escondia o porte real** (`faux-cheap`/`faux-strong` por posição), então o scaffold adaptativo nunca ativava o modo bash-only offline. `ModelRef.tierModelId` preserva o modelo real para classificação; o roteiro faux continua por posição (contrato dos testes existentes).
+3. **Fixture bash-only estourava a linha de comando do Windows** (`cmd.exe`, ~8191 caracteres) em arquivos > ~4 KB, o que causava falsas falhas (`hard-02`, `frontier-01`). Os arquivos agora são gravados em blocos de 2 KB; teste executa os comandos e compara os bytes.
+4. **Fração forte do roteador era sempre 0 offline**, pois comparava o roteiro faux (`anthropic/faux-strong`) com o modelo real. Cada passo agora grava `requested_model`, usado nas métricas.
+
+### Pendências
+
+- **Seed padrão divergente:** `DEFAULT_PAIRED_BOOTSTRAP_SEED` vale `20261120`, enquanto este protocolo fixa `20261124`. A validação passou `--seed 20261124` explicitamente; o padrão do código não foi alterado.
+- **Ruído na fonte do arXiv:** a consulta por palavra-chave (`harness`) traz artigos fora de escopo (robótica). A triagem é manual.
+- **Execução live:** depende de autorização explícita e de orçamento de tokens definido pelo operador.

@@ -59,6 +59,31 @@ Regras para referências e notas futuras (ver também `docs/research/UPSTREAM-RE
 ## Fila de Ingestão Automatizada de Estudos
 
 <!-- BEGIN:AUTO-INGEST -->
+### Ingestão automatizada em 2026-11-24 (Payload SHA-256: `a4f9ac6670afd6b1...`)
+
+Total ingerido: 19 itens (19 novos). Todos em status `UNTESTED` / `E0`.
+
+| Identificador | Referência / Título | Data | URL Canônica | Status na Triagem |
+|---|---|---|---|---|
+| arXiv:2611.31217 | Shaokang Jiang, Kira Yuha Cho — *A Mixed-Methods Study of Personal Software Creation* | 2026-11-23 | [link](https://arxiv.org/abs/2611.31217) | Novo (E0/UNTESTED) |
+| arXiv:2611.31205 | Zexin He, Rui Li — *ACAP: Asynchronous Coding Agents for Efficient Robot Control* | 2026-11-23 | [link](https://arxiv.org/abs/2611.31205) | Novo (E0/UNTESTED) |
+| arXiv:2611.31033 | Mohit Tekriwal, Het Mankad — *AI-Assisted Auto-formalization for Trustworthy Scientific Computing: Case Studies and Lessons Learned* | 2026-11-23 | [link](https://arxiv.org/abs/2611.31033) | Novo (E0/UNTESTED) |
+| arXiv:2611.31002 | Jinkun Liu, Yingze Wang — *RoboUniverse-10K: Toward the Scaling Era of Agentic Robotics via Real-to-Sim Environments* | 2026-11-23 | [link](https://arxiv.org/abs/2611.31002) | Novo (E0/UNTESTED) |
+| arXiv:2611.30894 | Carlos Rafael Catalan, Lheane Marie Dizon — *Useful but Unwieldy: How Software Engineers Perceive the Design of Chain-of-Thought Explanations in Coding Agents* | 2026-11-23 | [link](https://arxiv.org/abs/2611.30894) | Novo (E0/UNTESTED) |
+| arXiv:2611.31201 | Xiao-Ming Wu, Kang Liao — *Embo-Harness: Towards Understanding Frontier-Model-as-Policy Harness* | 2026-11-23 | [link](https://arxiv.org/abs/2611.31201) | Novo (E0/UNTESTED) |
+| arXiv:2611.31117 | Jiajun Fan, Neil He — *Self-Upgrading Embodied Agents* | 2026-11-23 | [link](https://arxiv.org/abs/2611.31117) | Novo (E0/UNTESTED) |
+| arXiv:2611.31110 | Yaman Jandali, Nojan Sheybani — *Preflight: Agentic Last-Mile Verification for AI Software Supply Chains* | 2026-11-23 | [link](https://arxiv.org/abs/2611.31110) | Novo (E0/UNTESTED) |
+| arXiv:2611.31098 | Jinzhong Gu, Jiakai Chen — *Real2Worlds2Real: Scaling Self-Improving Agentic Real2Sim2Real for Robot Manipulation* | 2026-11-23 | [link](https://arxiv.org/abs/2611.31098) | Novo (E0/UNTESTED) |
+| arXiv:2611.31053 | Yicheng Xu, Wencan Jiang — *ReWeave: Emergent Physical Task Topologies for Embodied Harness Optimization and Cross-Task Meta-Distillation* | 2026-11-23 | [link](https://arxiv.org/abs/2611.31053) | Novo (E0/UNTESTED) |
+| arXiv:2611.25673 | Jiayi Chen, Lizhe Chen — *CompAct-Bench: A Benchmark for Working-Context Compaction in Long-Horizon Agent Tasks* | 2026-11-19 | [link](https://arxiv.org/abs/2611.25673) | Novo (E0/UNTESTED) |
+| arXiv:2611.23346 | Deep Shah, Nehal Kathrotia — *Securing and Auditing Long-Horizon LLM Agents: State-Transfer Auditing and Controls in the Agent Harness* | 2026-11-17 | [link](https://arxiv.org/abs/2611.23346) | Novo (E0/UNTESTED) |
+| arXiv:2611.06876 | Yulu An, Yifei Feng — *SpecCompact: Accelerating LLM Agent Context Compaction with Slot-Parallel Semantic Speculative Verification* | 2026-11-04 | [link](https://arxiv.org/abs/2611.06876) | Novo (E0/UNTESTED) |
+| arXiv:2611.06445 | Jizhe Zhang, Ang Li — *SUMONE: A Simple and Efficient Summarizer for Plug-and-Play Agent Memory* | 2026-11-04 | [link](https://arxiv.org/abs/2611.06445) | Novo (E0/UNTESTED) |
+| arXiv:2611.04510 | Muhammad Uzair Ul Haq, Davide Rigoni — *Fast, Cheap, and Fair? Evaluating Decision Models* | 2026-11-03 | [link](https://arxiv.org/abs/2611.04510) | Novo (E0/UNTESTED) |
+| arXiv:2611.30983 | Yitong Qiao, Lei Liu — *MedUIGym: Evaluating and Training GUI Agents for Clinical Workflows* | 2026-11-23 | [link](https://arxiv.org/abs/2611.30983) | Novo (E0/UNTESTED) |
+| arXiv:2611.30733 | Andrei Khurshudov — *Can Cities Have Personalities? Introducing the SCD City Personality Assessment* | 2026-11-23 | [link](https://arxiv.org/abs/2611.30733) | Novo (E0/UNTESTED) |
+| arXiv:2611.29822 | Syed Fatiul Huq, Md. Asif Haider — *Can Vibe Coding Produce Accessible Websites: An Empirical Study on LLM Coding Agents and Skills* | 2026-11-22 | [link](https://arxiv.org/abs/2611.29822) | Novo (E0/UNTESTED) |
+| arXiv:2611.27920 | Xuyang Liu, Zhiwei Xu — *Autonomous Parameter Surgery: How LLMs Implant Selective Backdoors into Language Models* | 2026-11-20 | [link](https://arxiv.org/abs/2611.27920) | Novo (E0/UNTESTED) |
 <!-- END:AUTO-INGEST -->
 
 Nenhuma dessas hipóteses foi testada no DV. Os achados acima são de outros estudos, sob outras configurações de modelo e benchmark, e não se transferem automaticamente (ver `docs/EVIDENCE-POLICY.md`: suporte é sempre escopado).

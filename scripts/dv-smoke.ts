@@ -1,9 +1,9 @@
 // Smoke end-to-end. Exemplos:
 //   node scripts/dv-smoke.ts --policy single                                   (offline, sem rede)
-//   node scripts/dv-smoke.ts --policy ladder --auth-mode subscription --model anthropic/<id> --escalation-model anthropic/<id2>
+//   node scripts/dv-smoke.ts --policy ladder --auth-mode subscription --ladder-models anthropic/<id>,anthropic/<id2>
 //   node scripts/dv-smoke.ts --policy single --auth-mode api-key --model openai/<id>
 // Opções: --policy single|ladder|architect-editor  --auth-mode offline-faux|api-key|subscription
-//   --model provider/modelId  --escalation-model provider/modelId  --auth-file CAMINHO  --outdir DIR
+//   --model provider/modelId  --escalation-model provider/modelId  --ladder-models modelo,...  --auth-file CAMINHO  --outdir DIR
 //   --task DIR  --max-cost USD
 import { resolve } from "node:path";
 import { parseArgs } from "../packages/dv-eval/src/cli/args.ts";
@@ -32,6 +32,10 @@ const summary = await runSmoke({
 	authMode: authMode as AuthMode,
 	model: text("model"),
 	escalationModel: text("escalation-model"),
+	ladderModels: text("ladder-models")
+		?.split(",")
+		.map((model) => model.trim())
+		.filter(Boolean),
 	authPath: text("auth-file") === undefined ? undefined : resolve(text("auth-file") ?? ""),
 	outdir: resolve(text("outdir") ?? `runs/smoke-${policy}-${stamp}`),
 	maxCostUsd: Number(text("max-cost") ?? 0.05),

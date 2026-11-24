@@ -23,7 +23,7 @@ npm run probe:providers           # probe offline (padrão, sem rede)
 npm run probe:providers -- --live --provider P --model M --auth-mode subscription   # chamada real (assinatura)
 npm run probe:providers -- --live --provider P --model M --auth-mode api-key        # chamada real (variável de ambiente)
 node scripts/dv-smoke.ts --policy single|ladder|architect-editor --auth-mode offline-faux|api-key|subscription
-    [--model provider/modelId] [--escalation-model provider/modelId] [--auth-file CAMINHO] [--outdir DIR] [--max-cost USD]
+    [--model provider/modelId] [--escalation-model provider/modelId] [--ladder-models provider/id,...] [--auth-file CAMINHO] [--outdir DIR] [--max-cost USD]
 ```
 
 ## Autenticação por assinatura (`--auth-mode subscription`)
@@ -60,6 +60,8 @@ Caminhos absolutos, `..` que escapem, e links/junctions que apontem para fora s�
 ## Política e escalonamento
 
 `ExecutionGuidedLadderPolicy` promove quando o status está em `escalate_on_statuses`, padrão `["fail", "doom_loop", "budget_exceeded"]`. `provider_error` fica fora da promoção automática. O contrato v4 cita o campo sem fixar o valor; a escolha é deste projeto.
+
+`dv-smoke --policy ladder` aceita `--ladder-models modelo,...` para definir qualquer quantidade de degraus em ordem. A lista pode usar IDs `provider/modelId` ou os nomes `Haiku 5.5,Fable 5.2,Sonnet 5.5,Opus 5.5`; sem a opção, `--model` e `--escalation-model` preservam os dois degraus existentes.
 
 ## Tabela de capacidades do transporte pi-ai
 

@@ -18,7 +18,7 @@ import {
 	usage,
 } from "@dv-agent/core";
 import { runOracle } from "../src/oracle/verifier.ts";
-import { runSmoke, type SmokeOptions } from "../src/smoke/runner.ts";
+import { buildPolicy, runSmoke, type SmokeOptions } from "../src/smoke/runner.ts";
 
 const TASK = resolve(import.meta.dirname, "../tasks/calc-basic");
 const PROBES = mkdtempSync(join(tmpdir(), "dv-smoke-probes-"));
@@ -62,6 +62,53 @@ test("ladder: FAIL no degrau 0 promove ao degrau 1; cada degrau tem ledger e res
 	assert.notEqual(summary.steps[0]?.ledger_path, summary.steps[1]?.ledger_path);
 	const persisted = JSON.parse(readFileSync(join(options.outdir, "summary.json"), "utf8")) as { final_outcome: string };
 	assert.equal(persisted.final_outcome, "solved");
+});
+
+test("ladder com quatro modelos: faux percorre quatro degraus até o forte passar", async () => {
+	const summary = await runSmoke(
+		opts("ladder", {
+			ladderModels: ["Haiku 5.5", "Fable 5.2", "Sonnet 5.5", "Opus 5.5"],
+		}),
+	);
+	assert.equal(summary.final_outcome, "solved");
+	assert.deepEqual(
+		summary.steps.map((step) => [step.rung, step.model, step.oracle?.verdict]),
+		[
+			[0, "anthropic/faux-cheap", "FAIL"],
+			[1, "anthropic/faux-cheap", "FAIL"],
+			[2, "anthropic/faux-cheap", "FAIL"],
+			[3, "anthropic/faux-strong", "PASS"],
+		],
+	);
+});
+
+test("ladder resolve os quatro nomes Anthropic para IDs cadastrados sem abrir sessão live", () => {
+	const ladder = buildPolicy(
+		opts("ladder", {
+			authMode: "api-key",
+			ladderModels: ["Haiku 5.5", "Fable 5.2", "Sonnet 5.5", "Opus 5.5"],
+		}),
+	);
+	const models: string[] = [];
+	let decision = ladder.decide([]);
+	while (decision.kind === "run") {
+		models.push(`${decision.model.provider}/${decision.model.modelId}`);
+		decision = ladder.decide([
+			{
+				rung: decision.rung,
+				role: decision.role,
+				model: decision.model,
+				verification: { oracle_pass: false, status: "fail" },
+				spent_lower_bound_usd: 0,
+			},
+		]);
+	}
+	assert.deepEqual(models, [
+		"anthropic/claude-haiku-5-5",
+		"anthropic/claude-fable-5-2",
+		"anthropic/claude-sonnet-5-5",
+		"anthropic/claude-opus-5-5",
+	]);
 });
 
 test("architect-editor: passo de plano sem oráculo, depois editor com oráculo PASS", async () => {

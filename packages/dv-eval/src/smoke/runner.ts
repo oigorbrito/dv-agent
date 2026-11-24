@@ -65,6 +65,8 @@ export interface SmokeOptions {
 	authPath?: string;
 	/** Modelo do degrau 1 (ladder) ou do editor (architect-editor) em api-key. Opcional: sem ele, reusa --model. */
 	escalationModel?: string;
+	/** Lista ordenada de provider/modelId para todos os degraus da política ladder. */
+	ladderModels?: readonly string[];
 	outdir: string;
 	maxCostUsd: number;
 	/** Teto de tokens (prompt + completion) somado a todos os degraus. Opcional. */
@@ -115,8 +117,34 @@ export function parseModelRef(text: string): ModelRef {
 	return { provider: text.slice(0, slash), modelId: text.slice(slash + 1) };
 }
 
+const ANTHROPIC_LADDER_MODELS: Readonly<Record<string, string>> = {
+	"haiku 5.5": "anthropic/claude-haiku-5-5",
+	"fable 5.2": "anthropic/claude-fable-5-2",
+	"sonnet 5.5": "anthropic/claude-sonnet-5-5",
+	"opus 5.5": "anthropic/claude-opus-5-5",
+};
+
+function parseLadderModel(text: string): ModelRef {
+	return parseModelRef(ANTHROPIC_LADDER_MODELS[text.trim().toLowerCase()] ?? text.trim());
+}
+
 /** Política e modelos por papel. Em offline, o id do modelo escolhe o roteiro faux. */
 export function buildPolicy(options: SmokeOptions): RouterPolicy {
+	if (options.policy === "ladder" && options.ladderModels !== undefined) {
+		const ladderModels = options.ladderModels;
+		if (ladderModels.length === 0) throw new Error("--ladder-models requer ao menos um modelo");
+		const models =
+			options.authMode === "offline-faux"
+				? ladderModels.map((_, index) => ({
+						provider: OFFLINE_PROVIDER,
+						modelId: index === ladderModels.length - 1 ? "faux-strong" : "faux-cheap",
+					}))
+				: ladderModels.map(parseLadderModel);
+		return new ExecutionGuidedLadderPolicy({
+			rungs: models.map((model, index) => ({ model, costShareCap: (index + 1) / models.length })),
+			globalMaxCostUsd: options.maxCostUsd,
+		});
+	}
 	const primary = resolveRef(options, "primary");
 	const secondary = resolveRef(options, "secondary");
 	if (options.policy === "single") return new SingleModelPolicy(primary, options.maxCostUsd);

@@ -1,0 +1,54 @@
+{
+  "schema": "agy-acp-one-turn-probe-v1",
+  "observed_at": "2026-11-24",
+  "command": ["agy", "acp", "--stdio", "--disable-telemetry"],
+  "agent": { "name": "Antigravity ACP Server", "version": "1.5.15" },
+  "requests": {
+    "initialize": {
+      "params": ["protocolVersion", "clientCapabilities", "clientInfo"],
+      "result_fields_observed": ["protocolVersion", "agentCapabilities", "agentInfo", "authMethods"]
+    },
+    "session/new": {
+      "params": ["cwd", "mcpServers"],
+      "result_fields_observed": ["sessionId", "models", "modes", "configOptions", "_meta"]
+    },
+    "session/prompt": {
+      "params": ["sessionId", "prompt"],
+      "result": {
+        "stopReason": "end_turn",
+        "usage": {
+          "inputTokens": 13193,
+          "outputTokens": 118,
+          "cachedReadTokens": 0,
+          "cachedWriteTokens": 0,
+          "thoughtTokens": 117,
+          "totalTokens": 13311
+        }
+      }
+    }
+  },
+  "session_new_models": {
+    "currentModelId": "gemini-3.8-flash-high",
+    "availableModels": [
+      { "modelId": "gemini-3.8-flash-high", "name": "Gemini 3.8 Flash (High)" },
+      { "modelId": "gemini-3.8-flash-medium", "name": "Gemini 3.8 Flash (Medium)" },
+      { "modelId": "gemini-3.8-flash-low", "name": "Gemini 3.8 Flash (Low)" },
+      { "modelId": "claude-sonnet-4-6", "name": "Claude Sonnet 4.6 (Thinking)" },
+      { "modelId": "claude-opus-4-6-thinking", "name": "Claude Opus 4.6 (Thinking)" },
+      { "modelId": "gpt-oss-120b-medium", "name": "GPT-OSS 120B (Medium)" }
+    ]
+  },
+  "session_update_observed_types": [
+    "available_commands_update",
+    "usage_update",
+    "session_info_update",
+    "agent_message_chunk"
+  ],
+  "prompt": "Responda somente com \"ok\". Não use ferramentas.",
+  "assistant_text_observed": "ok",
+  "tool_calls_observed": 0,
+  "notes": [
+    "usage_update carried context-window used/size values; token accounting for this turn was in the session/prompt result usage object.",
+    "A single ACP session and one session/prompt request were issued."
+  ]
+}

@@ -251,6 +251,41 @@ test("cruzamento: Haiku single, Sonnet single e roteador no mesmo conjunto produ
 	assert.match(section, /APGR \(curva fraco→roteador→forte\): 0\.500/);
 });
 
+test("cruzamento: linhas por tier não viram pontos extras (só a linha agregada tier=all conta)", () => {
+	const tasks = ["t1", "t2"];
+	// Haiku: 0/2 (custo 100). Sonnet: 1/2 (custo 400). Roteador: 2/2 (custo 200). Sonnet fica dominado pelo roteador.
+	const haiku = report(
+		HAIKU,
+		"single",
+		0,
+		100,
+		tasks.map((t) => run("single", t, HAIKU, false)),
+	);
+	const sonnet = report(
+		SONNET,
+		"single",
+		0.5,
+		400,
+		tasks.map((t, i) => run("single", t, SONNET, i === 0)),
+	);
+	const router = report(
+		null,
+		"predictive-harness-router",
+		1,
+		200,
+		tasks.map((t) => run("predictive-harness-router", t, HAIKU, true)),
+	);
+	// Linhas por tier com valores que mudariam o resultado se entrassem.
+	for (const r of [haiku, sonnet, router]) {
+		r.rows = [...r.rows, { ...r.rows[0], tier: "easy", solve_rate: 0.123, tokens_total: 1 }] as typeof r.rows;
+	}
+	const m = computeRoutingMetrics([haiku, sonnet, router], { weakModel: HAIKU, strongModel: SONNET });
+	assert.equal(m.others.length, 0, "nenhum ponto extra além de fraco, forte e roteador");
+	assert.equal(m.weak.quality, 0);
+	assert.equal(m.strong.quality, 0.5);
+	assert.deepEqual(m.pareto, ["single:anthropic/claude-haiku-5-5", "predictive-harness-router"]);
+});
+
 test("cruzamento: sem o roteador, a seção declara que PGR e APGR não se aplicam", () => {
 	const runs = [run("single", "t1", HAIKU, true)];
 	const reports = [

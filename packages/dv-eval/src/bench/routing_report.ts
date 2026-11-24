@@ -59,7 +59,9 @@ export function computeRoutingMetrics(reports: readonly BenchReport[], inputs: R
 
 	const points: RoutingPoint[] = [];
 	for (const report of reports) {
+		// Só a linha agregada (tier "all"): as linhas por tier são cortes do mesmo conjunto e não são pontos novos.
 		for (const row of report.rows) {
+			if (row.tier !== "all") continue;
 			if (row.policy === "single") {
 				if (report.model === inputs.weakModel) {
 					points.push({

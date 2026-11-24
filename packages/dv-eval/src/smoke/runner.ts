@@ -77,6 +77,8 @@ export interface SmokeOptions {
 	/** Limites do papel editor. Padrão: EDITOR_LIMITS. */
 	editorLimits?: RoleLimits;
 	probesDir: string;
+	/** Contrato do run. Padrão: v5 para provedor agy, v4 para os demais (executeRung). */
+	contractId?: string;
 }
 
 export interface StepRecord {
@@ -204,6 +206,11 @@ function gitCommit(root: string): string {
 	}
 }
 
+/** Contrato do degrau: o do resumo quando informado; senão v5 para agy e v4 (padrão) para os demais. */
+function contractForRun(options: SmokeOptions, provider: string): string | undefined {
+	return options.contractId ?? (provider === "agy" ? CONTRACT_V5_ID : undefined);
+}
+
 /** Executa a política até parar. Cada degrau: workspace limpo, run com ledger próprio e oráculo externo. */
 export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 	const root = resolve(import.meta.dirname, "../../../..");
@@ -269,7 +276,7 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 					...(decision.role === "editor" ? (options.editorLimits ?? EDITOR_LIMITS) : {}),
 					doomLoopMaxIdenticalConsecutive: 3,
 					approvedProbes: approved,
-					...(decision.model.provider === "agy" ? { contractId: CONTRACT_V5_ID } : {}),
+					contractId: contractForRun(options, decision.model.provider),
 					...(policy.name === "predictive_harness_router"
 						? {
 								routeDecision: {

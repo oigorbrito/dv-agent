@@ -1,12 +1,14 @@
 // Runner de ablação: cada (tarefa x política x réplica) em workspace isolado (via runSmoke), ledger de cada degrau
-// verificado contra o contrato v4, e relatório agregado gravado em summary.json e summary.md. Falha explícita em violação.
+// verificado contra o contrato do bench (v4, ou v5 quando há arm agy), e relatório agregado gravado em summary.json e
+// summary.md. Falha explícita em violação.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { type ConformanceStatus, checkLedgerConformance } from "@dv-agent/core";
+import { CONTRACT_V5_FILE, CONTRACT_V5_ID, type ConformanceStatus, checkLedgerConformance } from "@dv-agent/core";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import { readLedgerMetrics } from "../smoke/ledger_metrics.ts";
 import { type AuthMode, EDITOR_LIMITS, type PolicyName, type RoleLimits, runSmoke } from "../smoke/runner.ts";
+import { benchContractId, CONTRACT_SHA_BY_ID } from "./contract_labels.ts";
 import { CORPUS_TIERS, type CorpusTask, type CorpusTier, discoverCorpus, selectTasks } from "./corpus.ts";
 import {
 	aggregate,
@@ -21,7 +23,8 @@ import {
 /** SHA-256 congelado de contracts/run-accounting-contract-v4.json. Se o arquivo mudar, o bench não roda. */
 export const CONTRACT_SHA256 = "11b4d5453e0964a7eb88decb5cbf7d1c5f5eebf4fbbdd458fb4e38686baef486";
 export const CONTRACT_PATH = "contracts/run-accounting-contract-v4.json";
-const CONTRACT_ID = "p1-run-accounting-v4";
+/** Raiz do repositório (packages/dv-eval/src/bench -> raiz). */
+const REPO_ROOT = resolve(import.meta.dirname, "../../../..");
 
 export interface BenchOptions {
 	corpusDir: string;
@@ -105,9 +108,15 @@ export function temperatureNotes(options: BenchOptions): string[] {
 
 /** Executa a ablação e grava outdir/summary.json e outdir/summary.md. */
 export async function runBench(options: BenchOptions): Promise<BenchReport> {
-	const contractSha = sha256File(resolve(options.contractPath));
-	if (contractSha !== CONTRACT_SHA256) {
-		throw new Error(`contrato v4 alterado: sha256 ${contractSha} != ${CONTRACT_SHA256} (${options.contractPath})`);
+	// Contrato efetivo do bench: v5 se algum arm usa agy (arquivo v5), senão v4 (contractPath, padrão do CLI).
+	const contractId = benchContractId([options.model, options.escalationModel]);
+	const contractFile =
+		contractId === CONTRACT_V5_ID ? join(REPO_ROOT, CONTRACT_V5_FILE) : resolve(options.contractPath);
+	const contractSha = sha256File(contractFile);
+	const expectedSha = CONTRACT_SHA_BY_ID[contractId];
+	if (contractSha !== expectedSha) {
+		const label = contractId === CONTRACT_V5_ID ? "v5" : "v4";
+		throw new Error(`contrato ${label} alterado: sha256 ${contractSha} != ${expectedSha} (${contractFile})`);
 	}
 	assertGovernance(options);
 	const repeats = options.repeats ?? 1;
@@ -123,7 +132,7 @@ export async function runBench(options: BenchOptions): Promise<BenchReport> {
 	for (const task of tasks) {
 		for (const policy of options.policies) {
 			for (let rep = 0; rep < repeats; rep += 1) {
-				runs.push(await runOne(task, policy, rep, options, outdir));
+				runs.push(await runOne(task, policy, rep, options, outdir, contractId));
 			}
 		}
 	}
@@ -134,7 +143,7 @@ export async function runBench(options: BenchOptions): Promise<BenchReport> {
 	const tiers = CORPUS_TIERS.filter((t) => tasks.some((task) => task.tier === t));
 	const report: BenchReport = {
 		schema: BENCH_SCHEMA,
-		contract_id: CONTRACT_ID,
+		contract_id: contractId,
 		contract_sha256: contractSha,
 		auth_mode: options.authMode,
 		tier: options.tier,
@@ -166,11 +175,13 @@ async function runOne(
 	rep: number,
 	options: BenchOptions,
 	outdir: string,
+	contractId: string,
 ): Promise<RunRecord> {
 	const runDir = join(outdir, task.id, policy, `rep-${rep}`);
 	const summary = await runSmoke({
 		taskDir: task.dir,
 		policy,
+		contractId,
 		authMode: options.authMode,
 		model: options.model,
 		escalationModel: options.escalationModel,
@@ -184,6 +195,13 @@ async function runOne(
 	const violations: string[] = [];
 	const steps: RunStep[] = summary.steps.map((step) => {
 		const check = checkLedgerConformance(step.ledger_path);
+		// 1-para-1: o run_started do ledger tem de trazer o contrato do resumo.
+		const ledgerContract = readLedgerContractId(step.ledger_path);
+		if (ledgerContract !== contractId) {
+			violations.push(
+				`${task.id}/${policy}/rep-${rep}/${step.role}#${step.step}: contract_id do ledger ${ledgerContract} != ${contractId}`,
+			);
+		}
 		for (const item of check.violations) {
 			violations.push(`${task.id}/${policy}/rep-${rep}/${step.role}#${step.step}: ${item}`);
 		}
@@ -206,6 +224,7 @@ async function runOne(
 		tier: task.tier,
 		policy,
 		repeat: rep,
+		contract_id: contractId,
 		final_outcome: summary.final_outcome,
 		solved: summary.final_outcome === "solved",
 		escalated: ESCALATING_POLICIES.includes(policy) ? steps.some((s) => s.rung >= 1) : null,
@@ -220,4 +239,15 @@ function runConformance(steps: readonly RunStep[], violations: readonly string[]
 	if (violations.length > 0) return "FAIL";
 	if (steps.length === 0) return "INCONCLUSIVE";
 	return steps.some((s) => s.conformance_status === "INCONCLUSIVE") ? "INCONCLUSIVE" : "PASS";
+}
+
+/** contract_id gravado no run_started do ledger (null se o ledger não tem a linha). */
+function readLedgerContractId(path: string): string | null {
+	const first = readFileSync(path, "utf8").split("\n")[0] ?? "";
+	try {
+		const parsed = JSON.parse(first) as { contract_id?: unknown };
+		return typeof parsed.contract_id === "string" ? parsed.contract_id : null;
+	} catch {
+		return null;
+	}
 }

@@ -25,6 +25,8 @@ export interface RunStep {
 
 /** Uma combinação (tarefa x política). `escalated` é null em políticas sem degrau de escalonamento. */
 export interface RunRecord {
+	/** Contrato do run (igual ao do resumo). Ausente em resumos anteriores à rotulagem por contrato. */
+	contract_id?: string;
 	task_id: string;
 	/** Índice da réplica (0-based): rep-N no diretório. */
 	repeat: number;

@@ -6,6 +6,7 @@
 // Os resumos precisam cobrir o MESMO conjunto de execuções (mesmas tarefas e réplicas).
 // Códigos de saída: 0 ok; 1 erro de uso ou de dados.
 import { readFileSync } from "node:fs";
+import { checkReportContracts } from "../packages/dv-eval/src/bench/contract_labels.ts";
 import { computePairedBootstrap, renderPairedBootstrap } from "../packages/dv-eval/src/bench/paired_bootstrap.ts";
 import type { BenchReport } from "../packages/dv-eval/src/bench/report.ts";
 import { computeRoutingMetrics, renderRoutingSection } from "../packages/dv-eval/src/bench/routing_report.ts";
@@ -52,6 +53,11 @@ if (
 
 try {
 	const reports = files.map((file) => JSON.parse(readFileSync(file, "utf8")) as BenchReport);
+	// Contratos: erro só para problema real (id desconhecido, SHA que não confere, execução fora do contrato do resumo).
+	// v4 e v5 entre arms são compatíveis e viram nota, não alerta.
+	const contracts = checkReportContracts(reports);
+	for (const note of contracts.notes) console.error(`nota: ${note}`);
+	if (!contracts.ok) throw new Error(`contrato divergente: ${contracts.problems.join("; ")}`);
 	if (routingRequested) {
 		const metrics = computeRoutingMetrics(reports, {
 			weakModel: weakModel as string,

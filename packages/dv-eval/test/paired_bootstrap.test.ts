@@ -5,6 +5,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
+import { CONTRACT_V4_SHA256 } from "../src/bench/contract_labels.ts";
 import { computePairedBootstrap, renderPairedBootstrap } from "../src/bench/paired_bootstrap.ts";
 import type { BenchReport, RunRecord } from "../src/bench/report.ts";
 
@@ -59,7 +60,7 @@ function report(runs: RunRecord[]): BenchReport {
 	return {
 		schema: "dv-bench-summary-v2",
 		contract_id: "p1-run-accounting-v4",
-		contract_sha256: "1".repeat(64),
+		contract_sha256: CONTRACT_V4_SHA256,
 		auth_mode: "offline-faux",
 		tier: "all",
 		tiers: ["easy"],

@@ -170,13 +170,15 @@ test("coleta e deduplicação determinística via --offline-fixture", () => {
 
 		assert.equal(report.schema, "dv-external-intake-v1");
 		assert.equal(report.mode, "offline-fixture");
-		assert.equal(report.total_items, 3);
+		// items é o conjunto único do dia; a contagem bruta de cada execução fica em runs[].
+		assert.equal(report.total_items, 2, "duplicata dentro do lote não entra duas vezes no dia");
+		assert.equal(report.runs[0].items_fetched, 3);
 		assert.equal(report.new_items_count, 1, "Apenas o paper novo não repetido deve ser contabilizado como novo");
+		assert.equal(report.runs[0].run_new_items_count, 1);
 		assert.equal(report.gate_report, undefined, "--run-gate false deve realmente desativar o gate");
 
 		assert.equal(report.items[0].is_duplicate, true, "Item existente no FINDINGS.md deve ser deduplicado");
 		assert.equal(report.items[1].is_duplicate, false, "Item inédito não é duplicado");
-		assert.equal(report.items[2].is_duplicate, true, "Item repetido no mesmo lote deve ser deduplicado");
 
 		const updatedDoc = readFileSync(findingsDocPath, "utf8");
 		assert.ok(updatedDoc.includes("<!-- BEGIN:AUTO-INGEST -->"));
@@ -465,6 +467,11 @@ test("atualização delimitada: fixture Atom com versão diferente é deduplicad
 
 		// Segunda execução: a seção delimitada é substituída, não duplicada.
 		runIngest();
+		const rerun = JSON.parse(readFileSync(join(queueDir, `intake-${today}.json`), "utf8"));
+		assert.equal(rerun.runs.length, 2, "cada execução do dia fica registrada");
+		assert.equal(rerun.runs[1].run_new_items_count, 0, "segunda execução idêntica não reporta novos itens");
+		assert.equal(rerun.new_items_count, 1, "o lote do dia preserva o novo item da primeira execução");
+		assert.equal(rerun.total_items, 2);
 		const doc = readFileSync(findingsDocPath, "utf8");
 		assert.equal(doc.split("<!-- BEGIN:AUTO-INGEST -->").length - 1, 1);
 		assert.equal(doc.split("<!-- END:AUTO-INGEST -->").length - 1, 1);

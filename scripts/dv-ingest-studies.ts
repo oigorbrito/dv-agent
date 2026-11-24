@@ -23,11 +23,21 @@ export interface IntakeReport {
 	ingested_at: string;
 	date: string;
 	mode: "offline-fixture" | "live-feeds";
+	feeds: FeedStatus[];
 	raw_payload_sha256: string;
 	total_items: number;
 	new_items_count: number;
 	items: IngestedItem[];
 	dataset_sha256?: string;
+	/** Histórico das execuções do dia (o lote diário é mesclado, não sobrescrito). */
+	runs?: {
+		ingested_at: string;
+		mode: "offline-fixture" | "live-feeds";
+		raw_payload_sha256: string;
+		items_fetched: number;
+		run_new_items_count: number;
+		feeds: FeedStatus[];
+	}[];
 	gate_report?: {
 		ok: boolean;
 		tasks_checked: number;
@@ -37,7 +47,18 @@ export interface IntakeReport {
 
 const ARXIV_QUERIES = ["coding agents", "harness", "context compaction", "reasoning effort"];
 
-const GITHUB_REPOS = ["swe-bench/SWE-bench", "terminal-bench/terminal-bench"];
+// terminal-bench foi migrado para laude-institute/terminal-bench (o slug antigo responde 404).
+const GITHUB_REPOS = ["SWE-bench/SWE-bench", "laude-institute/terminal-bench"];
+
+export interface FeedStatus {
+	source: "arxiv" | "github";
+	query: string;
+	url: string;
+	ok: boolean;
+	http_status: number | null;
+	items: number;
+	error?: string;
+}
 
 export function parseArxivAtom(xml: string, query: string): IngestedItem[] {
 	const items: IngestedItem[] = [];
@@ -142,7 +163,6 @@ export function updateFindingsDocument(docPath: string, items: IngestedItem[], r
 	const original = readFileSync(docPath, "utf8");
 
 	const newRows = items
-		.slice(0, 15)
 		.map((it) => {
 			const authors = it.authors.length > 0 ? it.authors.slice(0, 2).join(", ") : "Autores não listados";
 			const cleanTitle = it.title.replace(/\|/g, "\\|");
@@ -209,6 +229,7 @@ async function main(): Promise<void> {
 
 	let rawAggregatedPayload = "";
 	const allItems: IngestedItem[] = [];
+	const feeds: FeedStatus[] = [];
 
 	if (offlineFixturePath) {
 		const fixtureAbs = resolve(offlineFixturePath);
@@ -232,37 +253,56 @@ async function main(): Promise<void> {
 			allItems.push(...parseArxivAtom(rawText, "fixture"));
 		}
 	} else if (isLiveFeeds) {
+		const fetchFeed = async (
+			source: "arxiv" | "github",
+			query: string,
+			url: string,
+			headers: Record<string, string>,
+			parse: (body: string) => IngestedItem[],
+		): Promise<void> => {
+			const status: FeedStatus = { source, query, url, ok: false, http_status: null, items: 0 };
+			feeds.push(status);
+			try {
+				const res = await fetch(url, { headers });
+				status.http_status = res.status;
+				if (!res.ok) {
+					status.error = `HTTP ${res.status}`;
+					console.warn(`Aviso: feed ${source} "${query}" respondeu HTTP ${res.status}: ${url}`);
+					return;
+				}
+				const textBody = await res.text();
+				const parsed = parse(textBody);
+				rawAggregatedPayload += textBody;
+				allItems.push(...parsed);
+				status.ok = true;
+				status.items = parsed.length;
+			} catch (err) {
+				status.error = err instanceof Error ? err.message : String(err);
+				console.warn(`Aviso: falha ao consultar feed ${source} "${query}":`, err);
+			}
+		};
+
 		for (const query of ARXIV_QUERIES) {
 			const url = `https://export.arxiv.org/api/query?search_query=all:%22${encodeURIComponent(query)}%22&max_results=5&sortBy=submittedDate&sortOrder=descending`;
-			try {
-				const res = await fetch(url, { headers: { "User-Agent": "dv-agent-ingest/1.0 (academic research)" } });
-				if (res.ok) {
-					const textBody = await res.text();
-					rawAggregatedPayload += textBody;
-					allItems.push(...parseArxivAtom(textBody, query));
-				}
-			} catch (err) {
-				console.warn(`Aviso: falha ao consultar feed arXiv para "${query}":`, err);
-			}
+			await fetchFeed("arxiv", query, url, { "User-Agent": "dv-agent-ingest/1.0 (academic research)" }, (body) =>
+				parseArxivAtom(body, query),
+			);
 		}
 
 		for (const repo of GITHUB_REPOS) {
 			const url = `https://api.github.com/repos/${repo}/releases?per_page=3`;
-			try {
-				const res = await fetch(url, {
-					headers: {
-						"User-Agent": "dv-agent-ingest/1.0",
-						Accept: "application/vnd.github.v3+json",
-					},
-				});
-				if (res.ok) {
-					const textBody = await res.text();
-					rawAggregatedPayload += textBody;
-					allItems.push(...parseGitHubReleases(textBody, repo));
-				}
-			} catch (err) {
-				console.warn(`Aviso: falha ao consultar releases do GitHub para "${repo}":`, err);
-			}
+			await fetchFeed(
+				"github",
+				repo,
+				url,
+				{ "User-Agent": "dv-agent-ingest/1.0", Accept: "application/vnd.github.v3+json" },
+				(body) => parseGitHubReleases(body, repo),
+			);
+		}
+
+		// Fail-closed: sem nenhum feed respondendo, não há lote válido para registrar.
+		if (!feeds.some((f) => f.ok)) {
+			throw new Error("--live-feeds: nenhum feed respondeu com sucesso; lote não gravado");
 		}
 	}
 
@@ -303,25 +343,53 @@ async function main(): Promise<void> {
 		}
 	}
 
+	// Lote do dia: execuções repetidas no mesmo dia são mescladas, não sobrescritas. Cada item conserva
+	// o status da primeira vez que foi visto; o histórico de execuções fica em `runs`.
+	const intakeJsonPath = join(outdir, `intake-${today}.json`);
+	const previous: IntakeReport | undefined = existsSync(intakeJsonPath)
+		? (JSON.parse(readFileSync(intakeJsonPath, "utf8")) as IntakeReport)
+		: undefined;
+	const mergedItems: IngestedItem[] = [...(previous?.items ?? [])];
+	const seenInDay = new Set(mergedItems.flatMap((it) => [it.id.toLowerCase(), it.canonical_url.toLowerCase()]));
+	for (const item of allItems) {
+		if (seenInDay.has(item.id.toLowerCase()) || seenInDay.has(item.canonical_url.toLowerCase())) continue;
+		mergedItems.push(item);
+		seenInDay.add(item.id.toLowerCase());
+		seenInDay.add(item.canonical_url.toLowerCase());
+	}
+
 	const report: IntakeReport = {
 		schema: "dv-external-intake-v1",
 		ingested_at: new Date().toISOString(),
 		date: today,
 		mode: offlineFixturePath ? "offline-fixture" : "live-feeds",
+		feeds,
 		raw_payload_sha256: rawSha256,
-		total_items: allItems.length,
-		new_items_count: newCount,
-		items: allItems,
+		total_items: mergedItems.length,
+		new_items_count: mergedItems.filter((it) => !it.is_duplicate).length,
+		items: mergedItems,
+		runs: [
+			...(previous?.runs ?? []),
+			{
+				ingested_at: new Date().toISOString(),
+				mode: offlineFixturePath ? "offline-fixture" : "live-feeds",
+				raw_payload_sha256: rawSha256,
+				items_fetched: allItems.length,
+				run_new_items_count: newCount,
+				feeds,
+			},
+		],
 		dataset_sha256: batchDatasetSha256,
 		gate_report: gateReport,
 	};
 
-	const intakeJsonPath = join(outdir, `intake-${today}.json`);
 	writeFileSync(intakeJsonPath, `${JSON.stringify(report, null, 2)}\n`.replace(/\r\n/g, "\n"), "utf8");
-	console.log(`Relatório gravado em: ${intakeJsonPath}`);
+	console.log(
+		`Relatório gravado em: ${intakeJsonPath} (novos no dia: ${report.new_items_count}; novos nesta execução: ${newCount})`,
+	);
 
 	// Atualiza documento de achados externos
-	updateFindingsDocument(findingsDoc, allItems, rawSha256, today);
+	updateFindingsDocument(findingsDoc, mergedItems, rawSha256, today);
 	console.log(`Documento atualizado: ${findingsDoc}`);
 
 	if (gateReport && !gateReport.ok) {

@@ -1,5 +1,6 @@
 // Baldes de telemetria de uma chamada (contract v4, regras a e b): mede, marca o que falta e nunca altera oracle_pass.
 import type { AssistantMessage } from "@earendil-works/pi-ai";
+import { CONTRACT_V5_ID } from "../contract.ts";
 import { transportFor, uncachedInputTokens } from "./capabilities.ts";
 import { costForMessage, type PriceBook } from "./prices.ts";
 
@@ -20,7 +21,8 @@ export interface CallTelemetry {
 	/** Baldes obrigatórios não medidos e não declarados. Vazio quando telemetry_complete=true. */
 	missing_buckets: string[];
 	telemetry_complete: boolean;
-	cost_accounting_status: "MEASURED" | "INCONCLUSIVE";
+	/** UNVERIFIABLE: agy com cache ativo (regra v5), até um turno com cache comprovar a semântica. */
+	cost_accounting_status: "MEASURED" | "INCONCLUSIVE" | "UNVERIFIABLE";
 }
 
 /**
@@ -28,11 +30,18 @@ export interface CallTelemetry {
  * completion_tokens é output, e total = prompt + completion. Campo que o transporte declara como não exposto
  * e que chega nulo vai para declared_not_exposed, e não para missing_buckets.
  */
-export function buildCallTelemetry(provider: string, message: AssistantMessage, book: PriceBook): CallTelemetry {
+export function buildCallTelemetry(
+	provider: string,
+	message: AssistantMessage,
+	book: PriceBook,
+	options: { contractId?: string } = {},
+): CallTelemetry {
 	const u = message.usage;
 	const promptTokens = u.input + u.cacheRead + u.cacheWrite;
 	const transport = transportFor(message.api);
-	const uncached = uncachedInputTokens(provider, message);
+	// agy sob v5: regra condicional própria. Sob v4 não há regra para o agy (uncached fica null).
+	const agy = options.contractId === CONTRACT_V5_ID && provider === "agy" ? agyV5Rule(u) : null;
+	const uncached = agy !== null ? agy.uncached : uncachedInputTokens(provider, message);
 	const cost = costForMessage(message, book);
 	const notApplicable: string[] = [];
 	// Sessão de assinatura: a cobrança não é por token; o custo é declarado como não aplicável, não como desconhecido.
@@ -58,7 +67,8 @@ export function buildCallTelemetry(provider: string, message: AssistantMessage, 
 	// Usage incompleto declarado pelo adaptador (campos ausentes viraram 0 e não são medição).
 	if (message.diagnostics?.some((d) => d.type === "usage_incomplete")) missing.push("usage_incomplete");
 	if (message.diagnostics?.some((d) => d.type === "model_switch_unconfirmed")) missing.push("model_switch_unconfirmed");
-	if (uncached === null) missing.push("uncached_input_tokens");
+	if (agy !== null) missing.push(...agy.missing);
+	else if (uncached === null) missing.push("uncached_input_tokens");
 	if (cost === null) missing.push("cost_usd");
 
 	const complete = missing.length === 0;
@@ -76,7 +86,7 @@ export function buildCallTelemetry(provider: string, message: AssistantMessage, 
 		declared_not_applicable: notApplicable,
 		missing_buckets: missing,
 		telemetry_complete: complete,
-		cost_accounting_status: complete ? "MEASURED" : "INCONCLUSIVE",
+		cost_accounting_status: complete ? "MEASURED" : agy?.unverifiable === true ? "UNVERIFIABLE" : "INCONCLUSIVE",
 	};
 }
 
@@ -84,4 +94,22 @@ export function buildCallTelemetry(provider: string, message: AssistantMessage, 
 function declareNull(bucket: string, declared: string[]): null {
 	declared.push(bucket);
 	return null;
+}
+
+/**
+ * Regra condicional do agy (contrato v5, proposta). Cache zero e totalTokens = inputTokens + outputTokens: uncached é
+ * inputTokens (com cache zero, as duas semânticas dão o mesmo valor). Cache ativo: UNVERIFIABLE, sem medição de uncached.
+ */
+function agyV5Rule(u: AssistantMessage["usage"]): {
+	uncached: number | null;
+	missing: string[];
+	unverifiable: boolean;
+} {
+	if (u.cacheRead > 0 || u.cacheWrite > 0) {
+		return { uncached: null, missing: ["uncached_input_tokens", "agy_cache_semantics_unverified"], unverifiable: true };
+	}
+	if (u.totalTokens !== u.input + u.output) {
+		return { uncached: null, missing: ["uncached_input_tokens", "agy_usage_inconsistent"], unverifiable: false };
+	}
+	return { uncached: u.input, missing: [], unverifiable: false };
 }

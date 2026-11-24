@@ -1,10 +1,11 @@
 // Probe live do agy, validado offline com o mock ACP. Nenhuma chamada ao agy real.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createAgyMockSpawn } from "@dv-agent/core";
+import { agyApprovalV5 } from "../src/probe/agy_approval.ts";
 import { AGY_PROBE_PROMPT, runAgyProbe } from "../src/probe/agy_probe.ts";
 import { loadApprovedProbes, writeProbeResult } from "../src/probe/provider_probe.ts";
 
@@ -148,28 +149,86 @@ test("probe: turnos fora da faixa são recusados antes de qualquer processo", as
 	assert.equal(mock.children.length, 0);
 });
 
-test("artefato: VERIFIED aprova o agy no loader; INCONCLUSIVE não aprova", async () => {
+test("artefato: aprovação do agy sob v5 vem do conteúdo (cache zero), não do status v4", async () => {
 	const dir = mkdtempSync(join(tmpdir(), "dv-agy-probe-"));
-	const ok = await runAgyProbe({
+	// Dois turnos com cache zero e total = I + O: aprova sob v5, mesmo com status INCONCLUSIVE (semântica v4 indeterminada).
+	const zero = await runAgyProbe({
+		...base,
+		turns: 2,
+		spawn: createAgyMockSpawn({ chunks: ["ok"], usage: COLD }).spawn,
+	});
+	assert.equal(zero.status, "INCONCLUSIVE");
+	writeProbeResult(dir, "agy", zero);
+	assert.ok(loadApprovedProbes(dir).has("agy"));
+	assert.equal(agyApprovalV5(zero).approved, true);
+});
+
+test("artefato: cache ativo em algum turno bloqueia a aprovação do agy sob v5", async () => {
+	const dir = mkdtempSync(join(tmpdir(), "dv-agy-probe-"));
+	const warm = await runAgyProbe({
 		...base,
 		turns: 2,
 		spawn: createAgyMockSpawn({ chunks: ["ok"], usageSequence: [COLD, WARM_OUTSIDE] }).spawn,
 	});
-	writeProbeResult(dir, "agy", ok);
-	assert.ok(loadApprovedProbes(dir).has("agy"));
+	writeProbeResult(dir, "agy", warm);
+	assert.equal(loadApprovedProbes(dir).has("agy"), false);
+	const approval = agyApprovalV5(warm);
+	assert.equal(approval.approved, false);
+	assert.ok(approval.reasons.some((r) => /cache ativo/.test(r)));
+});
 
-	const dir2 = mkdtempSync(join(tmpdir(), "dv-agy-probe-"));
-	const bad = await runAgyProbe({
+test("artefato: troca de modelo não confirmada ou usage inconsistente bloqueiam a aprovação", async () => {
+	const unconfirmed = await runAgyProbe({
+		...base,
+		modelId: "gemini-3.8-flash-medium",
+		turns: 1,
+		spawn: createAgyMockSpawn({ chunks: ["ok"], usage: COLD, setModelReply: "empty" }).spawn,
+	});
+	assert.equal(agyApprovalV5(unconfirmed).approved, false);
+	const inconsistent = await runAgyProbe({
 		...base,
 		turns: 1,
-		spawn: createAgyMockSpawn({ chunks: ["ok"], usage: COLD }).spawn,
+		spawn: createAgyMockSpawn({ chunks: ["ok"], usage: { ...COLD, totalTokens: 99999 } }).spawn,
 	});
-	writeProbeResult(dir2, "agy", bad);
-	assert.equal(loadApprovedProbes(dir2).has("agy"), false);
-	assert.ok(existsSync(join(dir2, "agy.json")), "o artefato INCONCLUSIVE fica registrado");
-	const written = JSON.parse(readFileSync(join(dir2, "agy.json"), "utf8")) as { status: string; mode: string };
-	assert.equal(written.status, "INCONCLUSIVE");
-	assert.equal(written.mode, "live");
+	assert.equal(agyApprovalV5(inconsistent).approved, false);
+});
+
+test("artefato: probe live do agy gravado antes do v5 (dados reais de 2026-11-24) é aprovado sob v5", () => {
+	// Dados do probe de 2 turnos (cache 0/0 nos dois, total = I + O). Mesmo JSON que está em probe-results/agy.json.
+	const real = {
+		schema: "dv-provider-probe-v1",
+		mode: "live",
+		provider: "agy",
+		status: "INCONCLUSIVE",
+		handshake: { protocol_version: 1, agent_name: "Antigravity ACP Server", auth_methods: 4 },
+		turns: [
+			{
+				usage: {
+					inputTokens: 13193,
+					outputTokens: 132,
+					cachedReadTokens: 0,
+					cachedWriteTokens: 0,
+					thoughtTokens: 131,
+					totalTokens: 13325,
+				},
+				usage_missing: [],
+				error: undefined,
+			},
+			{
+				usage: {
+					inputTokens: 13420,
+					outputTokens: 74,
+					cachedReadTokens: 0,
+					cachedWriteTokens: 0,
+					thoughtTokens: 73,
+					totalTokens: 13494,
+				},
+				usage_missing: [],
+				error: undefined,
+			},
+		],
+	};
+	assert.equal(agyApprovalV5(real).approved, true, agyApprovalV5(real).reasons.join("; "));
 });
 
 test("prompt do probe: texto fixo sem ferramentas, igual ao probe de 2026-11-24", () => {

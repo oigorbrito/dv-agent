@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { AGY_API, fauxRuntime, PI_TRANSPORT_CAPABILITIES, redactText, transportFor } from "@dv-agent/core";
 import { type AssistantMessage, type Context, normalizeContext } from "@earendil-works/pi-ai";
 import { type LiveAuthMode, openLiveSession } from "../auth/live_session.ts";
+import { agyApprovalV5 } from "./agy_approval.ts";
 import type { AgyProbeResult } from "./agy_probe.ts";
 
 export const PROBE_SCHEMA = "dv-provider-probe-v1";
@@ -196,6 +197,11 @@ export function loadApprovedProbes(dir: string): Set<string> {
 	}
 	for (const file of files) {
 		const parsed = JSON.parse(readFileSync(join(dir, file), "utf8")) as Partial<LiveProbeResult>;
+		// agy: aprovação sob v5, recalculada do conteúdo gravado (cache zero em todos os turnos).
+		if (parsed.provider === "agy") {
+			if (agyApprovalV5(parsed).approved) approved.add("agy");
+			continue;
+		}
 		if (parsed.mode === "live" && parsed.status === "VERIFIED" && typeof parsed.provider === "string") {
 			approved.add(parsed.provider);
 		}

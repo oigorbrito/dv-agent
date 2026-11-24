@@ -1,6 +1,6 @@
 // Verificador do ledger contra o contrato p1-run-accounting-v4 (regras a, c, d) e o schema dv-run-ledger-v2.
 import { readFileSync } from "node:fs";
-import { CONTRACT_ID, LEDGER_SCHEMA } from "../contract.ts";
+import { CONTRACT_V5_ID, LEDGER_SCHEMA, SUPPORTED_CONTRACT_IDS } from "../contract.ts";
 import { canonicalJson } from "../util/canonical.ts";
 import { redactText } from "./redact.ts";
 
@@ -93,7 +93,9 @@ function checkOrder(events: Json[], violations: string[]): void {
 
 /** Traceabilidade por run (regra d): campos obrigatórios presentes. Campo ausente é falha, não zero. */
 function checkRunStarted(ev: Json, violations: string[]): void {
-	if (ev.contract_id !== CONTRACT_ID) violations.push(`contract_id ${String(ev.contract_id)} != ${CONTRACT_ID}`);
+	if (typeof ev.contract_id !== "string" || !SUPPORTED_CONTRACT_IDS.includes(ev.contract_id)) {
+		violations.push(`contract_id ${String(ev.contract_id)} não suportado (${SUPPORTED_CONTRACT_IDS.join(", ")})`);
+	}
 	if (typeof ev.harness_variant !== "string" || ev.harness_variant === "") violations.push("harness_variant ausente");
 	const provenance = ev.reference_provenance;
 	if (provenance === null || typeof provenance !== "object" || Object.keys(provenance).length === 0) {
@@ -108,6 +110,7 @@ function checkRunStarted(ev: Json, violations: string[]): void {
 
 /** Chamadas pareadas e sequenciais; telemetria por chamada conforme regra a. */
 function checkCalls(events: Json[], violations: string[]): void {
+	const contractId = events.find((ev) => ev.event === "run_started")?.contract_id;
 	const started = new Set<number>();
 	const finished = new Set<number>();
 	let expected = 1;
@@ -121,7 +124,7 @@ function checkCalls(events: Json[], violations: string[]): void {
 			const index = ev.call_index as number;
 			if (!started.has(index)) violations.push(`call_finished ${index} sem call_started`);
 			finished.add(index);
-			checkTelemetry(index, ((ev.record as Json).telemetry ?? {}) as Json, violations);
+			checkTelemetry(index, ((ev.record as Json).telemetry ?? {}) as Json, violations, contractId);
 		}
 	}
 	for (const index of started) {
@@ -130,13 +133,17 @@ function checkCalls(events: Json[], violations: string[]): void {
 }
 
 /** Regra a: telemetry_complete e cost_accounting_status derivados de missing_buckets; nulo só quando declarado. */
-function checkTelemetry(index: number, t: Json, violations: string[]): void {
+function checkTelemetry(index: number, t: Json, violations: string[], contractId: unknown): void {
 	const label = `call ${index}`;
 	const missing = (t.missing_buckets as string[] | undefined) ?? [];
 	const measured = missing.length === 0;
+	const unverifiable = missing.includes("agy_cache_semantics_unverified");
+	if (unverifiable && contractId !== CONTRACT_V5_ID) {
+		violations.push(`${label}: estado UNVERIFIABLE do agy exige contrato v5`);
+	}
 	if (t.telemetry_complete !== measured)
 		violations.push(`${label}: telemetry_complete inconsistente com missing_buckets`);
-	const expectedStatus = measured ? "MEASURED" : "INCONCLUSIVE";
+	const expectedStatus = measured ? "MEASURED" : unverifiable ? "UNVERIFIABLE" : "INCONCLUSIVE";
 	if (t.cost_accounting_status !== expectedStatus)
 		violations.push(`${label}: cost_accounting_status deve ser ${expectedStatus}`);
 	for (const field of ["prompt_tokens", "completion_tokens", "total_tokens"]) {

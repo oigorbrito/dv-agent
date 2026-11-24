@@ -73,6 +73,7 @@ test("escada híbrida agy -> Haiku -> Sonnet: escalona por oráculo, todos os le
 			tools: [],
 			prompt: "responda ok",
 			maxCostUsd: decision.cap_usd,
+			contractId: "p1-run-accounting-v5",
 			doomLoopMaxIdenticalConsecutive: 3,
 			approvedProbes: new Set(["agy"]),
 		};
@@ -147,6 +148,7 @@ test("escada híbrida: sem probe aprovado para o agy, o primeiro degrau é bloqu
 			maxCostUsd: 1,
 			doomLoopMaxIdenticalConsecutive: 3,
 			approvedProbes: new Set(),
+			contractId: "p1-run-accounting-v5",
 		}),
 		/PROVISIONAL/,
 	);

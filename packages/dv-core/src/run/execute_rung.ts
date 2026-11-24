@@ -16,7 +16,7 @@ import {
 	type TextContent,
 	type ToolResultMessage,
 } from "@earendil-works/pi-ai";
-import { CONTRACT_ID } from "../contract.ts";
+import { CONTRACT_ID, CONTRACT_V5_ID } from "../contract.ts";
 import { BudgetGuard, type CeilingStatus } from "../guards/budget.ts";
 import { composeBeforeToolCall } from "../guards/compose.ts";
 import { DoomLoopDetector } from "../guards/doom_loop.ts";
@@ -52,6 +52,8 @@ export interface RungRunOptions {
 	maxOutputTokens?: number;
 	doomLoopMaxIdenticalConsecutive: number;
 	approvedProbes?: ReadonlySet<string>;
+	/** Versão do contrato do run. Padrão v4. Provedor agy exige v5. */
+	contractId?: string;
 	/** Decisão de roteamento que originou este degrau. Gravada como `route_decided` logo após `run_started`. */
 	routeDecision?: RouteDecidedPayload;
 }
@@ -68,6 +70,10 @@ export interface RungRunResult {
 
 /** Um degrau: abre o ledger, roda o agente com guards e fecha com run_finished. Workspace limpo é responsabilidade do chamador. */
 export async function executeRung(options: RungRunOptions): Promise<RungRunResult> {
+	const contractId = options.contractId ?? CONTRACT_ID;
+	if (options.model.provider === "agy" && contractId !== CONTRACT_V5_ID) {
+		throw new Error(`agy exige contrato ${CONTRACT_V5_ID}: o ${CONTRACT_ID} não tem regra para o agy`);
+	}
 	assertProviderCanRun(options.model.provider, options.approvedProbes ?? new Set());
 	const ledger = new RunLedger(options.ledgerPath);
 	const doom = new DoomLoopDetector({ maxIdenticalConsecutive: options.doomLoopMaxIdenticalConsecutive });
@@ -94,7 +100,7 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 
 	ledger.appendRunStarted({
 		run_id: options.runId,
-		contract_id: CONTRACT_ID,
+		contract_id: contractId,
 		harness_variant: options.harnessVariant,
 		reference_provenance: options.referenceProvenance,
 		dataset_sha256: options.datasetSha256,
@@ -188,7 +194,7 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 					cache_write: message.usage.cacheWrite,
 					total: message.usage.totalTokens,
 				},
-				telemetry: buildCallTelemetry(message.provider, message, options.priceBook),
+				telemetry: buildCallTelemetry(message.provider, message, options.priceBook, { contractId }),
 				tool_calls: toolCalls.map((call) => ({
 					tool_call_id: call.id,
 					tool_name: call.name,

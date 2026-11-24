@@ -182,10 +182,11 @@ test("executeRung: agy como degrau; usage e conformidade registrados; gate PROVI
 	const mock = createAgyMockSpawn({ chunks: ["ok"], usage: PROBE_USAGE });
 	const streamFn = createAgyStreamFn({ cwd: "/tmp", timeoutMs: 2000, spawn: mock.spawn });
 	const ledgerPath = join(tempDir("agy-rung"), "ledger.jsonl");
-	const run = (approved: ReadonlySet<string>) =>
+	const run = (approved: ReadonlySet<string>, contractId = "p1-run-accounting-v5") =>
 		executeRung({
 			ledgerPath,
 			runId: "agy-1",
+			contractId,
 			harnessVariant: "dv-agy-test",
 			referenceProvenance: { harness: "dv-core" },
 			datasetSha256: "e".repeat(64),
@@ -209,17 +210,86 @@ test("executeRung: agy como degrau; usage e conformidade registrados; gate PROVI
 		.trimEnd()
 		.split("\n")
 		.map((l) => JSON.parse(l) as Record<string, unknown>);
+	const started = lines.find((l) => l.event === "run_started") as { contract_id: string };
+	assert.equal(started.contract_id, "p1-run-accounting-v5");
 	const finished = lines.find((l) => l.event === "call_finished") as { record: { telemetry: Record<string, unknown> } };
 	assert.equal(finished.record.telemetry.reasoning_tokens, 117);
 	assert.equal(finished.record.telemetry.cache_read_tokens, 0);
 	assert.equal(finished.record.telemetry.cache_write_tokens, 0);
-	// Regra de entrada não cacheada do agy não está definida (PROVISIONAL): balde ausente, nunca MEASURED.
-	assert.equal(finished.record.telemetry.cost_accounting_status, "INCONCLUSIVE");
-	assert.ok((finished.record.telemetry.missing_buckets as string[]).includes("uncached_input_tokens"));
-	// Sem violação estrutural: a conformidade só fica INCONCLUSIVE pela regra do balde ausente.
-	assert.notEqual(checkLedgerConformance(ledgerPath).status, "FAIL");
-	// A execução bloqueada pelo gate falha antes do streamFn: só a aprovada abriu um processo.
-	assert.equal(mock.children.length, 1);
+	// v5 com cache zero e total = I + O: MEASURED, uncached = inputTokens.
+	assert.equal(finished.record.telemetry.cost_accounting_status, "MEASURED");
+	assert.equal(finished.record.telemetry.uncached_input_tokens, 13193);
+	// Em assinatura o teto em USD é não verificável (regra c): o run fica INCONCLUSIVE, nunca FAIL.
+	const report = checkLedgerConformance(ledgerPath);
+	assert.notEqual(report.status, "FAIL", report.violations.join("; "));
+	assert.equal(mock.children.length, 1, "um processo para a execução aprovada");
+});
+
+test("executeRung: agy sob contrato v4 é recusado antes de qualquer processo (sem regra v4 para o agy)", async () => {
+	const mock = createAgyMockSpawn({ chunks: ["ok"], usage: PROBE_USAGE });
+	const streamFn = createAgyStreamFn({ cwd: "/tmp", timeoutMs: 2000, spawn: mock.spawn });
+	const ledgerPath = join(tempDir("agy-v4"), "ledger.jsonl");
+	await assert.rejects(
+		executeRung({
+			ledgerPath,
+			runId: "agy-v4",
+			harnessVariant: "dv-agy-test",
+			referenceProvenance: { harness: "dv-core" },
+			datasetSha256: "e".repeat(64),
+			taskDefinitionSha256: "f".repeat(64),
+			model: MODEL,
+			tools: [],
+			prompt: "responda ok",
+			streamFn,
+			priceBook: { kind: "subscription", id: "agy-local", source: "login local do agy" },
+			maxCostUsd: 1,
+			doomLoopMaxIdenticalConsecutive: 3,
+			approvedProbes: new Set(["agy"]),
+		}),
+		/agy exige contrato p1-run-accounting-v5/,
+	);
+	assert.equal(mock.children.length, 0);
+});
+
+test("executeRung sob v5: cache ativo no turno vira UNVERIFIABLE, com conformidade sem FAIL", async () => {
+	const warmUsage = {
+		inputTokens: 1193,
+		outputTokens: 118,
+		cachedReadTokens: 12000,
+		cachedWriteTokens: 0,
+		thoughtTokens: 117,
+		totalTokens: 13311,
+	};
+	const mock = createAgyMockSpawn({ chunks: ["ok"], usage: warmUsage });
+	const streamFn = createAgyStreamFn({ cwd: "/tmp", timeoutMs: 2000, spawn: mock.spawn });
+	const ledgerPath = join(tempDir("agy-warm"), "ledger.jsonl");
+	await executeRung({
+		ledgerPath,
+		runId: "agy-warm",
+		harnessVariant: "dv-agy-test",
+		referenceProvenance: { harness: "dv-core" },
+		datasetSha256: "e".repeat(64),
+		taskDefinitionSha256: "f".repeat(64),
+		model: MODEL,
+		tools: [],
+		prompt: "responda ok",
+		streamFn,
+		priceBook: { kind: "subscription", id: "agy-local", source: "login local do agy" },
+		maxCostUsd: 1,
+		doomLoopMaxIdenticalConsecutive: 3,
+		approvedProbes: new Set(["agy"]),
+		contractId: "p1-run-accounting-v5",
+	});
+	const lines = readFileSync(ledgerPath, "utf8")
+		.trimEnd()
+		.split("\n")
+		.map((l) => JSON.parse(l) as Record<string, unknown>);
+	const finished = lines.find((l) => l.event === "call_finished") as { record: { telemetry: Record<string, unknown> } };
+	assert.equal(finished.record.telemetry.cost_accounting_status, "UNVERIFIABLE");
+	assert.equal(finished.record.telemetry.uncached_input_tokens, null);
+	assert.ok((finished.record.telemetry.missing_buckets as string[]).includes("agy_cache_semantics_unverified"));
+	const report = checkLedgerConformance(ledgerPath);
+	assert.notEqual(report.status, "FAIL", report.violations.join("; "));
 });
 
 test("troca de modelo não confirmada: diagnóstico model_switch_unconfirmed e telemetria INCONCLUSIVE, nunca MEASURED", async () => {

@@ -11,6 +11,7 @@ import {
 	ArchitectEditorPolicy,
 	type Attempt,
 	type CeilingStatus,
+	CONTRACT_V5_ID,
 	createWorkspaceTools,
 	ExecutionGuidedLadderPolicy,
 	executeRung,
@@ -268,6 +269,7 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 					...(decision.role === "editor" ? (options.editorLimits ?? EDITOR_LIMITS) : {}),
 					doomLoopMaxIdenticalConsecutive: 3,
 					approvedProbes: approved,
+					...(decision.model.provider === "agy" ? { contractId: CONTRACT_V5_ID } : {}),
 					...(policy.name === "predictive_harness_router"
 						? {
 								routeDecision: {

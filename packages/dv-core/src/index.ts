@@ -1,5 +1,12 @@
 // API pública do dv-core: ledger dv-run-ledger-v2, guards, router e execução de um degrau.
-export { CONTRACT_FILE, CONTRACT_ID, LEDGER_SCHEMA } from "./contract.ts";
+export {
+	CONTRACT_FILE,
+	CONTRACT_ID,
+	CONTRACT_V5_FILE,
+	CONTRACT_V5_ID,
+	LEDGER_SCHEMA,
+	SUPPORTED_CONTRACT_IDS,
+} from "./contract.ts";
 export { BudgetGuard, type BudgetOptions, type CeilingStatus } from "./guards/budget.ts";
 export { type BeforeToolCallHook, composeBeforeToolCall } from "./guards/compose.ts";
 export { DoomLoopDetector, type DoomLoopOptions } from "./guards/doom_loop.ts";

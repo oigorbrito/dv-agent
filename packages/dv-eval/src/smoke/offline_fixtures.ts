@@ -24,6 +24,28 @@ function listFiles(root: string): FixtureFile[] {
 	return out.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
 }
 
+/** Bytes por chamada run_bash no modo bash-only. Mantém cada linha de comando abaixo do limite do cmd.exe (8191). */
+export const BASH_WRITE_CHUNK_BYTES = 2048;
+
+/**
+ * Grava um arquivo só com run_bash, em blocos de BASH_WRITE_CHUNK_BYTES (a primeira chamada grava, as seguintes
+ * acrescentam ao conteúdo anterior). Um bloco único em hex estoura a linha de comando do Windows em arquivos grandes.
+ */
+function bashWriteTurns(file: FixtureFile, idPrefix: string, u: () => ReturnType<typeof usage>): Turn[] {
+	const bytes = readFileSync(file.abs);
+	const chunks: Buffer[] = [];
+	for (let offset = 0; offset < bytes.length; offset += BASH_WRITE_CHUNK_BYTES) {
+		chunks.push(bytes.subarray(offset, offset + BASH_WRITE_CHUNK_BYTES));
+	}
+	if (chunks.length === 0) chunks.push(Buffer.alloc(0));
+	return chunks.map((chunk, n) => {
+		const data = `bytes.fromhex('${chunk.toString("hex")}')`;
+		const body = n === 0 ? data : `p.read_bytes() + ${data}`;
+		const cmd = `python -c "import pathlib; p = pathlib.Path('${file.rel}'); p.parent.mkdir(parents=True, exist_ok=True); p.write_bytes(${body})"`;
+		return toolTurn("run_bash", { command: cmd }, u(), `${idPrefix}-${n}`);
+	});
+}
+
 /**
  * Turnos do modelo faux para a tarefa. Retorna undefined quando a tarefa não tem pasta offline/ (roteiro legado).
  * faux-cheap → cheap; faux-strong e faux-editor → strong; faux-architect → plano em texto (sem ferramentas).
@@ -45,18 +67,11 @@ export function fixtureTurns(
 	const dir = join(root, variant);
 	if (!existsSync(dir)) throw new Error(`roteiro ausente: ${dir}`);
 	const files = listFiles(dir);
-	const turns: Turn[] = files.map((file, index) => {
-		if (options.bashOnly) {
-			const hex = Buffer.from(readFileSync(file.abs)).toString("hex");
-			const cmd = `python -c "import pathlib; p = pathlib.Path('${file.rel}'); p.parent.mkdir(parents=True, exist_ok=True); p.write_bytes(bytes.fromhex('${hex}'))"`;
-			return toolTurn("run_bash", { command: cmd }, u(), `${variant}-${index}`);
-		}
-		return toolTurn(
-			"write_file",
-			{ path: file.rel, content: readFileSync(file.abs, "utf8") },
-			u(),
-			`${variant}-${index}`,
-		);
+	const turns: Turn[] = files.flatMap((file, index): Turn[] => {
+		if (options.bashOnly) return bashWriteTurns(file, `${variant}-${index}`, u);
+		return [
+			toolTurn("write_file", { path: file.rel, content: readFileSync(file.abs, "utf8") }, u(), `${variant}-${index}`),
+		];
 	});
 	turns.push(textTurn("alteração feita", u()));
 	return turns;

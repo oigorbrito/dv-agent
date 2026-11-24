@@ -14,6 +14,8 @@ export interface RunStep {
 	role: string;
 	model: string;
 	reasoning_effort: string | null;
+	/** Modelo real do degrau; ausente em resumos antigos (usar `model`). */
+	requested_model?: string;
 	verdict: string | null;
 	run_status: string;
 	ceiling_status: CeilingStatus;

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
@@ -12,6 +13,7 @@ import {
 	FRONTIER_BASH_SYSTEM_PROMPT,
 } from "@dv-agent/core";
 import { findPackageRoot } from "../src/package_paths.ts";
+import { fixtureTurns } from "../src/smoke/offline_fixtures.ts";
 import { parseLadderModel, parseModelRef, runSmoke } from "../src/smoke/runner.ts";
 
 const REPO_ROOT = findPackageRoot(import.meta.dirname);
@@ -196,5 +198,106 @@ test("integração offline: scaffold-mode adaptive executa com sucesso e grava s
 		}
 	} finally {
 		rmSync(outdir, { recursive: true, force: true });
+	}
+});
+
+/** Nomes das ferramentas efetivamente chamadas, lidos do ledger (eventos com tool_calls declarados). */
+function toolNamesOf(ledgerPath: string): string[] {
+	const names: string[] = [];
+	for (const line of readFileSync(ledgerPath, "utf8").split("\n")) {
+		if (line.trim() === "") continue;
+		const ev = JSON.parse(line) as { record?: { tool_calls?: { tool_name?: string }[] } };
+		for (const call of ev.record?.tool_calls ?? []) {
+			if (call.tool_name !== undefined) names.push(call.tool_name);
+		}
+	}
+	return names;
+}
+
+test("porte real no offline: single com --model sonnet + adaptive usa roteiro forte e só run_bash", async () => {
+	const outdir = mkdtempSync(join(tmpdir(), "dv-test-single-frontier-"));
+	try {
+		const summary = await runSmoke({
+			taskDir: resolve(REPO_ROOT, "packages/dv-eval/tasks/calc-basic"),
+			policy: "single",
+			authMode: "offline-faux",
+			model: "anthropic/claude-sonnet-4-6",
+			scaffoldMode: "adaptive",
+			outdir,
+			maxCostUsd: 0.1,
+			probesDir: resolve(REPO_ROOT, "packages/dv-eval/probe-results"),
+		});
+		assert.equal(summary.final_outcome, "solved", "roteiro forte resolve a tarefa");
+		const names = toolNamesOf(summary.steps[0]!.ledger_path);
+		assert.ok(names.length > 0, "há chamadas de ferramenta");
+		assert.ok(
+			names.every((n) => n === "run_bash"),
+			`fronteira em adaptive usa só run_bash: ${[...new Set(names)].join(",")}`,
+		);
+	} finally {
+		rmSync(outdir, { recursive: true, force: true });
+	}
+});
+
+test("porte real no offline: single com --model haiku + adaptive mantém kit tipado (sem run_bash exclusivo)", async () => {
+	const outdir = mkdtempSync(join(tmpdir(), "dv-test-single-light-"));
+	try {
+		const summary = await runSmoke({
+			taskDir: resolve(REPO_ROOT, "packages/dv-eval/tasks/calc-basic"),
+			policy: "single",
+			authMode: "offline-faux",
+			model: "anthropic/claude-haiku-5-5",
+			scaffoldMode: "adaptive",
+			outdir,
+			maxCostUsd: 0.1,
+			probesDir: resolve(REPO_ROOT, "packages/dv-eval/probe-results"),
+		});
+		const names = new Set(toolNamesOf(summary.steps[0]!.ledger_path));
+		assert.ok(names.has("read_file") || names.has("edit_file"), `kit tipado em uso: ${[...names].join(",")}`);
+	} finally {
+		rmSync(outdir, { recursive: true, force: true });
+	}
+});
+
+test("offline: ModelRef da escada preserva o modelo real em tierModelId sem alterar o roteiro faux", () => {
+	const ref = parseLadderModel("anthropic/claude-sonnet-4-6:high");
+	assert.equal(ref.modelId, "claude-sonnet-4-6");
+	assert.equal(ref.reasoningEffort, "high");
+});
+
+test("bash-only: comandos gerados por fixture gravam os arquivos byte a byte, cada linha abaixo do limite do cmd.exe", () => {
+	const taskDir = resolve(REPO_ROOT, "packages/dv-eval/corpus/hard-02-wal-ledger-replay");
+	const turns = fixtureTurns(taskDir, "faux-strong", { bashOnly: true });
+	assert.ok(turns !== undefined);
+	const commands: string[] = [];
+	for (const turn of turns) {
+		for (const block of turn.message.content) {
+			if (block.type === "toolCall" && block.name === "run_bash") {
+				commands.push(String((block.arguments as { command: unknown }).command));
+			}
+		}
+	}
+	assert.ok(commands.length > 2, "arquivos grandes geram várias chamadas");
+	assert.ok(
+		commands.every((c) => c.length < 8000),
+		"nenhuma linha de comando estoura o limite do cmd.exe",
+	);
+
+	// Executa os comandos em um workspace limpo e compara com a fonte do roteiro.
+	const ws = mkdtempSync(join(tmpdir(), "dv-test-bash-only-"));
+	try {
+		for (const command of commands) execSync(command, { cwd: ws, stdio: "pipe" });
+		const sourceDir = join(taskDir, "offline", "strong");
+		const walk = (dir: string, rel = ""): string[] =>
+			readdirSync(join(dir, rel), { withFileTypes: true }).flatMap((e) =>
+				e.isDirectory() ? walk(dir, join(rel, e.name)) : [join(rel, e.name)],
+			);
+		const files = walk(sourceDir);
+		assert.ok(files.length > 0);
+		for (const rel of files) {
+			assert.ok(readFileSync(join(ws, rel)).equals(readFileSync(join(sourceDir, rel))), `conteúdo idêntico: ${rel}`);
+		}
+	} finally {
+		rmSync(ws, { recursive: true, force: true });
 	}
 });

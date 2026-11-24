@@ -96,6 +96,8 @@ export interface StepRecord {
 	role: string;
 	model: string;
 	reasoning_effort: string | null;
+	/** Modelo real do degrau (provider/modelId pedido). Em offline, `model` é o roteiro faux. */
+	requested_model: string;
 	cap_usd: number;
 	run_status: string;
 	ceiling_status: CeilingStatus;
@@ -197,6 +199,7 @@ export function buildPolicy(options: SmokeOptions, history?: EmpiricalFailureInd
 				? parsed.map((p, index) => ({
 						provider: OFFLINE_PROVIDER,
 						modelId: index === parsed.length - 1 ? "faux-strong" : "faux-cheap",
+						tierModelId: p.modelId,
 						...(p.reasoningEffort !== undefined ? { reasoningEffort: p.reasoningEffort } : {}),
 					}))
 				: parsed;
@@ -265,10 +268,24 @@ const OFFLINE_MODELS: Record<PolicyName, { primary: string; secondary: string }>
 };
 
 function resolveRef(options: SmokeOptions, slot: "primary" | "secondary"): ModelRef {
-	if (options.authMode === "offline-faux") {
-		return { provider: OFFLINE_PROVIDER, modelId: OFFLINE_MODELS[options.policy][slot] };
-	}
 	const text = slot === "primary" ? options.model : (options.escalationModel ?? options.model);
+	if (options.authMode === "offline-faux") {
+		if (text === undefined) return { provider: OFFLINE_PROVIDER, modelId: OFFLINE_MODELS[options.policy][slot] };
+		// Offline com modelo explícito: o roteiro segue o porte real (single) e o scaffold usa o modelo pedido.
+		const requested = parseModelRef(text);
+		const script =
+			options.policy === "single"
+				? classifyModelTier(requested.modelId) === "frontier"
+					? "faux-strong"
+					: "faux-cheap"
+				: OFFLINE_MODELS[options.policy][slot];
+		return {
+			provider: OFFLINE_PROVIDER,
+			modelId: script,
+			tierModelId: requested.modelId,
+			...(requested.reasoningEffort !== undefined ? { reasoningEffort: requested.reasoningEffort } : {}),
+		};
+	}
 	if (text === undefined) throw new Error("--model é obrigatório em api-key (provider/modelId)");
 	return parseModelRef(text);
 }
@@ -350,7 +367,7 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 				const engine = await prepareEngine(options, decision, workspace);
 				const scaffold = assembleScaffold({
 					workspaceRoot: workspace,
-					modelId: decision.model.modelId,
+					modelId: decision.model.tierModelId ?? decision.model.modelId,
 					scaffoldMode: options.scaffoldMode,
 				});
 				run = await executeRung({
@@ -418,6 +435,9 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 				role: decision.role,
 				model: `${decision.model.provider}/${decision.model.modelId}`,
 				reasoning_effort: decision.model.reasoningEffort ?? null,
+				requested_model: decision.model.tierModelId
+					? `${decision.model.provider}/${decision.model.tierModelId}`
+					: `${decision.model.provider}/${decision.model.modelId}`,
 				cap_usd: decision.cap_usd,
 				run_status: run.status,
 				ceiling_status: run.ceilingStatus,
@@ -457,7 +477,7 @@ async function prepareEngine(
 	const key = `${ref.provider}/${ref.modelId}`;
 	if (options.authMode === "offline-faux") {
 		const id = ref.modelId;
-		const bashOnly = options.scaffoldMode === "adaptive" && classifyModelTier(id) === "frontier";
+		const bashOnly = options.scaffoldMode === "adaptive" && classifyModelTier(ref.tierModelId ?? id) === "frontier";
 		const runtime = fauxRuntime(OFFLINE_PROVIDER, [id]);
 		runtime.script(fixtureTurns(options.taskDir, id, { bashOnly }) ?? offlineTurns(id, { bashOnly }));
 		return {

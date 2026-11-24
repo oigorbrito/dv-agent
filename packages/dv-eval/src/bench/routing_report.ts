@@ -45,7 +45,8 @@ function executionSet(report: BenchReport): string {
 function strongFraction(report: BenchReport, policy: string, strongModel: string): number | null {
 	const runs = report.runs.filter((r) => r.policy === policy);
 	if (runs.length === 0) return null;
-	return runs.filter((r) => r.steps.some((s) => s.model === strongModel)).length / runs.length;
+	// Usa o modelo real (requested_model) quando existe: em offline, `model` é o roteiro faux.
+	return runs.filter((r) => r.steps.some((s) => (s.requested_model ?? s.model) === strongModel)).length / runs.length;
 }
 
 export function computeRoutingMetrics(reports: readonly BenchReport[], inputs: RoutingInputs): RoutingMetrics {

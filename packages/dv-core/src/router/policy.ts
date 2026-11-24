@@ -8,6 +8,11 @@ export interface ModelRef {
 	provider: string;
 	modelId: string;
 	reasoningEffort?: ReasoningEffort;
+	/**
+	 * Modelo real pedido pelo operador, quando `modelId` é um roteiro faux (offline). Define o porte do scaffold
+	 * (classifyModelTier). Ausente em execuções live: o porte vem de `modelId`.
+	 */
+	tierModelId?: string;
 }
 
 /** Status de verificação externa. `fail` é veredito; os demais são ausência de veredito. */

@@ -235,6 +235,7 @@ async function runOne(
 			role: step.role,
 			model: step.model,
 			reasoning_effort: step.reasoning_effort,
+			requested_model: step.requested_model,
 			verdict: step.oracle?.verdict ?? null,
 			run_status: step.run_status,
 			ceiling_status: step.ceiling_status,

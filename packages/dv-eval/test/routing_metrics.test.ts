@@ -252,6 +252,29 @@ test("cruzamento: Haiku single, Sonnet single e roteador no mesmo conjunto produ
 	assert.match(section, /APGR \(curva fraco→roteador→forte\): 0\.500/);
 });
 
+test("cruzamento offline: fração forte usa requested_model (modelo real), não o roteiro faux do passo", () => {
+	// Em offline, step.model é o roteiro faux (faux-strong); requested_model traz o modelo real. Sem o campo
+	// ausente-de-uso, a fração forte seria 0 e a curva do roteador ficaria degenerada.
+	const tasks = ["t1", "t2"];
+	const asFaux = (r: RunRecord, real: string): RunRecord => ({
+		...r,
+		steps: r.steps.map((s) => ({ ...s, model: "anthropic/faux-strong", requested_model: real })),
+	});
+	const haikuRuns = tasks.map((t) => run("single", t, HAIKU, false));
+	const sonnetRuns = tasks.map((t) => run("single", t, SONNET, true));
+	const routerRuns = [
+		asFaux(run("predictive-harness-router", "t1", SONNET, true), SONNET),
+		asFaux(run("predictive-harness-router", "t2", HAIKU, false), HAIKU),
+	];
+	const reports = [
+		report(HAIKU, "single", 0, 1000, haikuRuns),
+		report(SONNET, "single", 1, 2000, sonnetRuns),
+		report(null, "predictive-harness-router", 0.5, 1500, routerRuns),
+	];
+	const m = computeRoutingMetrics(reports, { weakModel: HAIKU, strongModel: SONNET });
+	assert.equal(m.router?.strong_fraction, 0.5);
+});
+
 test("cruzamento: linhas por tier não viram pontos extras (só a linha agregada tier=all conta)", () => {
 	const tasks = ["t1", "t2"];
 	// Haiku: 0/2 (custo 100). Sonnet: 1/2 (custo 400). Roteador: 2/2 (custo 200). Sonnet fica dominado pelo roteador.

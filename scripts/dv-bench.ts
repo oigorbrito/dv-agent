@@ -7,6 +7,7 @@
 //   Flag desconhecida, repetida ou sem valor é erro (nenhuma flag é ignorada em silêncio).
 //   --policies single,ladder,architect-editor,predictive-harness-router  --auth-mode faux|subscription|api-key
 //   --model provider/modelId (degrau 0 / editor)  --escalation-model provider/modelId (degrau 1 / architect)
+//   --ladder-models ref1,ref2,... (escada mista com qualquer quantidade de degraus)
 //   --max-tokens N (teto de tokens por execução, somado entre degraus; obrigatório em subscription)  --max-cost USD (padrão 0.05)
 //   --editor-max-turns N  --editor-max-output-tokens N (tetos do papel editor; padrão EDITOR_LIMITS)
 //   --repeats N (réplicas independentes por célula, em rep-0..rep-N-1; padrão 1)  --temperature T (>= 0; só vai a modelos que suportam)
@@ -40,6 +41,7 @@ const ALLOWED_FLAGS = [
 	"auth-mode",
 	"model",
 	"escalation-model",
+	"ladder-models",
 	"max-tokens",
 	"max-cost",
 	"editor-max-turns",
@@ -110,6 +112,14 @@ const options: BenchOptions = {
 	authMode,
 	...(text("model") === undefined ? {} : { model: text("model") }),
 	...(text("escalation-model") === undefined ? {} : { escalationModel: text("escalation-model") }),
+	...(text("ladder-models") === undefined
+		? {}
+		: {
+				ladderModels: text("ladder-models")!
+					.split(",")
+					.map((model) => model.trim())
+					.filter(Boolean),
+			}),
 	...(maxTokens === undefined ? {} : { maxTokens }),
 	...(repeats === undefined ? {} : { repeats }),
 	...(temperature === undefined ? {} : { temperature }),

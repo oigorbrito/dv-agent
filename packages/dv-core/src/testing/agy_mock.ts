@@ -72,18 +72,23 @@ export class FakeAgyChild extends EventEmitter implements ProcessLike {
 }
 
 /** Spawn falso: cada chamada cria um processo com o servidor ACP mock ligado a ele. */
-export function createAgyMockSpawn(options: AgyMockOptions = {}): { spawn: SpawnFn; children: FakeAgyChild[] } {
+export function createAgyMockSpawn(options: AgyMockOptions = {}): {
+	spawn: SpawnFn;
+	children: FakeAgyChild[];
+	initializeParams: Record<string, unknown>[];
+} {
 	const children: FakeAgyChild[] = [];
+	const initializeParams: Record<string, unknown>[] = [];
 	const spawn: SpawnFn = () => {
 		const child = new FakeAgyChild(40000 + children.length);
 		children.push(child);
-		serve(child, options);
+		serve(child, options, initializeParams);
 		return child;
 	};
-	return { spawn, children };
+	return { spawn, children, initializeParams };
 }
 
-function serve(child: FakeAgyChild, options: AgyMockOptions): void {
+function serve(child: FakeAgyChild, options: AgyMockOptions, initializeParams: Record<string, unknown>[]): void {
 	const mode = options.mode ?? "normal";
 	const currentModelId = options.currentModelId ?? AGY_MODELS[0]?.modelId ?? "gemini-3.8-flash-high";
 	const sessionId = "mock-session-1";
@@ -96,6 +101,7 @@ function serve(child: FakeAgyChild, options: AgyMockOptions): void {
 		if (msg.method === undefined) return;
 		switch (msg.method) {
 			case "initialize":
+				initializeParams.push((msg.params ?? {}) as Record<string, unknown>);
 				if (mode === "crash_on_init") {
 					child.finish(1, null);
 					return;

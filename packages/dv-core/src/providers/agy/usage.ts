@@ -33,7 +33,7 @@ function count(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
 }
 
-/** Mapeia o usage cru. Campo ausente vira 0 no Usage e entra em `missing`: nunca é tratado como medição. */
+/** Mapeia o usage cru. O formato interno do pi-ai exige números; ausência é marcada em diagnostics e invalida telemetria. */
 export function mapAgyUsage(raw: unknown): AgyUsageMapping {
 	const source = raw !== null && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
 	const missing: string[] = [];

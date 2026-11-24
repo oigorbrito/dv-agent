@@ -64,6 +64,34 @@ test("ladder: FAIL no degrau 0 promove ao degrau 1; cada degrau tem ledger e res
 	assert.equal(persisted.final_outcome, "solved");
 });
 
+test("buildPolicy: ladder aceita três degraus mistos começando em agy", () => {
+	const policy = buildPolicy(
+		opts("ladder", {
+			authMode: "subscription",
+			ladderModels: ["agy/gemini-3.8-flash-high", "anthropic/claude-haiku-4-5", "anthropic/claude-sonnet-4-6"],
+			model: "anthropic/claude-haiku-4-5",
+			maxCostUsd: 10,
+		}),
+	);
+	assert.deepEqual(
+		[
+			policy.decide([]),
+			policy.decide([
+				{
+					rung: 0,
+					role: "rung_0",
+					model: { provider: "agy", modelId: "gemini-3.8-flash-high" },
+					verification: { oracle_pass: false, status: "fail" },
+					spent_lower_bound_usd: 0,
+				},
+			]),
+		].map((decision) =>
+			decision.kind === "run" ? `${decision.rung}:${decision.model.provider}/${decision.model.modelId}` : decision.kind,
+		),
+		["0:agy/gemini-3.8-flash-high", "1:anthropic/claude-haiku-4-5"],
+	);
+});
+
 test("ladder com quatro modelos: faux percorre quatro degraus até o forte passar", async () => {
 	const summary = await runSmoke(
 		opts("ladder", {

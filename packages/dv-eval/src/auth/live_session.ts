@@ -39,6 +39,7 @@ export async function openLiveSession(options: {
 	provider: string;
 	modelId: string;
 	authPath: string;
+	workspaceRoot?: string;
 }): Promise<LiveSession> {
 	if (options.provider === AGY_PROVIDER) {
 		// agy usa o login local do próprio agy (ACP sobre stdio): não há API key nem auth.json do pi-ai.
@@ -48,7 +49,7 @@ export async function openLiveSession(options: {
 		if (!isAgyModel(options.modelId)) throw new Error(`modelo agy desconhecido: ${options.modelId}`);
 		return {
 			model: agyModel(options.modelId),
-			streamFn: createAgyStreamFn({ cwd: process.cwd(), timeoutMs: AGY_TIMEOUT_MS }),
+			streamFn: createAgyStreamFn({ cwd: options.workspaceRoot ?? process.cwd(), timeoutMs: AGY_TIMEOUT_MS }),
 			priceBook: {
 				kind: "subscription",
 				id: "agy-local-login",

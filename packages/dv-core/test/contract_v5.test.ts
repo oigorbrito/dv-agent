@@ -1,4 +1,4 @@
-// Contratos v4 (congelado) e v5 (proposto): integridade dos arquivos, tabela de capacidades por versão e conformidade
+// Contratos v4 (congelado) e v5 (ratificado): integridade dos arquivos, tabela de capacidades por versão e conformidade
 // reagindo a versão errada. Offline; o agy é o mock em memória.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -30,7 +30,7 @@ test("v4 congelado: SHA-256 inalterado e id p1-run-accounting-v4", () => {
 	assert.equal(CONTRACT_ID, "p1-run-accounting-v4");
 });
 
-test("v5: arquivo derivado do v4, id correto, status proposto e PROVENANCE com o SHA real", () => {
+test("v5: arquivo derivado do v4, ratificado e PROVENANCE com o SHA real", () => {
 	const v5Path = join(CONTRACTS, "run-accounting-contract-v5.json");
 	const v5 = JSON.parse(readFileSync(v5Path, "utf8")) as {
 		contract_id: string;

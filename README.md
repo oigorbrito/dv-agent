@@ -63,6 +63,8 @@ Caminhos absolutos, `..` que escapem, e links/junctions que apontem para fora s�
 
 `dv-smoke --policy ladder` aceita `--ladder-models modelo,...` para definir qualquer quantidade de degraus em ordem. A lista pode usar IDs `provider/modelId` ou os nomes `Haiku 5.5,Fable 5.2,Sonnet 5.5,Opus 5.5`; sem a opção, `--model` e `--escalation-model` preservam os dois degraus existentes.
 
+`dv-bench --policy ladder` (via `--policies ladder`) também aceita `--ladder-models provider/modelId,...`. A sequência é gravada no resumo; um degrau `agy/...` seleciona o contrato v5. Para ACP v1, o cliente anuncia `fs.readTextFile`, `fs.writeTextFile` e `terminal`; callbacks usam o workspace isolado do degrau, a guarda de caminhos compartilhada e timeout de 60 s para terminais. A execução de comandos continua sendo processo local com cwd confinado, não um sandbox de sistema operacional.
+
 ## Tabela de capacidades do transporte pi-ai
 
 `PI_TRANSPORT_CAPABILITIES` (em `dv-core/src/ledger/capabilities.ts`) declara, por `api`, se `reasoning_tokens`, `cache_read_tokens` e `cache_write_tokens` são `exposed` ou `not_exposed`, com a fonte no código do pi-ai. Campo `not_exposed` que chega nulo vira `declared_not_exposed` e **não** falta na telemetria. Campo `exposed` ausente continua falha. Famílias sem linha (`mistral-conversations`, `bedrock-converse-stream`, `pi-messages`) não são declaradas.
@@ -99,7 +101,7 @@ Modo `api-key` passa pelo gate de capacidade e para com `blocked` se o provedor 
    Efeito colateral corrigido nesta etapa: erro sem usage era marcado como `MEASURED`. Agora é `usage_not_reported` e `INCONCLUSIVE`.
    A aprovação do probe vale por provedor, não por modo de autenticação; a flag `auth_mode` fica registrada no resultado.
 
-1. **Nenhum provedor real foi verificado.** `anthropic` segue com a linha `CODE_VERIFIED_OFFLINE` do contrato; `gemini` e `openai` seguem PROVISIONAL e bloqueiam execução. A promoção para `VERIFIED` exige rodar `--live` com credencial, o que não foi feito.
+1. **Nenhum provedor real foi verificado.** `anthropic` segue com a linha `CODE_VERIFIED_OFFLINE` do contrato; `gemini` e `openai` seguem PROVISIONAL e bloqueiam execução. A promoção para `VERIFIED` exige rodar `--live` com credencial, o que não foi feito. O `agy` exige aprovação do probe local persistido sob v5; esta implementação não executa probes live.
 2. **Corte por orçamento é posterior à chamada.** Pode haver estouro de uma chamada; o ledger registra `exceeded`.
 3. **Chamada declarada sem resultado** é registrada como `not_executed` quando não há `toolResult`. O caminho do corte testado produz `error` (o loop devolve erro para a ferramenta abortada); o caminho `not_executed` ainda não tem teste dedicado.
 4. **Architect/editor** não tem evidência congelada que sustente vantagem; é contrato de decisão (`MECHANISM_AVAILABLE != MECHANISM_NECESSARY`).

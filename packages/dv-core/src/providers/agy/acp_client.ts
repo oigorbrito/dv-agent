@@ -10,6 +10,7 @@
 import { type ChildProcess, spawn as nodeSpawn } from "node:child_process";
 import type { Readable, Writable } from "node:stream";
 import { redactText } from "../../ledger/redact.ts";
+import { registerAcpWorkspaceHandlers } from "./acp_workspace.ts";
 import { JsonRpcConnection, JsonRpcError, TransportError } from "./jsonrpc.ts";
 
 export const AGY_DEFAULT_COMMAND: readonly string[] = ["agy", "acp", "--stdio", "--disable-telemetry"];
@@ -102,6 +103,7 @@ export class AcpClient {
 	private handshakeInfo: AcpHandshake = { protocolVersion: null, agentName: null, authMethods: 0 };
 	private modelInfo: AcpModels = { currentModelId: null, availableModelIds: [] };
 	private switchInfo: AcpModelSwitch | null = null;
+	private workspaceHandlers: { close(): Promise<void> } | undefined;
 
 	private constructor(proc: ProcessLike, timeoutMs: number) {
 		this.proc = proc;
@@ -132,7 +134,7 @@ export class AcpClient {
 				"initialize",
 				{
 					protocolVersion: ACP_PROTOCOL_VERSION,
-					clientCapabilities: {},
+					clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: true },
 					clientInfo: { name: "dv-agent", version: "0.1.0" },
 				},
 				{ timeoutMs: options.timeoutMs },
@@ -153,6 +155,7 @@ export class AcpClient {
 				throw new TransportError("protocol", "session/new sem sessionId");
 			}
 			client.sessionId = sessionId;
+			client.workspaceHandlers = registerAcpWorkspaceHandlers(client.conn, options.cwd, sessionId);
 			const available = (created?.models as { availableModels?: unknown } | undefined)?.availableModels;
 			client.modelInfo = {
 				currentModelId: typeof currentModelId === "string" ? currentModelId : null,
@@ -284,6 +287,7 @@ export class AcpClient {
 		if (this.closed) return;
 		this.closed = true;
 		this.conn.failAll(new TransportError("closed", "sessão encerrada"));
+		await this.workspaceHandlers?.close();
 		try {
 			this.proc.stdin.end();
 		} catch {

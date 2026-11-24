@@ -193,6 +193,7 @@ export interface BenchReport {
 	/** Modelo primário (--model). Identifica o baseline single: Haiku (fraco) ou Sonnet (forte). */
 	model: string | null;
 	escalation_model: string | null;
+	ladder_models: string[] | null;
 	max_cost_usd: number;
 	max_tokens: number | null;
 	editor_limits: RoleLimits;

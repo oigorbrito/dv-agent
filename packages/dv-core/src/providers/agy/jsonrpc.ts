@@ -1,6 +1,7 @@
 // JSON-RPC 2.0 sobre stdio com uma mensagem JSON por linha (framing do ACP). Sem dependências.
 // Requisições do agente ao cliente que não são implementadas recebem erro -32601, para o agente não ficar esperando.
 import type { Readable, Writable } from "node:stream";
+import { redactText } from "../../ledger/redact.ts";
 
 export class JsonRpcError extends Error {
 	readonly code: number;
@@ -34,12 +35,14 @@ interface Pending {
 }
 
 export type NotificationHandler = (params: unknown) => void;
+export type RequestHandler = (params: unknown) => unknown | Promise<unknown>;
 
 export class JsonRpcConnection {
 	private nextId = 1;
 	private buffer = "";
 	private readonly pending = new Map<number, Pending>();
 	private readonly handlers = new Map<string, NotificationHandler>();
+	private readonly requestHandlers = new Map<string, RequestHandler>();
 	private failure: Error | undefined;
 	private readonly output: Writable;
 
@@ -54,6 +57,10 @@ export class JsonRpcConnection {
 
 	on(method: string, handler: NotificationHandler): void {
 		this.handlers.set(method, handler);
+	}
+
+	onRequest(method: string, handler: RequestHandler): void {
+		this.requestHandlers.set(method, handler);
 	}
 
 	/** Envia uma requisição e espera a resposta. Timeout e cancelamento rejeitam com TransportError. */
@@ -142,12 +149,25 @@ export class JsonRpcConnection {
 				this.handlers.get(method)?.(message.params);
 				return;
 			}
-			// Requisição do agente ao cliente: sem implementação aqui, responde erro para não travar o agente.
-			this.write({
-				jsonrpc: "2.0",
-				id,
-				error: { code: METHOD_NOT_FOUND, message: `método não suportado pelo cliente: ${method}` },
-			});
+			const handler = this.requestHandlers.get(method);
+			if (handler === undefined) {
+				this.write({
+					jsonrpc: "2.0",
+					id,
+					error: { code: METHOD_NOT_FOUND, message: `método não suportado pelo cliente: ${method}` },
+				});
+				return;
+			}
+			void Promise.resolve()
+				.then(() => handler(message.params))
+				.then((result) => this.write({ jsonrpc: "2.0", id, result }))
+				.catch((error: unknown) => {
+					const text = error instanceof Error ? error.message : String(error);
+					const safe = redactText(text)
+						.replace(/[\r\n\t]+/g, " ")
+						.slice(0, 300);
+					this.write({ jsonrpc: "2.0", id, error: { code: -32000, message: safe } });
+				});
 			return;
 		}
 		if (typeof id !== "number") return;

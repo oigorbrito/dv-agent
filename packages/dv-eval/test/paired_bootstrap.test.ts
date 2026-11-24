@@ -69,6 +69,7 @@ function report(runs: RunRecord[]): BenchReport {
 		policies: ["single", "ladder"],
 		model: "anthropic/test-model",
 		escalation_model: null,
+		ladder_models: null,
 		max_cost_usd: 1,
 		max_tokens: null,
 		editor_limits: { maxTurns: 1, maxOutputTokens: 1 },

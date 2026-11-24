@@ -12,7 +12,7 @@ import { parseArgs } from "../src/cli/args.ts";
 const ROOT = resolve(import.meta.dirname, "../../..");
 const CORPUS_DIR = resolve(import.meta.dirname, "../corpus");
 const CORPUS = discoverCorpus(CORPUS_DIR);
-const ALLOWED = ["tier", "task", "tasks", "outdir"];
+const ALLOWED = ["tier", "task", "tasks", "outdir", "ladder-models"];
 
 // ---------- parser estrito ----------
 
@@ -164,4 +164,33 @@ test("CLI: --tasks em faux roda só as tarefas pedidas e grava a lista no resumo
 		"easy-01-calc",
 		"hard-02-wal-ledger-replay",
 	]);
+});
+
+test("CLI: --ladder-models aceita escada de três degraus e grava os refs no resumo", () => {
+	const outdir = join(mkdtempSync(join(tmpdir(), "dv-cli-ladder-")), "out");
+	const result = bench([
+		"--task",
+		"easy-01-calc",
+		"--policies",
+		"ladder",
+		"--ladder-models",
+		"agy/gemini-3.8-flash-high,anthropic/claude-haiku-4-5,anthropic/claude-sonnet-4-6",
+		"--auth-mode",
+		"faux",
+		"--outdir",
+		outdir,
+	]);
+	assert.equal(result.status, 0, result.stderr);
+	const report = JSON.parse(readFileSync(join(outdir, "summary.json"), "utf8")) as {
+		contract_id: string;
+		ladder_models: string[];
+		runs: { final_outcome: string }[];
+	};
+	assert.equal(report.contract_id, "p1-run-accounting-v5");
+	assert.deepEqual(report.ladder_models, [
+		"agy/gemini-3.8-flash-high",
+		"anthropic/claude-haiku-4-5",
+		"anthropic/claude-sonnet-4-6",
+	]);
+	assert.equal(report.runs[0]?.final_outcome, "solved");
 });

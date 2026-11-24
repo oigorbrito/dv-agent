@@ -97,7 +97,7 @@ function declareNull(bucket: string, declared: string[]): null {
 }
 
 /**
- * Regra condicional do agy (contrato v5, proposta). Cache zero e totalTokens = inputTokens + outputTokens: uncached é
+ * Regra condicional do agy (contrato v5 ratificado). Cache zero e totalTokens = inputTokens + outputTokens: uncached é
  * inputTokens (com cache zero, as duas semânticas dão o mesmo valor). Cache ativo: UNVERIFIABLE, sem medição de uncached.
  */
 function agyV5Rule(u: AssistantMessage["usage"]): {

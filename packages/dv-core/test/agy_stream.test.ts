@@ -74,15 +74,13 @@ test("stop reasons: end_turn e max_tokens mapeiam; cancelled vira aborted; refus
 	assert.match(unknown.errorMessage ?? "", /desconhecido/);
 });
 
-test("contexto com ferramentas do harness é recusado explicitamente, sem abrir processo", async () => {
-	const mock = createAgyMockSpawn();
+test("contexto executor com ferramentas usa callbacks ACP em vez de ser recusado", async () => {
+	const mock = createAgyMockSpawn({ chunks: ["feito"], usage: PROBE_USAGE });
 	const streamFn = createAgyStreamFn({ cwd: "/tmp", timeoutMs: 2000, spawn: mock.spawn });
 	const ctx = { ...CONTEXT, tools: [{ name: "write_file", description: "x", parameters: {} }] };
 	const events = await collect(streamFn(MODEL, ctx as never, {} as never));
-	const last = events.at(-1) as unknown as { type: string; error: { errorMessage: string } };
-	assert.equal(last.type, "error");
-	assert.match(last.error.errorMessage, /^agy não recebe as ferramentas do workspace/);
-	assert.equal(mock.children.length, 0, "nenhum processo aberto");
+	assert.equal(events.at(-1)?.type, "done");
+	assert.equal(mock.children.length, 1, "o executor abriu uma sessão ACP");
 });
 
 test("erro de transporte (queda do agente) vira stopReason error com mensagem de transporte, sem processo vivo", async () => {

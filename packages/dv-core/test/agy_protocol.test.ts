@@ -120,6 +120,10 @@ test("cliente: handshake e turno com chunks de texto, usage e contagem de usage_
 	assert.deepEqual(result.usage, PROBE_USAGE);
 	assert.equal(result.usageUpdates, 2);
 	assert.ok(result.updateTypes.includes("agent_message_chunk"));
+	assert.deepEqual(mock.initializeParams[0]?.clientCapabilities, {
+		fs: { readTextFile: true, writeTextFile: true },
+		terminal: true,
+	});
 	await client.close();
 	assert.deepEqual(commands[0], [...AGY_DEFAULT_COMMAND]);
 	assert.equal(mock.children[0]?.alive, false, "processo encerrado ao fechar");

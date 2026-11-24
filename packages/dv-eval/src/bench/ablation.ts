@@ -36,6 +36,8 @@ export interface BenchOptions {
 	authMode: AuthMode;
 	model?: string;
 	escalationModel?: string;
+	/** Lista ordenada de degraus para política ladder (provider/modelId ou alias documentado). */
+	ladderModels?: readonly string[];
 	maxTokens?: number;
 	maxCostUsd: number;
 	/** Tetos do papel editor (architect-editor). Padrão: EDITOR_LIMITS. */
@@ -89,7 +91,9 @@ export function assertGovernance(options: BenchOptions): void {
 export function temperatureNotes(options: BenchOptions): string[] {
 	if (options.temperature === undefined) return [];
 	if (options.authMode === "offline-faux") return ["modelos faux: temperatura não se aplica"];
-	const refs = [options.model, options.escalationModel].filter((r): r is string => r !== undefined);
+	const refs = [options.model, options.escalationModel, ...(options.ladderModels ?? [])].filter(
+		(r): r is string => r !== undefined,
+	);
 	return [...new Set(refs)].map((ref) => {
 		const slash = ref.indexOf("/");
 		const provider = ref.slice(0, slash);
@@ -109,7 +113,7 @@ export function temperatureNotes(options: BenchOptions): string[] {
 /** Executa a ablação e grava outdir/summary.json e outdir/summary.md. */
 export async function runBench(options: BenchOptions): Promise<BenchReport> {
 	// Contrato efetivo do bench: v5 se algum arm usa agy (arquivo v5), senão v4 (contractPath, padrão do CLI).
-	const contractId = benchContractId([options.model, options.escalationModel]);
+	const contractId = benchContractId([options.model, options.escalationModel, ...(options.ladderModels ?? [])]);
 	const contractFile =
 		contractId === CONTRACT_V5_ID ? join(REPO_ROOT, CONTRACT_V5_FILE) : resolve(options.contractPath);
 	const contractSha = sha256File(contractFile);
@@ -153,6 +157,7 @@ export async function runBench(options: BenchOptions): Promise<BenchReport> {
 		policies: [...options.policies],
 		model: options.model ?? null,
 		escalation_model: options.escalationModel ?? null,
+		ladder_models: options.ladderModels === undefined ? null : [...options.ladderModels],
 		max_cost_usd: options.maxCostUsd,
 		max_tokens: options.maxTokens ?? null,
 		editor_limits: options.editorLimits ?? EDITOR_LIMITS,
@@ -185,6 +190,7 @@ async function runOne(
 		authMode: options.authMode,
 		model: options.model,
 		escalationModel: options.escalationModel,
+		ladderModels: options.ladderModels,
 		outdir: runDir,
 		maxCostUsd: options.maxCostUsd,
 		...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),

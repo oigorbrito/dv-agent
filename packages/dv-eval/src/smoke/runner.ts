@@ -257,7 +257,7 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 
 			let run: Awaited<ReturnType<typeof executeRung>>;
 			try {
-				const engine = await prepareEngine(options, decision);
+				const engine = await prepareEngine(options, decision, workspace);
 				run = await executeRung({
 					ledgerPath: join(stepDir, "ledger.jsonl"),
 					runId: `smoke-${task.id}-${step}`,
@@ -346,7 +346,11 @@ interface Engine {
 }
 
 /** Modelo, stream e tabela de preço do degrau. Offline: roteiro faux. Live: openLiveSession (api-key ou assinatura). */
-async function prepareEngine(options: SmokeOptions, decision: RouterDecision & { kind: "run" }): Promise<Engine> {
+async function prepareEngine(
+	options: SmokeOptions,
+	decision: RouterDecision & { kind: "run" },
+	workspaceRoot?: string,
+): Promise<Engine> {
 	const ref = decision.model;
 	const key = `${ref.provider}/${ref.modelId}`;
 	if (options.authMode === "offline-faux") {
@@ -369,6 +373,7 @@ async function prepareEngine(options: SmokeOptions, decision: RouterDecision & {
 		provider: ref.provider,
 		modelId: ref.modelId,
 		authPath: options.authPath ?? resolveAuthPath(),
+		...(workspaceRoot === undefined ? {} : { workspaceRoot }),
 	});
 }
 

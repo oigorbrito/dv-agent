@@ -1,7 +1,4 @@
 // Adaptador agy (ACP sobre stdio) como StreamFn do executeRung. Um processo por chamada: abre, faz o turno, encerra.
-//
-// Limite desta versão: as ferramentas do workspace do harness NÃO são expostas ao agy (o ACP do agy executa as suas).
-// Contexto com ferramentas vira erro explícito, em vez de resposta sem ação. Papéis sem ferramenta (ex.: architect) funcionam.
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 import {
 	type AssistantMessage,
@@ -63,7 +60,7 @@ function textOf(content: unknown): string {
 		.join("");
 }
 
-/** Prompt de texto a partir do contexto do agente. Ferramentas no contexto são recusadas por quem chama (ver createAgyStreamFn). */
+/** Prompt de texto a partir do contexto do agente. */
 export function promptFromContext(context: Context): string {
 	const parts: string[] = [];
 	if (context.systemPrompt !== undefined && context.systemPrompt !== "") {
@@ -159,10 +156,6 @@ async function executeTurn(
 		};
 		return { message, events: [{ type: "error", reason: "error", error: message }] };
 	};
-	// Ferramentas do harness não são expostas ao agy: recusa antes de abrir processo, com mensagem de configuração.
-	if ((context.tools?.length ?? 0) > 0) {
-		return failed("agy não recebe as ferramentas do workspace do harness; use um papel sem ferramenta");
-	}
 	let client: AcpClient | undefined;
 	try {
 		client = await AcpClient.open({

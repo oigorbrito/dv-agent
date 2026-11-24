@@ -14,24 +14,28 @@ import {
 	createWorkspaceTools,
 	ExecutionGuidedLadderPolicy,
 	executeRung,
+	extractPythonSignals,
 	fauxRuntime,
 	type ModelRef,
+	PredictiveHarnessRouterPolicy,
 	type PriceBook,
 	type RouterDecision,
 	type RouterPolicy,
 	SingleModelPolicy,
+	type StaticSignals,
 } from "@dv-agent/core";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Model } from "@earendil-works/pi-ai";
 import { openLiveSession } from "../auth/live_session.ts";
 import { resolveAuthPath } from "../auth/subscription.ts";
+import { CALIBRATED_STRONG_FROM_DEPTH, readWorkspaceFiles } from "../bench/routing_calibration.ts";
 import { hashTree, loadTask, type OracleResult, runOracle } from "../oracle/verifier.ts";
 import { loadApprovedProbes } from "../probe/provider_probe.ts";
 import { readLedgerMetrics } from "./ledger_metrics.ts";
 import { fixtureTurns } from "./offline_fixtures.ts";
 import { offlineTurns } from "./offline_scripts.ts";
 
-export type PolicyName = "single" | "ladder" | "architect-editor";
+export type PolicyName = "single" | "ladder" | "architect-editor" | "predictive-harness-router";
 
 /** Limites do papel editor (architect-editor): evita loops longos de ferramentas (auditoria: 12-13 turnos por run). */
 export interface RoleLimits {
@@ -116,6 +120,19 @@ export function buildPolicy(options: SmokeOptions): RouterPolicy {
 	const primary = resolveRef(options, "primary");
 	const secondary = resolveRef(options, "secondary");
 	if (options.policy === "single") return new SingleModelPolicy(primary, options.maxCostUsd);
+	if (options.policy === "predictive-harness-router") {
+		const task = loadTask(options.taskDir);
+		const signals = extractPythonSignals(readWorkspaceFiles(join(options.taskDir, task.workspace_dir)));
+		return new PredictiveHarnessRouterPolicy({
+			rungs: [
+				{ model: primary, costShareCap: 0.5 },
+				{ model: secondary, costShareCap: 1 },
+			],
+			globalMaxCostUsd: options.maxCostUsd,
+			signals,
+			strongFromDepth: CALIBRATED_STRONG_FROM_DEPTH,
+		});
+	}
 	if (options.policy === "ladder") {
 		return new ExecutionGuidedLadderPolicy({
 			rungs: [
@@ -138,6 +155,7 @@ const OFFLINE_MODELS: Record<PolicyName, { primary: string; secondary: string }>
 	single: { primary: "faux-cheap", secondary: "faux-cheap" },
 	ladder: { primary: "faux-cheap", secondary: "faux-strong" },
 	"architect-editor": { primary: "faux-architect", secondary: "faux-editor" },
+	"predictive-harness-router": { primary: "faux-cheap", secondary: "faux-strong" },
 };
 
 function resolveRef(options: SmokeOptions, slot: "primary" | "secondary"): ModelRef {
@@ -181,6 +199,7 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 	let plan: string | undefined;
 	let decision: RouterDecision = policy.decide(attempts);
 	const context = { task, workspaceSrc, taskDir, provenance, datasetSha, taskSha, approved };
+	const staticSignals: StaticSignals = extractPythonSignals(readWorkspaceFiles(workspaceSrc));
 	while (decision.kind === "run") {
 		if (options.maxTokens !== undefined && tokensSpent >= options.maxTokens) {
 			return finish(options, context, steps, "budget_exhausted", "teto de tokens esgotado");
@@ -220,6 +239,17 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 					...(decision.role === "editor" ? (options.editorLimits ?? EDITOR_LIMITS) : {}),
 					doomLoopMaxIdenticalConsecutive: 3,
 					approvedProbes: approved,
+					...(policy.name === "predictive_harness_router"
+						? {
+								routeDecision: {
+									policy: policy.name,
+									rung: decision.rung,
+									role: decision.role,
+									reason: decision.route_reason ?? "promoção por oráculo do degrau anterior",
+									signals: staticSignals,
+								},
+							}
+						: {}),
 				});
 			} catch (error) {
 				// Gate de capacidade (PROVISIONAL sem probe) ou erro de configuração: parada registrada, não falha silenciosa.

@@ -8,7 +8,15 @@ import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import { readLedgerMetrics } from "../smoke/ledger_metrics.ts";
 import { type AuthMode, EDITOR_LIMITS, type PolicyName, type RoleLimits, runSmoke } from "../smoke/runner.ts";
 import { CORPUS_TIERS, type CorpusTask, type CorpusTier, discoverCorpus, selectTasks } from "./corpus.ts";
-import { aggregate, BENCH_SCHEMA, type BenchReport, type RunRecord, type RunStep, renderMarkdown } from "./report.ts";
+import {
+	aggregate,
+	BENCH_SCHEMA,
+	type BenchReport,
+	ESCALATING_POLICIES,
+	type RunRecord,
+	type RunStep,
+	renderMarkdown,
+} from "./report.ts";
 
 /** SHA-256 congelado de contracts/run-accounting-contract-v4.json. Se o arquivo mudar, o bench não roda. */
 export const CONTRACT_SHA256 = "11b4d5453e0964a7eb88decb5cbf7d1c5f5eebf4fbbdd458fb4e38686baef486";
@@ -127,6 +135,8 @@ export async function runBench(options: BenchOptions): Promise<BenchReport> {
 		tiers,
 		task: options.task ?? null,
 		policies: [...options.policies],
+		model: options.model ?? null,
+		escalation_model: options.escalationModel ?? null,
 		max_cost_usd: options.maxCostUsd,
 		max_tokens: options.maxTokens ?? null,
 		editor_limits: options.editorLimits ?? EDITOR_LIMITS,
@@ -191,7 +201,7 @@ async function runOne(
 		repeat: rep,
 		final_outcome: summary.final_outcome,
 		solved: summary.final_outcome === "solved",
-		escalated: policy === "ladder" ? steps.some((s) => s.rung >= 1) : null,
+		escalated: ESCALATING_POLICIES.includes(policy) ? steps.some((s) => s.rung >= 1) : null,
 		steps,
 		conformance_status: runConformance(steps, violations),
 		conformance_violations: violations,

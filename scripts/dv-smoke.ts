@@ -9,7 +9,7 @@ import { resolve } from "node:path";
 import { parseArgs } from "../packages/dv-eval/src/cli/args.ts";
 import { type AuthMode, type PolicyName, runSmoke } from "../packages/dv-eval/src/smoke/runner.ts";
 
-const POLICIES: readonly PolicyName[] = ["single", "ladder", "architect-editor"];
+const POLICIES: readonly PolicyName[] = ["single", "ladder", "architect-editor", "predictive-harness-router"];
 const AUTH_MODES: readonly AuthMode[] = ["offline-faux", "api-key", "subscription"];
 
 const args = parseArgs(process.argv.slice(2));

@@ -3,7 +3,7 @@
 //   node scripts/dv-bench.ts --tier hard --task hard-02-wal-ledger-replay --policies single,ladder --auth-mode faux
 //   node scripts/dv-bench.ts --policies single,ladder --auth-mode api-key --model openai/<id> --escalation-model openai/<id2>
 // Opções: --corpus DIR (padrão packages/dv-eval/corpus)  --tier all|easy|medium|hard  --task ID
-//   --policies single,ladder,architect-editor  --auth-mode faux|subscription|api-key
+//   --policies single,ladder,architect-editor,predictive-harness-router  --auth-mode faux|subscription|api-key
 //   --model provider/modelId (degrau 0 / editor)  --escalation-model provider/modelId (degrau 1 / architect)
 //   --max-tokens N (teto de tokens por execução, somado entre degraus; obrigatório em subscription)  --max-cost USD (padrão 0.05)
 //   --editor-max-turns N  --editor-max-output-tokens N (tetos do papel editor; padrão EDITOR_LIMITS)
@@ -22,7 +22,7 @@ import { CORPUS_TIERS, type CorpusTier } from "../packages/dv-eval/src/bench/cor
 import { parseArgs } from "../packages/dv-eval/src/cli/args.ts";
 import { type AuthMode, EDITOR_LIMITS, type PolicyName } from "../packages/dv-eval/src/smoke/runner.ts";
 
-const POLICIES: readonly PolicyName[] = ["single", "ladder", "architect-editor"];
+const POLICIES: readonly PolicyName[] = ["single", "ladder", "architect-editor", "predictive-harness-router"];
 const AUTH_FLAG_TO_MODE: Record<string, AuthMode> = {
 	faux: "offline-faux",
 	subscription: "subscription",

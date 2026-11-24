@@ -69,7 +69,7 @@ export interface GroupRow {
 }
 
 /** Políticas com degrau de escalonamento (promoção do degrau 0 para o 1). As demais reportam escalation_rate = null. */
-export const ESCALATING_POLICIES: readonly PolicyName[] = ["ladder"];
+export const ESCALATING_POLICIES: readonly PolicyName[] = ["ladder", "predictive-harness-router"];
 
 const CEILING_RANK: Record<CeilingStatus, number> = { within_verified: 1, unverifiable: 2, exceeded: 3 };
 
@@ -186,6 +186,9 @@ export interface BenchReport {
 	tiers: CorpusTier[];
 	task: string | null;
 	policies: PolicyName[];
+	/** Modelo primário (--model). Identifica o baseline single: Haiku (fraco) ou Sonnet (forte). */
+	model: string | null;
+	escalation_model: string | null;
 	max_cost_usd: number;
 	max_tokens: number | null;
 	editor_limits: RoleLimits;

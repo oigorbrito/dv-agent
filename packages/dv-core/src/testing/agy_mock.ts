@@ -23,6 +23,12 @@ export interface AgyMockOptions {
 	/** Erro JSON-RPC no lugar do resultado do session/prompt. */
 	promptError?: { code: number; message: string };
 	usageUpdates?: number;
+	/** Usage por turno, na ordem dos session/prompt. Vence `usage` quando presente. */
+	usageSequence?: readonly Record<string, unknown>[];
+	/** protocolVersion devolvido no initialize (padrão 1). */
+	protocolVersion?: unknown;
+	/** Se o agente aceita session/set_model (padrão: não; responde -32601). */
+	setModelSupported?: boolean;
 }
 
 export class FakeAgyChild extends EventEmitter implements ProcessLike {
@@ -79,6 +85,7 @@ function serve(child: FakeAgyChild, options: AgyMockOptions): void {
 	const currentModelId = options.currentModelId ?? AGY_MODELS[0]?.modelId ?? "gemini-3.8-flash-high";
 	const sessionId = "mock-session-1";
 	let buffer = "";
+	let promptIndex = 0;
 	const send = (message: object) => child.stdout.write(`${JSON.stringify(message)}\n`);
 	const reply = (id: unknown, result: unknown) => send({ jsonrpc: "2.0", id, result });
 
@@ -91,7 +98,7 @@ function serve(child: FakeAgyChild, options: AgyMockOptions): void {
 					return;
 				}
 				reply(msg.id, {
-					protocolVersion: 1,
+					protocolVersion: options.protocolVersion ?? 1,
 					agentCapabilities: {},
 					agentInfo: { name: "Antigravity ACP Server", version: "1.5.15" },
 					authMethods: [],
@@ -114,6 +121,15 @@ function serve(child: FakeAgyChild, options: AgyMockOptions): void {
 				return;
 			case "session/cancel":
 				return;
+			case "session/set_model":
+				if (options.setModelSupported === true) reply(msg.id, {});
+				else
+					send({
+						jsonrpc: "2.0",
+						id: msg.id,
+						error: { code: -32601, message: "método desconhecido: session/set_model" },
+					});
+				return;
 			default:
 				send({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: `método desconhecido: ${msg.method}` } });
 		}
@@ -133,6 +149,11 @@ function serve(child: FakeAgyChild, options: AgyMockOptions): void {
 			send({ jsonrpc: "2.0", id, error: options.promptError });
 			return;
 		}
+		const usage =
+			options.usageSequence === undefined
+				? options.usage
+				: (options.usageSequence[promptIndex] ?? options.usageSequence.at(-1));
+		promptIndex += 1;
 		for (let i = 0; i < (options.usageUpdates ?? 1); i += 1) {
 			send({
 				jsonrpc: "2.0",
@@ -153,7 +174,7 @@ function serve(child: FakeAgyChild, options: AgyMockOptions): void {
 			params: { sessionId, update: { sessionUpdate: "session_info_update" } },
 		});
 		const result: Record<string, unknown> = { stopReason: options.stopReason ?? "end_turn" };
-		if (options.usage !== undefined) result.usage = options.usage;
+		if (usage !== undefined) result.usage = usage;
 		reply(id, result);
 	};
 

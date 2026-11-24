@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { AGY_API, fauxRuntime, PI_TRANSPORT_CAPABILITIES, redactText, transportFor } from "@dv-agent/core";
 import { type AssistantMessage, type Context, normalizeContext } from "@earendil-works/pi-ai";
 import { type LiveAuthMode, openLiveSession } from "../auth/live_session.ts";
+import type { AgyProbeResult } from "./agy_probe.ts";
 
 export const PROBE_SCHEMA = "dv-provider-probe-v1";
 
@@ -173,7 +174,11 @@ export async function runLiveProbe(options: {
 }
 
 /** Grava o resultado do probe. Um arquivo por provedor; sobrescreve o anterior. */
-export function writeProbeResult(dir: string, name: string, result: OfflineProbeResult | LiveProbeResult): string {
+export function writeProbeResult(
+	dir: string,
+	name: string,
+	result: OfflineProbeResult | LiveProbeResult | AgyProbeResult,
+): string {
 	mkdirSync(dir, { recursive: true });
 	const path = join(dir, `${name}.json`);
 	writeFileSync(path, `${JSON.stringify(result, null, 2)}\n`, "utf8");

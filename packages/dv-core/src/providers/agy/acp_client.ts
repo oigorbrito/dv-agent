@@ -10,7 +10,7 @@
 import { type ChildProcess, spawn as nodeSpawn } from "node:child_process";
 import type { Readable, Writable } from "node:stream";
 import { redactText } from "../../ledger/redact.ts";
-import { JsonRpcConnection, TransportError } from "./jsonrpc.ts";
+import { JsonRpcConnection, JsonRpcError, TransportError } from "./jsonrpc.ts";
 
 export const AGY_DEFAULT_COMMAND: readonly string[] = ["agy", "acp", "--stdio", "--disable-telemetry"];
 /** Versão do protocolo enviada no initialize. Assumida (ACP usa inteiro); não capturada pelo probe. */
@@ -54,6 +54,28 @@ export interface AcpPromptResult {
 	updateTypes: string[];
 }
 
+/** O que o agente anunciou no initialize (sem texto livre). */
+export interface AcpHandshake {
+	/** protocolVersion devolvido pelo agente; null se ausente ou não numérico. */
+	protocolVersion: number | null;
+	agentName: string | null;
+	authMethods: number;
+}
+
+/** Modelos anunciados em session/new. */
+export interface AcpModels {
+	currentModelId: string | null;
+	availableModelIds: string[];
+}
+
+/** Resultado de sondar session/set_model sem enviar prompt (não consome tokens). */
+export interface AcpSetModelProbe {
+	/** `supported` = o agente aceitou; `unsupported` = erro JSON-RPC (ex.: método inexistente); `transport` = falha de transporte. */
+	status: "supported" | "unsupported" | "transport";
+	code?: number;
+	message?: string;
+}
+
 export interface AcpOpenOptions {
 	command?: readonly string[];
 	spawn?: SpawnFn;
@@ -72,6 +94,8 @@ export class AcpClient {
 	private updateTypes: string[] = [];
 	private usageUpdates = 0;
 	private closed = false;
+	private handshakeInfo: AcpHandshake = { protocolVersion: null, agentName: null, authMethods: 0 };
+	private modelInfo: AcpModels = { currentModelId: null, availableModelIds: [] };
 
 	private constructor(proc: ProcessLike, timeoutMs: number) {
 		this.proc = proc;
@@ -98,7 +122,7 @@ export class AcpClient {
 		const proc = (options.spawn ?? defaultSpawn)(command, args, options.cwd);
 		const client = new AcpClient(proc, options.timeoutMs);
 		try {
-			await client.conn.request(
+			const init = (await client.conn.request(
 				"initialize",
 				{
 					protocolVersion: ACP_PROTOCOL_VERSION,
@@ -106,7 +130,12 @@ export class AcpClient {
 					clientInfo: { name: "dv-agent", version: "0.1.0" },
 				},
 				{ timeoutMs: options.timeoutMs },
-			);
+			)) as { protocolVersion?: unknown; agentInfo?: { name?: unknown }; authMethods?: unknown } | null;
+			client.handshakeInfo = {
+				protocolVersion: typeof init?.protocolVersion === "number" ? init.protocolVersion : null,
+				agentName: typeof init?.agentInfo?.name === "string" ? init.agentInfo.name : null,
+				authMethods: Array.isArray(init?.authMethods) ? init.authMethods.length : 0,
+			};
 			const created = (await client.conn.request(
 				"session/new",
 				{ cwd: options.cwd, mcpServers: [] },
@@ -125,11 +154,28 @@ export class AcpClient {
 				);
 			}
 			client.sessionId = sessionId;
+			const available = (created?.models as { availableModels?: unknown } | undefined)?.availableModels;
+			client.modelInfo = {
+				currentModelId: typeof currentModelId === "string" ? currentModelId : null,
+				availableModelIds: Array.isArray(available)
+					? available
+							.map((m) => (m as { modelId?: unknown }).modelId)
+							.filter((id): id is string => typeof id === "string")
+					: [],
+			};
 			return client;
 		} catch (error) {
 			await client.close();
 			throw error;
 		}
+	}
+
+	get handshake(): AcpHandshake {
+		return { ...this.handshakeInfo };
+	}
+
+	get models(): AcpModels {
+		return { currentModelId: this.modelInfo.currentModelId, availableModelIds: [...this.modelInfo.availableModelIds] };
 	}
 
 	get pid(): number | undefined {
@@ -156,6 +202,27 @@ export class AcpClient {
 			usageUpdates: this.usageUpdates,
 			updateTypes: [...this.updateTypes],
 		};
+	}
+
+	/**
+	 * Sonda session/set_model sem prompt: não consome tokens. Erro JSON-RPC é resposta válida (`unsupported`);
+	 * só falha de transporte é `transport`.
+	 */
+	async probeSetModel(modelId: string): Promise<AcpSetModelProbe> {
+		try {
+			await this.conn.request(
+				"session/set_model",
+				{ sessionId: this.sessionId, modelId },
+				{ timeoutMs: this.timeoutMs },
+			);
+			return { status: "supported" };
+		} catch (error) {
+			if (error instanceof JsonRpcError) {
+				return { status: "unsupported", code: error.code, message: sanitizeTransportMessage(error.message) };
+			}
+			const message = error instanceof Error ? error.message : String(error);
+			return { status: "transport", message: sanitizeTransportMessage(message) };
+		}
 	}
 
 	/** Diagnóstico redigido da cauda de stderr, para anexar a mensagens de falha. */

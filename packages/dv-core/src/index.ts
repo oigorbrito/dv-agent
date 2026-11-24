@@ -36,6 +36,9 @@ export { ledgerSha256, RunLedger } from "./ledger/writer.ts";
 export {
 	ACP_PROTOCOL_VERSION,
 	AcpClient,
+	type AcpHandshake,
+	type AcpModels,
+	type AcpSetModelProbe,
 	AGY_DEFAULT_COMMAND,
 	defaultSpawn,
 	type ProcessLike,
@@ -43,6 +46,11 @@ export {
 	sanitizeTransportMessage,
 } from "./providers/agy/acp_client.ts";
 export { JsonRpcConnection, JsonRpcError, TransportError } from "./providers/agy/jsonrpc.ts";
+export {
+	type AgyUsageSemantics,
+	type AgyUsageVerdict,
+	classifyAgyUsage,
+} from "./providers/agy/semantics.ts";
 export {
 	AGY_API,
 	AGY_MODELS,
@@ -54,7 +62,7 @@ export {
 	mapStopReason,
 	promptFromContext,
 } from "./providers/agy/stream.ts";
-export { AGY_USAGE_FIELDS, mapAgyUsage } from "./providers/agy/usage.ts";
+export { AGY_USAGE_FIELDS, type AgyTurnUsage, mapAgyUsage } from "./providers/agy/usage.ts";
 export {
 	ArchitectEditorPolicy,
 	type Attempt,

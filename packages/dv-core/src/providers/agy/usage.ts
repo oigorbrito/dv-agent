@@ -13,6 +13,16 @@ export const AGY_USAGE_FIELDS = [
 	"totalTokens",
 ] as const;
 
+/** Usage cru de um turno, como o agy envia (valores ainda não validados). */
+export interface AgyTurnUsage {
+	inputTokens: unknown;
+	outputTokens: unknown;
+	cachedReadTokens: unknown;
+	cachedWriteTokens: unknown;
+	thoughtTokens: unknown;
+	totalTokens: unknown;
+}
+
 export interface AgyUsageMapping {
 	usage: Usage;
 	/** Campos obrigatórios ausentes ou inválidos. Vazio = medição completa. */

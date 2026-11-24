@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
   [string]$InstallDir = (Join-Path $HOME "dv-agent"),
-  [string]$Branch = "main",
+  [string]$Branch = "feat/harness-router",
   [switch]$SkipTests
 )
 

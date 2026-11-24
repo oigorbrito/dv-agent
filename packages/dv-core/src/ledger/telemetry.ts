@@ -55,6 +55,8 @@ export function buildCallTelemetry(provider: string, message: AssistantMessage, 
 		if (transport?.reasoning_tokens === "not_exposed") declareNull("reasoning_tokens", declared);
 		else missing.push("reasoning_tokens");
 	}
+	// Usage incompleto declarado pelo adaptador (campos ausentes viraram 0 e não são medição).
+	if (message.diagnostics?.some((d) => d.type === "usage_incomplete")) missing.push("usage_incomplete");
 	if (uncached === null) missing.push("uncached_input_tokens");
 	if (cost === null) missing.push("cost_usd");
 

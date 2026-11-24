@@ -26,6 +26,13 @@ const CAPABILITY_TABLE: readonly ProviderCapability[] = [
 		source: "contract v4 regra b: prompt_tokens - cached_tokens; probe obrigatório antes da execução.",
 	},
 	{
+		provider: "agy",
+		uncached: "none",
+		status: "PROVISIONAL_PROBE_REQUIRED",
+		source:
+			"probe ACP 2026-11-24: inputTokens e cachedReadTokens não dizem se o cache está dentro de inputTokens; regra b não definida para agy. Probe live obrigatório.",
+	},
+	{
 		provider: "openai",
 		uncached: "none",
 		status: "PROVISIONAL_PROBE_REQUIRED",
@@ -123,6 +130,14 @@ export const PI_TRANSPORT_CAPABILITIES: readonly TransportCapability[] = [
 		cache_read_tokens: "exposed",
 		cache_write_tokens: "not_exposed",
 		source: "mesmo caminho de google-generative-ai (cacheWrite não emitido).",
+	},
+	{
+		api: "agy-acp",
+		reasoning_tokens: "exposed",
+		cache_read_tokens: "exposed",
+		cache_write_tokens: "exposed",
+		source:
+			"providers/agy/usage.ts: thoughtTokens, cachedReadTokens e cachedWriteTokens presentes no usage do session/prompt do probe de 2026-11-24.",
 	},
 	{
 		api: "faux",

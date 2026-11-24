@@ -1,0 +1,218 @@
+// Cliente ACP sobre stdio para `agy acp --stdio`. Dono do ciclo de vida do processo: spawn, handshake, turno, encerramento.
+//
+// Schema observado em docs/research/acp-probe-2026-11-24.json (agente "Antigravity ACP Server" 1.5.15):
+//   initialize(params: protocolVersion, clientCapabilities, clientInfo)
+//   session/new(params: cwd, mcpServers) -> sessionId, models{currentModelId, availableModels}
+//   session/prompt(params: sessionId, prompt) -> stopReason, usage{inputTokens, outputTokens, cachedReadTokens, cachedWriteTokens, thoughtTokens, totalTokens}
+//   session/update (notificação) com sessionUpdate em {agent_message_chunk, usage_update, session_info_update, available_commands_update}
+// NÃO observado pelo probe (assumido, a confirmar em probe live): o valor de protocolVersion, o formato do prompt
+// (aqui: lista de blocos de texto, conforme o ACP) e a troca de modelo (não suportada aqui: falha explícita).
+import { type ChildProcess, spawn as nodeSpawn } from "node:child_process";
+import type { Readable, Writable } from "node:stream";
+import { redactText } from "../../ledger/redact.ts";
+import { JsonRpcConnection, TransportError } from "./jsonrpc.ts";
+
+export const AGY_DEFAULT_COMMAND: readonly string[] = ["agy", "acp", "--stdio", "--disable-telemetry"];
+/** Versão do protocolo enviada no initialize. Assumida (ACP usa inteiro); não capturada pelo probe. */
+export const ACP_PROTOCOL_VERSION = 1;
+const MAX_MESSAGE_CHARS = 300;
+const EXIT_GRACE_MS = 2000;
+
+/** Subconjunto do processo filho usado pelo cliente. ChildProcess real e o fake de teste satisfazem. */
+export interface ProcessLike {
+	readonly stdin: Writable;
+	readonly stdout: Readable;
+	readonly stderr: Readable;
+	readonly pid?: number;
+	readonly exitCode: number | null;
+	readonly signalCode: NodeJS.Signals | null;
+	kill(signal?: NodeJS.Signals): boolean;
+	once(event: "exit", listener: (code: number | null, signal: NodeJS.Signals | null) => void): unknown;
+}
+
+export type SpawnFn = (command: string, args: readonly string[], cwd: string) => ProcessLike;
+
+export const defaultSpawn: SpawnFn = (command, args, cwd) =>
+	nodeSpawn(command, [...args], {
+		cwd,
+		stdio: ["pipe", "pipe", "pipe"],
+		windowsHide: true,
+	}) as unknown as ChildProcess & ProcessLike;
+
+/** Mensagem de falha segura para registro: sem segredos conhecidos, sem quebras de linha, com limite de tamanho. */
+export function sanitizeTransportMessage(text: string): string {
+	const redacted = redactText(text).replace(/\s+/g, " ").trim();
+	return redacted.length > MAX_MESSAGE_CHARS ? `${redacted.slice(0, MAX_MESSAGE_CHARS)}…` : redacted;
+}
+
+export interface AcpPromptResult {
+	text: string;
+	stopReason: string;
+	/** Objeto `usage` cru do session/prompt (validado por usage.ts). */
+	usage: unknown;
+	usageUpdates: number;
+	updateTypes: string[];
+}
+
+export interface AcpOpenOptions {
+	command?: readonly string[];
+	spawn?: SpawnFn;
+	cwd: string;
+	modelId: string;
+	timeoutMs: number;
+}
+
+export class AcpClient {
+	private readonly proc: ProcessLike;
+	private readonly conn: JsonRpcConnection;
+	private readonly timeoutMs: number;
+	private readonly stderrChunks: string[] = [];
+	private sessionId = "";
+	private chunks: string[] = [];
+	private updateTypes: string[] = [];
+	private usageUpdates = 0;
+	private closed = false;
+
+	private constructor(proc: ProcessLike, timeoutMs: number) {
+		this.proc = proc;
+		this.timeoutMs = timeoutMs;
+		proc.stderr.setEncoding("utf8");
+		proc.stderr.on("data", (chunk: string) => {
+			this.stderrChunks.push(chunk);
+			// Só a cauda interessa para diagnóstico; limita a memória.
+			if (this.stderrChunks.length > 64) this.stderrChunks.splice(0, this.stderrChunks.length - 64);
+		});
+		this.conn = new JsonRpcConnection(proc.stdout, proc.stdin);
+		this.conn.on("session/update", (params) => this.onUpdate(params));
+		proc.once("exit", (code, signal) => {
+			this.conn.failAll(
+				new TransportError("closed", `agy encerrou (código ${code ?? "null"}, sinal ${signal ?? "null"})`),
+			);
+		});
+	}
+
+	/** Abre o processo, faz o handshake e cria a sessão. Em qualquer falha, o processo é encerrado antes de lançar. */
+	static async open(options: AcpOpenOptions): Promise<AcpClient> {
+		const [command, ...args] = options.command ?? AGY_DEFAULT_COMMAND;
+		if (command === undefined) throw new TransportError("protocol", "comando do agy vazio");
+		const proc = (options.spawn ?? defaultSpawn)(command, args, options.cwd);
+		const client = new AcpClient(proc, options.timeoutMs);
+		try {
+			await client.conn.request(
+				"initialize",
+				{
+					protocolVersion: ACP_PROTOCOL_VERSION,
+					clientCapabilities: {},
+					clientInfo: { name: "dv-agent", version: "0.1.0" },
+				},
+				{ timeoutMs: options.timeoutMs },
+			);
+			const created = (await client.conn.request(
+				"session/new",
+				{ cwd: options.cwd, mcpServers: [] },
+				{ timeoutMs: options.timeoutMs },
+			)) as { sessionId?: unknown; models?: { currentModelId?: unknown } } | null;
+			const sessionId = created?.sessionId;
+			const currentModelId = created?.models?.currentModelId;
+			if (typeof sessionId !== "string" || sessionId === "") {
+				throw new TransportError("protocol", "session/new sem sessionId");
+			}
+			if (currentModelId !== options.modelId) {
+				// Troca de modelo por ACP não foi verificada por probe: falha explícita em vez de usar o modelo errado.
+				throw new TransportError(
+					"protocol",
+					`modelo ${options.modelId} indisponível: a sessão abriu com ${String(currentModelId)} (troca de modelo não verificada)`,
+				);
+			}
+			client.sessionId = sessionId;
+			return client;
+		} catch (error) {
+			await client.close();
+			throw error;
+		}
+	}
+
+	get pid(): number | undefined {
+		return this.proc.pid;
+	}
+
+	/** Um turno. Texto vem dos chunks de agent_message_chunk; usage do resultado do session/prompt. */
+	async prompt(text: string, options: { signal?: AbortSignal }): Promise<AcpPromptResult> {
+		this.chunks = [];
+		this.updateTypes = [];
+		this.usageUpdates = 0;
+		const result = (await this.conn.request(
+			"session/prompt",
+			{ sessionId: this.sessionId, prompt: [{ type: "text", text }] },
+			{ timeoutMs: this.timeoutMs, ...(options.signal === undefined ? {} : { signal: options.signal }) },
+		)) as { stopReason?: unknown; usage?: unknown } | null;
+		if (result === null || typeof result !== "object" || typeof result.stopReason !== "string") {
+			throw new TransportError("protocol", "session/prompt sem stopReason");
+		}
+		return {
+			text: this.chunks.join(""),
+			stopReason: result.stopReason,
+			usage: result.usage,
+			usageUpdates: this.usageUpdates,
+			updateTypes: [...this.updateTypes],
+		};
+	}
+
+	/** Diagnóstico redigido da cauda de stderr, para anexar a mensagens de falha. */
+	stderrTail(): string {
+		return sanitizeTransportMessage(this.stderrChunks.join("").slice(-1000));
+	}
+
+	/**
+	 * Encerra a sessão sem deixar processo órfão: rejeita pendências, fecha stdin, espera a saída e mata se preciso.
+	 * Idempotente.
+	 */
+	async close(): Promise<void> {
+		if (this.closed) return;
+		this.closed = true;
+		this.conn.failAll(new TransportError("closed", "sessão encerrada"));
+		try {
+			this.proc.stdin.end();
+		} catch {
+			// stdin já fechado: segue para a espera e o kill.
+		}
+		if (!(await this.waitExit(EXIT_GRACE_MS))) {
+			try {
+				this.proc.kill("SIGKILL");
+			} catch {
+				// processo já inexistente
+			}
+			await this.waitExit(EXIT_GRACE_MS);
+		}
+	}
+
+	private onUpdate(params: unknown): void {
+		if (params === null || typeof params !== "object") return;
+		const p = params as {
+			sessionId?: unknown;
+			update?: { sessionUpdate?: unknown; content?: { type?: unknown; text?: unknown } };
+		};
+		if (p.sessionId !== this.sessionId || p.update === undefined) return;
+		const kind = typeof p.update.sessionUpdate === "string" ? p.update.sessionUpdate : "desconhecido";
+		this.updateTypes.push(kind);
+		if (
+			kind === "agent_message_chunk" &&
+			p.update.content?.type === "text" &&
+			typeof p.update.content.text === "string"
+		) {
+			this.chunks.push(p.update.content.text);
+		}
+		if (kind === "usage_update") this.usageUpdates += 1;
+	}
+
+	private waitExit(ms: number): Promise<boolean> {
+		if (this.proc.exitCode !== null || this.proc.signalCode !== null) return Promise.resolve(true);
+		return new Promise((resolve) => {
+			const timer = setTimeout(() => resolve(false), ms);
+			this.proc.once("exit", () => {
+				clearTimeout(timer);
+				resolve(true);
+			});
+		});
+	}
+}

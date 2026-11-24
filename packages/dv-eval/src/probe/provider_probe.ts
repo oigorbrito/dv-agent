@@ -5,14 +5,16 @@
 // - live (--live): chamadas reais controladas. Só VERIFIED aprova um provedor para execução (assertProviderCanRun).
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { fauxRuntime, PI_TRANSPORT_CAPABILITIES, redactText, transportFor } from "@dv-agent/core";
+import { AGY_API, fauxRuntime, PI_TRANSPORT_CAPABILITIES, redactText, transportFor } from "@dv-agent/core";
 import { type AssistantMessage, type Context, normalizeContext } from "@earendil-works/pi-ai";
 import { type LiveAuthMode, openLiveSession } from "../auth/live_session.ts";
 
 export const PROBE_SCHEMA = "dv-provider-probe-v1";
 
 /** APIs conhecidas do pi-ai no commit fixado, mais o transporte de teste. Tabela de transporte deve usar só estes. */
+// APIs do pi-ai mais a API do adaptador agy (dv-core/providers/agy, ACP sobre stdio, não é do pi-ai).
 const KNOWN_APIS = new Set([
+	AGY_API,
 	"openai-completions",
 	"mistral-conversations",
 	"openai-responses",

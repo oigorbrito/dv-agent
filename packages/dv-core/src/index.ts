@@ -32,6 +32,29 @@ export {
 	isCloudflareBlocked,
 } from "./ledger/transport_identity.ts";
 export { ledgerSha256, RunLedger } from "./ledger/writer.ts";
+// Provedor agy (ACP sobre stdio): cliente, framing JSON-RPC, usage e adaptador de StreamFn.
+export {
+	ACP_PROTOCOL_VERSION,
+	AcpClient,
+	AGY_DEFAULT_COMMAND,
+	defaultSpawn,
+	type ProcessLike,
+	type SpawnFn,
+	sanitizeTransportMessage,
+} from "./providers/agy/acp_client.ts";
+export { JsonRpcConnection, JsonRpcError, TransportError } from "./providers/agy/jsonrpc.ts";
+export {
+	AGY_API,
+	AGY_MODELS,
+	AGY_PROVIDER,
+	type AgyStreamOptions,
+	agyModel,
+	createAgyStreamFn,
+	isAgyModel,
+	mapStopReason,
+	promptFromContext,
+} from "./providers/agy/stream.ts";
+export { AGY_USAGE_FIELDS, mapAgyUsage } from "./providers/agy/usage.ts";
 export {
 	ArchitectEditorPolicy,
 	type Attempt,
@@ -51,6 +74,7 @@ export { PredictiveHarnessRouterPolicy, type PredictiveRouterOptions } from "./r
 export { extractPythonSignals, type SourceFile, type StaticSignals } from "./router/signals.ts";
 export { classifyVerification, type OracleVerdict, type RunSignals } from "./router/verification.ts";
 export { executeRung, type RungRunOptions, type RungRunResult } from "./run/execute_rung.ts";
+export { type AgyMockMode, type AgyMockOptions, createAgyMockSpawn, FakeAgyChild } from "./testing/agy_mock.ts";
 // Runtime faux (provider mockado com usage declarado): testes e smoke offline. Não usar em runs reais.
 export { type FauxRuntime, fauxRuntime, type Turn, textTurn, toolTurn, usage } from "./testing/faux_runtime.ts";
 export { assertCommandAllowed, resolveInWorkspace, WorkspaceViolation } from "./tools/confinement.ts";

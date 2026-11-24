@@ -109,7 +109,7 @@ if (temperature !== undefined && (!Number.isFinite(temperature) || temperature <
 }
 
 const options: BenchOptions = {
-	corpusDir: resolve(text("corpus") ?? "packages/dv-eval/corpus"),
+	corpusDir: resolve(text("corpus") ?? resolve(import.meta.dirname, "../packages/dv-eval/corpus")),
 	tier: tier as CorpusTier | "all",
 	...(text("task") === undefined ? {} : { task: text("task") }),
 	...(tasks === undefined ? {} : { tasks }),
@@ -148,8 +148,8 @@ const options: BenchOptions = {
 			}),
 	maxCostUsd: positive("max-cost", 0.05) ?? 0.05,
 	outdir: resolve(text("outdir") ?? `runs/bench-${stamp}`),
-	probesDir: resolve("packages/dv-eval/probe-results"),
-	contractPath: resolve(CONTRACT_PATH),
+	probesDir: resolve(import.meta.dirname, "../packages/dv-eval/probe-results"),
+	contractPath: resolve(import.meta.dirname, `../${CONTRACT_PATH}`),
 };
 
 try {

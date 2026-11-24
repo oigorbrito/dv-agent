@@ -30,6 +30,7 @@ import { openLiveSession } from "../auth/live_session.ts";
 import { resolveAuthPath } from "../auth/subscription.ts";
 import { assertNoRoutingHistoryLeakage, loadRoutingHistory } from "../bench/routing_history.ts";
 import { hashTree, loadTask, type OracleResult, runOracle } from "../oracle/verifier.ts";
+import { findPackageRoot } from "../package_paths.ts";
 import { loadApprovedProbes } from "../probe/provider_probe.ts";
 import { readLedgerMetrics } from "./ledger_metrics.ts";
 import { fixtureTurns } from "./offline_fixtures.ts";
@@ -238,7 +239,7 @@ function contractForRun(options: SmokeOptions, provider: string): string | undef
 
 /** Executa a política até parar. Cada degrau: workspace limpo, run com ledger próprio e oráculo externo. */
 export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
-	const root = resolve(import.meta.dirname, "../../../..");
+	const root = findPackageRoot(import.meta.dirname);
 	const taskDir = resolve(options.taskDir);
 	const task = loadTask(taskDir);
 	let historyIndex: EmpiricalFailureIndex | undefined;
@@ -250,7 +251,7 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 			throw new Error("--routing-history exige --routing-history-partition calibration|train");
 		}
 		historyIndex = loadRoutingHistory(options.routingHistory, {
-			corpusDir: resolve(import.meta.dirname, "../../corpus"),
+			corpusDir: resolve(root, "packages/dv-eval/corpus"),
 			partition: options.routingHistoryPartition,
 		});
 		assertNoRoutingHistoryLeakage(historyIndex, options.outdir);

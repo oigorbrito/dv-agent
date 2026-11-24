@@ -31,7 +31,7 @@ if (!(AUTH_MODES as readonly string[]).includes(authMode)) {
 }
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const summary = await runSmoke({
-	taskDir: resolve(text("task") ?? "packages/dv-eval/tasks/calc-basic"),
+	taskDir: resolve(text("task") ?? resolve(import.meta.dirname, "../packages/dv-eval/tasks/calc-basic")),
 	policy: policy as PolicyName,
 	authMode: authMode as AuthMode,
 	model: text("model"),
@@ -47,7 +47,7 @@ const summary = await runSmoke({
 	authPath: text("auth-file") === undefined ? undefined : resolve(text("auth-file") ?? ""),
 	outdir: resolve(text("outdir") ?? `runs/smoke-${policy}-${stamp}`),
 	maxCostUsd: Number(text("max-cost") ?? 0.05),
-	probesDir: resolve("packages/dv-eval/probe-results"),
+	probesDir: resolve(import.meta.dirname, "../packages/dv-eval/probe-results"),
 });
 console.log(
 	JSON.stringify(

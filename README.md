@@ -12,10 +12,22 @@ Dados de referência (`dv-baseline`, commit `e067dc7`) não foram alterados.
 
 ## Comandos
 
+Após instalar `@finecode/dv-agent`, os executáveis `dv` e `dv-agent` oferecem a mesma CLI:
+
+```bash
+dv --help
+dv --version
+dv smoke --policy single --auth-mode faux
+dv bench --policies single,ladder --auth-mode faux
+dv metrics runs/.../summary.json
+dv probe                       # offline; chamadas reais exigem --live
+```
+
 ```bash
 npm install --ignore-scripts
 npm run hydrate:pi-ai-data        # uma vez, com rede (catálogo do pi-ai, gitignored)
 npm run build:runtime             # compila pacotes de runtime
+npm run build:dist                # prepara a distribuição npm em dist/ (offline, usa o catálogo local)
 npm run typecheck
 npm run lint                      # Biome 2.3.5 (mesma versão fixada pelo upstream)
 npm test                          # 72 testes offline, sem rede e sem provedor real
@@ -25,6 +37,20 @@ npm run probe:providers -- --live --provider P --model M --auth-mode api-key    
 node scripts/dv-smoke.ts --policy single|ladder|architect-editor --auth-mode offline-faux|api-key|subscription
     [--model provider/modelId] [--escalation-model provider/modelId] [--ladder-models provider/id,...] [--auth-file CAMINHO] [--outdir DIR] [--max-cost USD]
 ```
+
+## Pacote npm e CLI unificada
+
+O pacote `@finecode/dv-agent` instala os executáveis `dv` e `dv-agent`. A distribuição fica em `dist/`, inclui os módulos internos compilados, os dados do corpus e os contratos v4/v5; SDKs de provedores permanecem como dependências npm. O allowlist do tarball exclui `runs/`, `experiments/`, `claims/` e os resultados de probes.
+
+```bash
+npx @finecode/dv-agent --help
+npx @finecode/dv-agent smoke --policy ladder --auth-mode faux
+npx @finecode/dv-agent bench --policies ladder --auth-mode faux
+npx @finecode/dv-agent metrics --weak anthropic/claude-haiku-5-5 --strong anthropic/claude-sonnet-4-6 runs/bench/summary.json
+npx @finecode/dv-agent probe                 # offline
+```
+
+`dv probe --live ...` mantém o comportamento explícito de probe real do runner existente.
 
 ## Autenticação por assinatura (`--auth-mode subscription`)
 

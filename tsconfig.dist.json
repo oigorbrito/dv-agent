@@ -1,0 +1,38 @@
+{
+	"extends": "./packages/tsconfig.base.json",
+	"compilerOptions": {
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"noEmit": false,
+		"rootDir": ".",
+		"outDir": "dist/.stage",
+		"declaration": false,
+		"declarationMap": false,
+		"sourceMap": false,
+		"inlineSources": false,
+		"paths": {
+			"@dv-agent/core": ["./packages/dv-core/src/index.ts"],
+			"@dv-agent/core/*": ["./packages/dv-core/src/*"],
+			"@earendil-works/pi-agent-core": ["./packages/runtime-pi/pi-agent-core/dist/index.d.ts"],
+			"@earendil-works/pi-agent-core/*": ["./packages/runtime-pi/pi-agent-core/dist/*"],
+			"@earendil-works/pi-ai": ["./packages/runtime-pi/pi-ai/dist/index.d.ts"],
+			"@earendil-works/pi-ai/*": ["./packages/runtime-pi/pi-ai/dist/*"],
+			"@earendil-works/pi-schema": ["./packages/runtime-pi/pi-schema/dist/index.d.ts"],
+			"@earendil-works/pi-schema/formats": ["./packages/runtime-pi/pi-schema/dist/formats/index.d.ts"],
+			"@earendil-works/pi-schema/*": ["./packages/runtime-pi/pi-schema/dist/*"],
+			"@earendil-works/pi-telemetry": ["./packages/runtime-pi/pi-telemetry/dist/index.d.ts"],
+			"@earendil-works/pi-telemetry/render": ["./packages/runtime-pi/pi-telemetry/dist/render.d.ts"],
+			"@earendil-works/pi-telemetry/testing": ["./packages/runtime-pi/pi-telemetry/dist/testing/index.d.ts"],
+			"@earendil-works/pi-telemetry/*": ["./packages/runtime-pi/pi-telemetry/dist/*"]
+		}
+	},
+	"include": [
+		"src/cli.ts",
+		"scripts/dv-smoke.ts",
+		"scripts/dv-bench.ts",
+		"scripts/dv-bench-metrics.ts",
+		"packages/dv-eval/src/index.ts",
+		"packages/dv-eval/src/probe/cli.ts"
+	],
+	"exclude": ["node_modules", "dist", "runs", "packages/**/test", "packages/runtime-pi/**/test"]
+}

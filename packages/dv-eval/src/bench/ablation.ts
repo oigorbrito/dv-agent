@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join, resolve } from "node:path";
 import { CONTRACT_V5_FILE, CONTRACT_V5_ID, type ConformanceStatus, checkLedgerConformance } from "@dv-agent/core";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
+import { findPackageRoot } from "../package_paths.ts";
 import { readLedgerMetrics } from "../smoke/ledger_metrics.ts";
 import { type AuthMode, EDITOR_LIMITS, type PolicyName, type RoleLimits, runSmoke } from "../smoke/runner.ts";
 import { benchContractId, CONTRACT_SHA_BY_ID } from "./contract_labels.ts";
@@ -24,7 +25,7 @@ import {
 export const CONTRACT_SHA256 = "11b4d5453e0964a7eb88decb5cbf7d1c5f5eebf4fbbdd458fb4e38686baef486";
 export const CONTRACT_PATH = "contracts/run-accounting-contract-v4.json";
 /** Raiz do repositório (packages/dv-eval/src/bench -> raiz). */
-const REPO_ROOT = resolve(import.meta.dirname, "../../../..");
+const REPO_ROOT = findPackageRoot(import.meta.dirname);
 
 export interface BenchOptions {
 	corpusDir: string;

@@ -13,7 +13,7 @@ O instalador não instala Git nem Node.js automaticamente. Isso evita alterar o 
 Execute no terminal:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/oigorbrito/dv-agent/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/oigorbrito/dv-agent/feat/harness-router/scripts/install.sh | bash
 ```
 
 Ou, depois de clonar/baixar o projeto:
@@ -25,7 +25,7 @@ bash scripts/install.sh
 Opções:
 
 ```bash
-bash scripts/install.sh --dir "$HOME/apps/dv-agent" --branch main
+bash scripts/install.sh --dir "$HOME/apps/dv-agent" --branch feat/harness-router
 bash scripts/install.sh --skip-tests
 ```
 
@@ -34,7 +34,7 @@ bash scripts/install.sh --skip-tests
 Em PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/oigorbrito/dv-agent/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/oigorbrito/dv-agent/feat/harness-router/scripts/install.ps1 | iex
 ```
 
 Ou, depois de baixar o projeto:
@@ -46,7 +46,7 @@ Ou, depois de baixar o projeto:
 Parâmetros:
 
 ```powershell
-.\scripts\install.ps1 -InstallDir "$HOME\apps\dv-agent" -Branch main
+.\scripts\install.ps1 -InstallDir "$HOME\apps\dv-agent" -Branch feat/harness-router
 .\scripts\install.ps1 -SkipTests
 ```
 

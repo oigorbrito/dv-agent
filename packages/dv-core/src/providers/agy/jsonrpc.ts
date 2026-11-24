@@ -16,11 +16,21 @@ export class JsonRpcError extends Error {
 
 /** Falha de transporte: fluxo fechado, timeout, cancelamento ou quadro inválido. Não é erro do modelo. */
 export class TransportError extends Error {
-	readonly kind: "closed" | "timeout" | "aborted" | "protocol";
-	constructor(kind: "closed" | "timeout" | "aborted" | "protocol", message: string) {
+	readonly kind: "closed" | "timeout" | "aborted" | "protocol" | "spawn";
+	readonly code?: string;
+	readonly syscall?: string;
+	readonly executable?: string;
+	constructor(
+		kind: "closed" | "timeout" | "aborted" | "protocol" | "spawn",
+		message: string,
+		metadata?: { code?: string; syscall?: string; executable?: string },
+	) {
 		super(message);
 		this.name = "TransportError";
 		this.kind = kind;
+		this.code = metadata?.code;
+		this.syscall = metadata?.syscall;
+		this.executable = metadata?.executable;
 	}
 }
 

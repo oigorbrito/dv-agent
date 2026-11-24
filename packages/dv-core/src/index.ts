@@ -50,6 +50,7 @@ export {
 	AGY_DEFAULT_COMMAND,
 	defaultSpawn,
 	type ProcessLike,
+	resolveAgyCommand,
 	type SpawnFn,
 	sanitizeTransportMessage,
 } from "./providers/agy/acp_client.ts";

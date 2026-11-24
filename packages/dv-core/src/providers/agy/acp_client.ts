@@ -8,6 +8,8 @@
 // NÃO observado pelo probe (assumido, a confirmar em probe live): o valor de protocolVersion, o formato do prompt
 // (aqui: lista de blocos de texto, conforme o ACP) e a troca de modelo (não suportada aqui: falha explícita).
 import { type ChildProcess, spawn as nodeSpawn } from "node:child_process";
+import { accessSync, constants } from "node:fs";
+import { delimiter, join } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import { redactText } from "../../ledger/redact.ts";
 import { registerAcpWorkspaceHandlers } from "./acp_workspace.ts";
@@ -19,6 +21,32 @@ export const ACP_PROTOCOL_VERSION = 1;
 const MAX_MESSAGE_CHARS = 300;
 const EXIT_GRACE_MS = 2000;
 
+/** Resolve o executável configurado e, em Linux/WSL, procura as extensões de interoperabilidade no PATH. */
+export function resolveAgyCommand(
+	command: readonly string[] = AGY_DEFAULT_COMMAND,
+	env: NodeJS.ProcessEnv = process.env,
+	platform: NodeJS.Platform = process.platform,
+): readonly string[] {
+	const [requested, ...args] = command;
+	if (requested === undefined) return command;
+	const explicit = env.DV_AGY_BIN?.trim();
+	if (explicit !== undefined && explicit !== "" && requested === AGY_DEFAULT_COMMAND[0]) return [explicit, ...args];
+	if (requested !== "agy" || platform !== "linux") return command;
+	for (const name of ["agy", "agy.exe", "agy.cmd"]) {
+		for (const directory of (env.PATH ?? "").split(delimiter)) {
+			const candidate = join(directory || ".", name);
+			try {
+				accessSync(candidate, constants.X_OK);
+				return [candidate, ...args];
+			} catch {
+				// Tenta o próximo nome/diretório do PATH.
+			}
+		}
+	}
+	// Deixa o spawn produzir ENOENT estruturado caso nenhum candidato exista.
+	return command;
+}
+
 /** Subconjunto do processo filho usado pelo cliente. ChildProcess real e o fake de teste satisfazem. */
 export interface ProcessLike {
 	readonly stdin: Writable;
@@ -29,6 +57,7 @@ export interface ProcessLike {
 	readonly signalCode: NodeJS.Signals | null;
 	kill(signal?: NodeJS.Signals): boolean;
 	once(event: "exit", listener: (code: number | null, signal: NodeJS.Signals | null) => void): unknown;
+	once(event: "error", listener: (error: NodeJS.ErrnoException) => void): unknown;
 }
 
 export type SpawnFn = (command: string, args: readonly string[], cwd: string) => ProcessLike;
@@ -100,6 +129,7 @@ export class AcpClient {
 	private updateTypes: string[] = [];
 	private usageUpdates = 0;
 	private closed = false;
+	private processError: TransportError | undefined;
 	private handshakeInfo: AcpHandshake = { protocolVersion: null, agentName: null, authMethods: 0 };
 	private modelInfo: AcpModels = { currentModelId: null, availableModelIds: [] };
 	private switchInfo: AcpModelSwitch | null = null;
@@ -116,6 +146,17 @@ export class AcpClient {
 		});
 		this.conn = new JsonRpcConnection(proc.stdout, proc.stdin);
 		this.conn.on("session/update", (params) => this.onUpdate(params));
+		proc.once("error", (error) => {
+			const code = typeof error.code === "string" ? error.code : undefined;
+			const syscall = typeof error.syscall === "string" ? error.syscall : undefined;
+			const executable = typeof error.path === "string" ? error.path : undefined;
+			this.processError = new TransportError(
+				"spawn",
+				`não foi possível iniciar ${executable ?? "agy"}${code === undefined ? "" : ` (${code})`}`,
+				{ code, syscall, executable },
+			);
+			this.conn.failAll(this.processError);
+		});
 		proc.once("exit", (code, signal) => {
 			this.conn.failAll(
 				new TransportError("closed", `agy encerrou (código ${code ?? "null"}, sinal ${signal ?? "null"})`),
@@ -125,7 +166,7 @@ export class AcpClient {
 
 	/** Abre o processo, faz o handshake e cria a sessão. Em qualquer falha, o processo é encerrado antes de lançar. */
 	static async open(options: AcpOpenOptions): Promise<AcpClient> {
-		const [command, ...args] = options.command ?? AGY_DEFAULT_COMMAND;
+		const [command, ...args] = options.command ?? resolveAgyCommand();
 		if (command === undefined) throw new TransportError("protocol", "comando do agy vazio");
 		const proc = (options.spawn ?? defaultSpawn)(command, args, options.cwd);
 		const client = new AcpClient(proc, options.timeoutMs);
@@ -288,6 +329,7 @@ export class AcpClient {
 		this.closed = true;
 		this.conn.failAll(new TransportError("closed", "sessão encerrada"));
 		await this.workspaceHandlers?.close();
+		if (this.processError !== undefined) return;
 		try {
 			this.proc.stdin.end();
 		} catch {

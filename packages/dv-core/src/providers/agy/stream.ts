@@ -10,6 +10,7 @@ import {
 	type StopReason,
 } from "@earendil-works/pi-ai";
 import { AcpClient, type AcpPromptResult, type SpawnFn, sanitizeTransportMessage } from "./acp_client.ts";
+import { TransportError } from "./jsonrpc.ts";
 import { mapAgyUsage } from "./usage.ts";
 
 export const AGY_PROVIDER = "agy";
@@ -148,11 +149,15 @@ async function executeTurn(
 	options: AgyStreamOptions,
 	signal: AbortSignal | undefined,
 ): Promise<TurnOutcome> {
-	const failed = (errorMessage: string): TurnOutcome => {
+	const failed = (
+		errorMessage: string,
+		diagnostics: NonNullable<AssistantMessage["diagnostics"]> = [],
+	): TurnOutcome => {
 		const message: AssistantMessage = {
 			...base,
 			stopReason: "error",
 			errorMessage: sanitizeTransportMessage(errorMessage),
+			...(diagnostics.length === 0 ? {} : { diagnostics }),
 		};
 		return { message, events: [{ type: "error", reason: "error", error: message }] };
 	};
@@ -204,6 +209,19 @@ async function executeTurn(
 	} catch (error) {
 		const detail = error instanceof Error ? error.message : String(error);
 		const suffix = client === undefined ? "" : ` | stderr: ${client.stderrTail()}`;
+		if (error instanceof TransportError && error.kind === "spawn") {
+			return failed(`falha de transporte do agy: ${detail}`, [
+				{
+					type: "provider_spawn_error",
+					timestamp: Date.now(),
+					details: {
+						...(error.code === undefined ? {} : { code: error.code }),
+						...(error.syscall === undefined ? {} : { syscall: error.syscall }),
+						...(error.executable === undefined ? {} : { executable: error.executable }),
+					},
+				},
+			]);
+		}
 		return failed(`falha de transporte do agy: ${detail}${suffix}`);
 	} finally {
 		await client?.close();

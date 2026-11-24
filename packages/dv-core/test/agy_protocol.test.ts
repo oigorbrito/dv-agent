@@ -6,9 +6,11 @@ import {
 	AcpClient,
 	AGY_DEFAULT_COMMAND,
 	createAgyMockSpawn,
+	FakeAgyChild,
 	JsonRpcConnection,
 	JsonRpcError,
 	mapAgyUsage,
+	resolveAgyCommand,
 	type SpawnFn,
 	TransportError,
 } from "../src/index.ts";
@@ -96,6 +98,38 @@ test("jsonrpc: erro de resposta vira JsonRpcError com código e mensagem", async
 });
 
 // ---------- cliente contra o mock ----------
+
+test("resolução do executável: DV_AGY_BIN substitui o binário mantendo os argumentos ACP", () => {
+	assert.deepEqual(
+		resolveAgyCommand(AGY_DEFAULT_COMMAND, { DV_AGY_BIN: "/mnt/c/Users/test/AppData/agy.exe" }, "linux"),
+		["/mnt/c/Users/test/AppData/agy.exe", "acp", "--stdio", "--disable-telemetry"],
+	);
+});
+
+test("spawn ENOENT é convertido em erro estruturado sem evento error não tratado", async () => {
+	const child = new FakeAgyChild(0);
+	const spawn: SpawnFn = () => {
+		queueMicrotask(() => {
+			const error = Object.assign(new Error("not found"), {
+				code: "ENOENT",
+				syscall: "spawn agy",
+				path: "agy.exe",
+			});
+			child.emit("error", error);
+		});
+		return child;
+	};
+	await assert.rejects(
+		AcpClient.open({ cwd: "/tmp", modelId: "gemini-3.8-flash-high", timeoutMs: 1000, spawn }),
+		(error: unknown) =>
+			error instanceof TransportError &&
+			error.kind === "spawn" &&
+			error.code === "ENOENT" &&
+			error.syscall === "spawn agy" &&
+			error.executable === "agy.exe",
+	);
+	assert.deepEqual(child.killSignals, [], "falha antes de criar o processo não aciona encerramento por timeout");
+});
 
 function recordingSpawn(inner: SpawnFn): { spawn: SpawnFn; commands: string[][] } {
 	const commands: string[][] = [];

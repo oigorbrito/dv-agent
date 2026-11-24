@@ -2,7 +2,7 @@
 // As unidades são tarefas; réplicas da mesma tarefa permanecem agrupadas no mesmo bootstrap draw.
 import type { BenchReport, RunRecord } from "./report.ts";
 
-export const DEFAULT_PAIRED_BOOTSTRAP_SEED = 20261123;
+export const DEFAULT_PAIRED_BOOTSTRAP_SEED = 20261120;
 export const DEFAULT_PAIRED_BOOTSTRAP_RESAMPLES = 10_000;
 
 export interface BootstrapDifference {
@@ -25,6 +25,7 @@ export interface PairedBootstrapResult {
 	pass_rate_difference: BootstrapDifference;
 	total_tokens_difference: BootstrapDifference;
 	cost_usd_difference: BootstrapDifference;
+	spent_lower_bound_usd_difference: BootstrapDifference;
 }
 
 function quantileType7(sorted: readonly number[], q: number): number {
@@ -111,6 +112,10 @@ function stepCost(run: RunRecord): number | undefined {
 	return run.steps.reduce((sum, step) => sum + (step.metrics.cost_usd ?? 0), 0);
 }
 
+function spentLowerBound(run: RunRecord): number | undefined {
+	return run.steps.length === 0 ? undefined : run.steps.reduce((sum, step) => sum + step.spent_lower_bound_usd, 0);
+}
+
 function taskDifferences(
 	keys: readonly string[],
 	a: ReadonlyMap<string, RunRecord>,
@@ -185,6 +190,7 @@ export function computePairedBootstrap(
 		pass_rate_difference: summarize(passDiffs, random, resamples),
 		total_tokens_difference: summarize(tokenDiffs, random, resamples),
 		cost_usd_difference: summarize(costDiffs, random, resamples),
+		spent_lower_bound_usd_difference: summarize(taskDifferences(keysA, a, b, spentLowerBound), random, resamples),
 	};
 }
 
@@ -198,20 +204,27 @@ export function renderPairedBootstrap(result: PairedBootstrapResult): string {
 		"## Bootstrap pareado por tarefa",
 		"",
 		`- comparação: ${result.policy_b} - ${result.policy_a}`,
-		`- tarefas: ${result.tasks}; réplicas distintas: ${result.repeats}; seed: ${result.seed}; reamostragens: ${result.resamples}`,
+		`- pares comparados (n = tarefas): ${result.tasks}; réplicas distintas: ${result.repeats}; seed: ${result.seed}; reamostragens: ${result.resamples}`,
 		"",
-		"| métrica | diferença | IC 95% | unidades |",
-		"| --- | ---: | ---: | ---: |",
+		"| métrica | diferença | IC 95% | unidades | IC exclui zero |",
+		"| --- | ---: | ---: | ---: | :---: |",
 	];
 	for (const [label, metric] of [
-		["pass rate", result.pass_rate_difference],
+		["solve_rate", result.pass_rate_difference],
 		["total tokens", result.total_tokens_difference],
 		["custo USD", result.cost_usd_difference],
+		["spent_lower_bound_usd", result.spent_lower_bound_usd_difference],
 	] as const) {
 		const interval =
-			metric.ci95 === null ? `n/a (${metric.reason})` : `[${fmt(metric.ci95[0])}, ${fmt(metric.ci95[1])}]`;
-		lines.push(`| ${label} | ${fmt(metric.estimate)} | ${interval} | ${metric.units} |`);
+			metric.ci95 === null ? `n/a (${metric.reason})` : `[${fmt(metric.ci95[0])}; ${fmt(metric.ci95[1])}]`;
+		const supported =
+			metric.ci95 === null ? "indeterminada" : metric.ci95[0] > 0 || metric.ci95[1] < 0 ? "sim" : "não (IC cruza zero)";
+		lines.push(`| ${label} | ${fmt(metric.estimate)} | ${interval} | ${metric.units} | ${supported} |`);
 	}
-	lines.push("", "Diferenças negativas indicam valor menor em policyB; pass rate mede `solved / runs`.", "");
+	lines.push(
+		"",
+		"Diferenças = tratamento - baseline; valores negativos indicam redução. solve_rate mede `solved / runs`.",
+		"",
+	);
 	return `${lines.join("\n")}\n`;
 }

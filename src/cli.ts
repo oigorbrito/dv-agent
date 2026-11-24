@@ -8,7 +8,7 @@ const HELP = `dv-agent — harness determinístico para smoke, bench e métricas
 Uso:
   dv smoke [opções]
   dv bench [opções]
-  dv metrics [opções] summary.json [...]
+  dv metrics (--weak M --strong M | --baseline P --treatment P) [opções] <outdir|summary.json> [...]
   dv probe [opções]
   dv --help
   dv --version
@@ -25,7 +25,7 @@ const COMMANDS: Readonly<Record<string, string>> = {
 const COMMAND_HELP: Readonly<Record<string, string>> = {
 	smoke: "Uso: dv smoke --policy single|ladder|architect-editor|predictive-harness-router [opções do dv-smoke]",
 	bench: "Uso: dv bench --policies single,ladder [opções do dv-bench]",
-	metrics: "Uso: dv metrics (--weak M --strong M | --paired-policy-a P --paired-policy-b P) summary.json [...]",
+	metrics: "Uso: dv metrics (--weak M --strong M | --baseline P --treatment P) [--seed N --resamples N] <outdir|summary.json> [...]",
 	probe: "Uso: dv probe [--live --provider P --model M --auth-mode api-key|subscription]. Sem --live, o probe é offline.",
 };
 
@@ -36,7 +36,7 @@ function packageManifest(): Record<string, unknown> {
 		if (existsSync(path)) {
 			try {
 				const value = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
-				if (value.name === "@finecode/dv-agent") return value;
+				if (value.name === "@engfinecode/dv-agent") return value;
 			} catch {
 				// Continua a busca em diretórios ascendentes.
 			}

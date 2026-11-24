@@ -107,6 +107,25 @@ test("bootstrap pareado: diferenças por tarefa e IC são determinísticos para 
 	assert.ok(first.pass_rate_difference.ci95?.[0] !== undefined);
 	assert.ok(first.pass_rate_difference.ci95?.[1] !== undefined);
 	assert.equal(first.pass_rate_difference.defined_resamples, 500);
+	assert.ok(first.pass_rate_difference.ci95?.[0] !== undefined && first.pass_rate_difference.ci95[0] <= 0);
+	assert.ok(first.pass_rate_difference.ci95?.[1] !== undefined && first.pass_rate_difference.ci95[1] >= 0);
+	assert.equal(first.spent_lower_bound_usd_difference.units, 3);
+});
+
+test("bootstrap pareado: IC exclui zero quando todas as tarefas melhoram", () => {
+	const input = report([
+		run("task-a", "single", false, 100, 1),
+		run("task-a", "ladder", true, 90, 0.9),
+		run("task-b", "single", false, 100, 1),
+		run("task-b", "ladder", true, 90, 0.9),
+		run("task-c", "single", false, 100, 1),
+		run("task-c", "ladder", true, 90, 0.9),
+	]);
+	const result = computePairedBootstrap([input], { policyA: "single", policyB: "ladder", seed: 5, resamples: 100 });
+	assert.deepEqual(result.pass_rate_difference.ci95, [1, 1]);
+	assert.deepEqual(result.total_tokens_difference.ci95, [-10, -10]);
+	assert.match(renderPairedBootstrap(result), /IC exclui zero/);
+	assert.match(renderPairedBootstrap(result), /\| solve_rate \| 1\.000000 \| \[1\.000000; 1\.000000\] \| 3 \| sim \|/);
 });
 
 test("bootstrap pareado: custo desconhecido fica fora da métrica, sem virar zero", () => {
@@ -138,15 +157,15 @@ test("dv-bench-metrics: opção de bootstrap funciona offline em faux", () => {
 		process.execPath,
 		[
 			"scripts/dv-bench-metrics.ts",
-			"--paired-policy-a",
+			"--baseline",
 			"single",
-			"--paired-policy-b",
+			"--treatment",
 			"ladder",
 			"--seed",
 			"7",
 			"--resamples",
 			"100",
-			input,
+			dir,
 		],
 		{ cwd: ROOT, encoding: "utf8" },
 	);
@@ -155,6 +174,7 @@ test("dv-bench-metrics: opção de bootstrap funciona offline em faux", () => {
 	assert.match(result.stdout, /pass rate/);
 	assert.match(result.stdout, /total tokens/);
 	assert.match(result.stdout, /custo USD/);
+	assert.match(result.stdout, /spent_lower_bound_usd/);
 	assert.match(
 		renderPairedBootstrap(computePairedBootstrap([fixture()], { policyA: "single", policyB: "ladder" })),
 		/IC 95%/,

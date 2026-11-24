@@ -1,7 +1,7 @@
 {
-	"name": "@finecode/dv-agent",
-	"version": "0.1.0",
-	"author": "FineCode <engfinecode@gmail.com>",
+	"name": "@engfinecode/dv-agent",
+	"version": "0.0.1",
+	"author": "Happy Penguin (engfinecode) <engfinecode@gmail.com>",
 	"license": "MIT",
 	"repository": {
 		"type": "git",

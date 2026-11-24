@@ -2,7 +2,9 @@
 //   node scripts/dv-bench.ts --policies single,ladder --auth-mode faux
 //   node scripts/dv-bench.ts --tier hard --task hard-02-wal-ledger-replay --policies single,ladder --auth-mode faux
 //   node scripts/dv-bench.ts --policies single,ladder --auth-mode api-key --model openai/<id> --escalation-model openai/<id2>
-// Opções: --corpus DIR (padrão packages/dv-eval/corpus)  --tier all|easy|medium|hard  --task ID
+// Opções: --corpus DIR (padrão packages/dv-eval/corpus)  --tier all|easy|medium|hard|negative  --task ID
+//   --tasks ID1,ID2,... (lista explícita; exclusiva com --task; IDs inexistentes ou de tier errado são erro)
+//   Flag desconhecida, repetida ou sem valor é erro (nenhuma flag é ignorada em silêncio).
 //   --policies single,ladder,architect-editor,predictive-harness-router  --auth-mode faux|subscription|api-key
 //   --model provider/modelId (degrau 0 / editor)  --escalation-model provider/modelId (degrau 1 / architect)
 //   --max-tokens N (teto de tokens por execução, somado entre degraus; obrigatório em subscription)  --max-cost USD (padrão 0.05)
@@ -29,10 +31,38 @@ const AUTH_FLAG_TO_MODE: Record<string, AuthMode> = {
 	"api-key": "api-key",
 };
 
-const args = parseArgs(process.argv.slice(2));
+// Flags aceitas. Qualquer outra (inclusive typo) é erro: nenhuma flag é ignorada em silêncio.
+const ALLOWED_FLAGS = [
+	"tier",
+	"task",
+	"tasks",
+	"policies",
+	"auth-mode",
+	"model",
+	"escalation-model",
+	"max-tokens",
+	"max-cost",
+	"editor-max-turns",
+	"editor-max-output-tokens",
+	"repeats",
+	"temperature",
+	"outdir",
+	"corpus",
+];
+function fail(message: string): never {
+	console.error(`erro: ${message}`);
+	process.exit(1);
+}
+let args: Map<string, string | true>;
+try {
+	args = parseArgs(process.argv.slice(2), ALLOWED_FLAGS);
+} catch (error) {
+	fail(error instanceof Error ? error.message : String(error));
+}
 const text = (name: string): string | undefined => {
 	const value = args.get(name);
-	return typeof value === "string" ? value : undefined;
+	if (value === true) fail(`--${name} exige um valor`);
+	return value;
 };
 const positive = (name: string, fallback: number | undefined): number | undefined => {
 	const raw = text(name);
@@ -41,6 +71,11 @@ const positive = (name: string, fallback: number | undefined): number | undefine
 	if (!Number.isFinite(value) || value <= 0) throw new Error(`--${name} deve ser um número positivo: ${raw}`);
 	return value;
 };
+
+// --tasks: lista separada por vírgula. Valida formato aqui; existência e tier são validados em selectTasks.
+const tasksText = text("tasks");
+const tasks = tasksText === undefined ? undefined : tasksText.split(",").map((id) => id.trim());
+if (tasks !== undefined && text("task") !== undefined) fail("use --task ou --tasks, não os dois");
 
 const tier = text("tier") ?? "all";
 if (tier !== "all" && !(CORPUS_TIERS as readonly string[]).includes(tier)) {
@@ -70,6 +105,7 @@ const options: BenchOptions = {
 	corpusDir: resolve(text("corpus") ?? "packages/dv-eval/corpus"),
 	tier: tier as CorpusTier | "all",
 	...(text("task") === undefined ? {} : { task: text("task") }),
+	...(tasks === undefined ? {} : { tasks }),
 	policies: policyList as PolicyName[],
 	authMode,
 	...(text("model") === undefined ? {} : { model: text("model") }),

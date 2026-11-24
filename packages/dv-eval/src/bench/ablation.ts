@@ -27,6 +27,8 @@ export interface BenchOptions {
 	corpusDir: string;
 	tier: CorpusTier | "all";
 	task?: string;
+	/** Lista explícita de tarefas (--tasks). Exclusiva com `task`. */
+	tasks?: readonly string[];
 	policies: readonly PolicyName[];
 	authMode: AuthMode;
 	model?: string;
@@ -109,7 +111,11 @@ export async function runBench(options: BenchOptions): Promise<BenchReport> {
 	}
 	assertGovernance(options);
 	const repeats = options.repeats ?? 1;
-	const tasks = selectTasks(discoverCorpus(options.corpusDir), { tier: options.tier, task: options.task });
+	const tasks = selectTasks(discoverCorpus(options.corpusDir), {
+		tier: options.tier,
+		...(options.task === undefined ? {} : { task: options.task }),
+		...(options.tasks === undefined ? {} : { tasks: options.tasks }),
+	});
 	const outdir = resolve(options.outdir);
 	mkdirSync(outdir, { recursive: true });
 
@@ -134,6 +140,7 @@ export async function runBench(options: BenchOptions): Promise<BenchReport> {
 		tier: options.tier,
 		tiers,
 		task: options.task ?? null,
+		tasks: options.tasks === undefined ? null : [...options.tasks],
 		policies: [...options.policies],
 		model: options.model ?? null,
 		escalation_model: options.escalationModel ?? null,

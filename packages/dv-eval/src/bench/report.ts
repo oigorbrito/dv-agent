@@ -185,6 +185,8 @@ export interface BenchReport {
 	/** Tiers efetivamente executados. */
 	tiers: CorpusTier[];
 	task: string | null;
+	/** Lista de --tasks, na ordem pedida (null quando não foi usada). */
+	tasks: string[] | null;
 	policies: PolicyName[];
 	/** Modelo primário (--model). Identifica o baseline single: Haiku (fraco) ou Sonnet (forte). */
 	model: string | null;

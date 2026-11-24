@@ -63,13 +63,39 @@ export function discoverCorpus(corpusDir: string): CorpusTask[] {
 export interface TaskFilter {
 	tier: CorpusTier | "all";
 	task?: string;
+	/** Lista explícita de IDs (ordem do corpus). Exclui `task`. Não respeita a exclusão do tier negativo. */
+	tasks?: readonly string[];
 }
 
 /**
  * Aplica --tier e --task. "all" exclui o controle negativo (só entra explicitamente).
  * Erro explícito quando nada casa (nunca executa um conjunto vazio em silêncio).
  */
+/** Seleção por lista de IDs: valida formato, repetição, existência e tier. Mantém a ordem do corpus. */
+function selectExplicit(tasks: readonly CorpusTask[], ids: readonly string[], tier: CorpusTier | "all"): CorpusTask[] {
+	if (ids.length === 0) throw new Error("--tasks sem IDs");
+	const seen = new Set<string>();
+	for (const id of ids) {
+		if (id === "") throw new Error("ID vazio em --tasks");
+		if (seen.has(id)) throw new Error(`ID repetido em --tasks: ${id}`);
+		seen.add(id);
+	}
+	const known = new Set(tasks.map((t) => t.id));
+	const missing = ids.filter((id) => !known.has(id));
+	if (missing.length > 0) throw new Error(`tarefas inexistentes no corpus: ${missing.join(", ")}`);
+	const selected = tasks.filter((t) => seen.has(t.id));
+	if (tier !== "all") {
+		const wrong = selected.find((t) => t.tier !== tier);
+		if (wrong !== undefined) throw new Error(`tarefa ${wrong.id} é do tier ${wrong.tier}, não ${tier}`);
+	}
+	return selected;
+}
+
 export function selectTasks(tasks: readonly CorpusTask[], filter: TaskFilter): CorpusTask[] {
+	if (filter.tasks !== undefined) {
+		if (filter.task !== undefined) throw new Error("use --task ou --tasks, não os dois");
+		return selectExplicit(tasks, filter.tasks, filter.tier);
+	}
 	if (filter.task !== undefined) {
 		const found = tasks.find((t) => t.id === filter.task);
 		if (found === undefined) throw new Error(`tarefa inexistente no corpus: ${filter.task}`);

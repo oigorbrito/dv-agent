@@ -246,3 +246,25 @@ node scripts/dv-bench-metrics.ts --weak anthropic/claude-haiku-5-5 --strong anth
 node scripts/dv-bench-metrics.ts --paired-policy-a predictive-harness-router --paired-policy-b single \
   --seed 20261123 --resamples 10000 runs/holdout-n3/strong-sonnet/summary.json runs/holdout-n3/router/summary.json
 ```
+
+## 10. Probe live do agy (ACP, 2 turnos)
+
+**Comando (autorizado, uma execução):** `npm run probe:providers -- --live --provider agy --model gemini-3.8-flash-high --auth-mode subscription --turns 2`, com teto de 40.000 tokens. Resultado: `INCONCLUSIVE`, motivo "nenhum turno com cache: a semântica do usage não foi determinada". Artefato `packages/dv-eval/probe-results/agy.json` (excluído do git, não aprovado sob v4).
+
+**Observado:**
+
+- **Handshake:** `protocolVersion = 1`, agente "Antigravity ACP Server", 4 métodos de autenticação anunciados.
+- **Modelos:** 6 anunciados em `session/new`; modelo atual `gemini-3.8-flash-high`.
+- **Turno 1:** entrada 13.193, saída 132 (raciocínio 131), cache 0/0, `totalTokens` 13.325.
+- **Turno 2:** entrada 13.420, saída 74 (raciocínio 73), cache 0/0, `totalTokens` 13.494. A entrada cresceu 227 tokens com o histórico da sessão, sem reaproveitamento de cache.
+- **Identidade aritmética:** `totalTokens = inputTokens + outputTokens` nos dois turnos. Com cache zero, essa identidade vale nas duas leituras possíveis da semântica, então não as separa.
+- **Teto:** 26.819 tokens somados, abaixo de 40.000.
+- **`session/set_model`:** aceito (`supported`). A sondagem foi feita depois dos turnos, sem prompt posterior: não se sabe se a sessão trocou de modelo de fato.
+
+**Conclusões:**
+
+1. A semântica de `inputTokens` em relação ao cache **não foi determinada**: nenhum turno teve cache.
+2. Sob o contrato v4, `MEASURED` para o agy é **inalcançável**, porque a tabela de capacidades do v4 não tem linha para ele.
+3. A aprovação do agy não foi concedida sob v4.
+
+**Limites:** dois turnos, uma sessão, um modelo. A troca de modelo ainda não foi validada por turno. O v5 proposto (`contracts/run-accounting-contract-v5.json`, status `PROPOSED_UNRATIFIED`) trata o caso com cache zero como `MEASURED` e o caso com cache como `UNVERIFIABLE`. A tabela de proveniência está em `contracts/PROVENANCE-v5.json`.

@@ -32,14 +32,22 @@ test("v4 congelado: SHA-256 inalterado e id p1-run-accounting-v4", () => {
 
 test("v5: arquivo derivado do v4, id correto, status proposto e PROVENANCE com o SHA real", () => {
 	const v5Path = join(CONTRACTS, "run-accounting-contract-v5.json");
-	const v5 = JSON.parse(readFileSync(v5Path, "utf8")) as { contract_id: string; status: string; supersedes: string };
+	const v5 = JSON.parse(readFileSync(v5Path, "utf8")) as {
+		contract_id: string;
+		status: string;
+		supersedes: string;
+		ratified_on: string;
+	};
+	assert.equal(v5.ratified_on, "2026-11-24");
 	assert.equal(v5.contract_id, CONTRACT_V5_ID);
-	assert.equal(v5.status, "PROPOSED_UNRATIFIED", "v5 não é vigente até ratificação");
+	assert.equal(v5.status, "RATIFIED", "v5 ratificado em 2026-11-24");
 	assert.match(v5.supersedes, /p1-run-accounting-v4/);
 	const prov = JSON.parse(readFileSync(join(CONTRACTS, "PROVENANCE-v5.json"), "utf8")) as {
 		sha256: string;
 		derived_from_sha256: string;
+		status: string;
 	};
+	assert.equal(prov.status, "RATIFIED");
 	assert.equal(prov.sha256, sha(v5Path));
 	assert.equal(prov.derived_from_sha256, V4_SHA);
 });

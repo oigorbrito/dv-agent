@@ -1,9 +1,9 @@
 {
   "contract_id": "p1-run-accounting-v5",
   "supersedes": "p1-run-accounting-v4 (sha256 11b4d5453e0964a7eb88decb5cbf7d1c5f5eebf4fbbdd458fb4e38686baef486, congelado, não editado)",
-  "status": "PROPOSED_UNRATIFIED",
+  "status": "RATIFIED",
   "anchored_commit": null,
-  "supersedes_note": "v5 acrescenta a linha do agy à tabela de capacidades (regra b) com regra condicional e o estado UNVERIFIABLE. Não altera nenhuma regra de v4: runs sob v4 continuam sem regra para o agy. Proposta criada pelo dv-agent; requer ratificação antes de ser tratada como contrato vigente.",
+  "supersedes_note": "v5 acrescenta a linha do agy à tabela de capacidades (regra b) com regra condicional e o estado UNVERIFIABLE. Não altera nenhuma regra de v4 para os demais provedores: runs sob v4 continuam sem regra para o agy. Ratificado em 2026-11-24.",
   "anchor_scope": "normative_rules a-d. Campos aditivos de telemetria ja emitidos pelo harness (harness_variant, reference_provenance, tokens_lower_bound, cost_lower_bound) nao mudam de significado.",
   "frozen_references": {
     "v1_file": "experiments/p1/run-accounting-contract-v1.json",
@@ -148,5 +148,7 @@
       "owner_file": "a implementar, com hash registrado antes da rodada"
     }
   ],
-  "no_composite_score": true
+  "no_composite_score": true,
+  "ratified_on": "2026-11-24",
+  "ratified_by": "responsável do projeto (decisão registrada na sessão de 2026-11-24)"
 }

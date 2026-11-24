@@ -2,10 +2,16 @@
   "schema": "dv-contract-provenance-v1",
   "file": "contracts/run-accounting-contract-v5.json",
   "contract_id": "p1-run-accounting-v5",
-  "status": "PROPOSED_UNRATIFIED",
+  "status": "RATIFIED",
   "derived_from": "contracts/run-accounting-contract-v4.json",
   "derived_from_sha256": "11b4d5453e0964a7eb88decb5cbf7d1c5f5eebf4fbbdd458fb4e38686baef486",
-  "sha256": "55695a1219e0a38e8e4528190264fda36c915cf2c584f120661a60a28f411041",
+  "sha256": "5029e770865a8fdf6c70f1dad9283ff06d8bb6012018d613eb77a2363c3820ad",
   "change": "acrescenta linha agy à capability_table (regra b) e a regra e_agy_status; demais regras copiadas de v4 sem alteração",
-  "note": "Criado a partir de v4 congelado (AGENTS.md, regra 3: nova versão em vez de editar contrato congelado). v4 não foi tocado."
+  "note": "Criado a partir de v4 congelado (AGENTS.md, regra 3: nova versão em vez de editar contrato congelado). v4 não foi tocado. Ratificado em 2026-11-24; SHA-256 atualizado após a ratificação (alteração de status e de nota).",
+  "ratification": {
+    "date": "2026-11-24",
+    "decision": "ratificado pelo responsável do projeto",
+    "scope": "contrato v5 vigente para runs com provedor agy; v4 segue vigente para os demais",
+    "sha256_at_ratification": "5029e770865a8fdf6c70f1dad9283ff06d8bb6012018d613eb77a2363c3820ad"
+  }
 }

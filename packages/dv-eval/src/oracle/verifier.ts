@@ -55,6 +55,7 @@ export interface OracleResult {
 		summary: LedgerSummary;
 	} | null;
 	verification: Verification;
+	oracle_integrity: OracleIntegrityResult;
 	oracle_tampered?: boolean;
 	tamper_violations?: string[];
 }
@@ -218,6 +219,11 @@ export async function runOracle(input: OracleInput): Promise<OracleResult> {
 			candidate: { files: hashTree(input.candidateDir) },
 			ledger,
 			verification,
+			oracle_integrity: {
+				intact: !isTampered,
+				tamper_detected: isTampered,
+				violations: tamperViolations,
+			},
 			...(isTampered ? { oracle_tampered: true, tamper_violations: tamperViolations } : {}),
 		};
 		mkdirSync(input.outdir, { recursive: true });

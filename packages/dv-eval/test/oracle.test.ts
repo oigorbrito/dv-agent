@@ -34,6 +34,8 @@ test("PASS: candidato correto gera result.json com SOLVED e verificação pass",
 	const result = await runOracle({ taskDir: TASK, candidateDir: candidate(CORRECT), outdir: out });
 	assert.equal(result.verdict, "PASS");
 	assert.equal(result.outcome, "SOLVED");
+	assert.equal(result.oracle_integrity.intact, true);
+	assert.equal(result.oracle_integrity.tamper_detected, false);
 	assert.deepEqual(result.verification, { oracle_pass: true, status: "pass" });
 	const written = JSON.parse(readFileSync(join(out, "result.json"), "utf8")) as OracleResult;
 	assert.equal(written.schema, "dv-oracle-result-v1");
@@ -216,6 +218,8 @@ test("runOracle fail-closed com NO_VERDICT e tamper_detected se expectedOracleHa
 	assert.equal(result.verdict, "NO_VERDICT");
 	assert.equal(result.outcome, "INCONCLUSIVE");
 	assert.equal(result.oracle_tampered, true);
+	assert.equal(result.oracle_integrity.intact, false);
+	assert.equal(result.oracle_integrity.tamper_detected, true);
 	assert.equal(result.verification.status, "provider_error");
 	assert.equal(result.verification.oracle_pass, null);
 	assert.ok((result.tamper_violations?.length ?? 0) > 0);

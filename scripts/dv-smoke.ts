@@ -7,6 +7,7 @@
 //   --model provider/modelId  --escalation-model provider/modelId  --ladder-models modelo,...  --auth-file CAMINHO  --outdir DIR
 //   --task DIR  --max-cost USD
 import { resolve } from "node:path";
+import { formatTokenCount } from "../packages/dv-eval/src/bench/report.ts";
 import { parseArgs } from "../packages/dv-eval/src/cli/args.ts";
 import { type AuthMode, type PolicyName, runSmoke } from "../packages/dv-eval/src/smoke/runner.ts";
 
@@ -58,6 +59,7 @@ console.log(
 				role: s.role,
 				model: s.model,
 				verdict: s.oracle?.verdict ?? null,
+				tokens: formatTokenCount(s.total_tokens, s.telemetry_complete ? "MEASURED" : "UNVERIFIABLE"),
 				spent_lower_bound_usd: s.spent_lower_bound_usd,
 				run_status: s.run_status,
 			})),

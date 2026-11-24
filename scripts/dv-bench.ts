@@ -24,6 +24,7 @@ import {
 	runBench,
 } from "../packages/dv-eval/src/bench/ablation.ts";
 import { CORPUS_TIERS, type CorpusTier } from "../packages/dv-eval/src/bench/corpus.ts";
+import { formatTokenCount } from "../packages/dv-eval/src/bench/report.ts";
 import { parseArgs } from "../packages/dv-eval/src/cli/args.ts";
 import { type AuthMode, EDITOR_LIMITS, type PolicyName } from "../packages/dv-eval/src/smoke/runner.ts";
 
@@ -156,7 +157,7 @@ try {
 	console.log(`ok: ${report.runs.length} run(s). Relatório: ${options.outdir}/summary.md`);
 	for (const row of report.rows) {
 		console.log(
-			`${row.policy.padEnd(16)} ${String(row.tier).padEnd(7)} solved ${row.solved}/${row.runs}  tokens ${row.tokens_total}  teto ${row.ceiling_status}  telemetria ${row.telemetry_status}  v4 ${row.conformance_v4}`,
+			`${row.policy.padEnd(16)} ${String(row.tier).padEnd(7)} solved ${row.solved}/${row.runs}  tokens ${formatTokenCount(row.tokens_total, row.telemetry_status)}  teto ${row.ceiling_status}  telemetria ${row.telemetry_status}  v4 ${row.conformance_v4}`,
 		);
 	}
 } catch (error) {

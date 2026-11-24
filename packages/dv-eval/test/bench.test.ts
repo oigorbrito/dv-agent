@@ -19,6 +19,7 @@ import { discoverCorpus, selectTasks } from "../src/bench/corpus.ts";
 import {
 	aggregate,
 	type BenchReport,
+	formatTokenCount,
 	type GroupRow,
 	groupConformance,
 	passStats,
@@ -78,6 +79,25 @@ function row(report: BenchReport, policy: string, tier: string): GroupRow {
 	assert.ok(found, `linha ausente: ${policy}/${tier}`);
 	return found;
 }
+
+test("resumo não mostra 0 tok quando a telemetria de um passo não é medida", async () => {
+	assert.equal(formatTokenCount(0, "UNVERIFIABLE"), "unverifiable");
+	assert.equal(formatTokenCount(0, "INCONCLUSIVE"), "unverifiable");
+	assert.equal(formatTokenCount(0, "MEASURED"), "0 tok");
+	const report = await runBench(options({ tier: "easy", task: "easy-01-calc", policies: ["ladder"] }));
+	const step = report.runs[0]?.steps[0];
+	assert.ok(step);
+	step.metrics.telemetry_complete = false;
+	step.metrics.total_tokens = 0;
+	const summaryRow = report.rows[0];
+	assert.ok(summaryRow);
+	summaryRow.telemetry_status = "INCONCLUSIVE";
+	summaryRow.tokens_total = 0;
+	const markdown = renderMarkdown(report);
+	assert.match(markdown, /unverifiable/);
+	assert.match(markdown, /rung_0:FAIL \(unverifiable\)/);
+	assert.doesNotMatch(markdown, /\(0 tok\)/);
+});
 
 test("corpus: 18 tarefas positivas (5 por tier, 3 em frontier) + 1 negativa, com filtros por tier e tarefa", () => {
 	const tasks = discoverCorpus(CORPUS);

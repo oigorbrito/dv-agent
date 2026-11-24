@@ -180,6 +180,16 @@ test("classifyVerification: oráculo é soberano; sinais de runtime só refinam 
 		}),
 		{ oracle_pass: null, status: "provider_error" },
 	);
+	assert.deepEqual(
+		classifyVerification({
+			oracle: "FAIL",
+			doomLoopBlocks: 0,
+			budgetTripped: false,
+			budgetUnverifiable: false,
+			providerError: true,
+		}),
+		{ oracle_pass: false, status: "provider_error" },
+	);
 });
 
 test("escalonamento padrão: doom_loop e budget_exceeded promovem; provider_error não", () => {
@@ -206,6 +216,15 @@ test("escalonamento padrão: doom_loop e budget_exceeded promovem; provider_erro
 		assert.equal(policy.decide([attempt(status, false)]).kind, "run", `${status} promove`);
 	}
 	assert.equal(policy.decide([attempt("provider_error", null)]).kind, "stop");
+	const failedWorkspaceAfterAuthError = classifyVerification({
+		oracle: "FAIL",
+		doomLoopBlocks: 0,
+		budgetTripped: false,
+		budgetUnverifiable: false,
+		providerError: true,
+	});
+	assert.deepEqual(failedWorkspaceAfterAuthError, { oracle_pass: false, status: "provider_error" });
+	assert.equal(policy.decide([attempt(failedWorkspaceAfterAuthError.status, false)]).kind, "stop");
 });
 
 test("erro do provedor sem usage: zero não é medição, telemetria INCONCLUSIVE", () => {

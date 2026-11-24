@@ -70,6 +70,14 @@ export interface GroupRow {
 	conformance_v4: ConformanceStatus;
 }
 
+/** Formata tokens somente quando a respectiva telemetria está medida. */
+export function formatTokenCount(
+	totalTokens: number,
+	telemetryStatus: "MEASURED" | "UNVERIFIABLE" | "INCONCLUSIVE",
+): string {
+	return telemetryStatus === "MEASURED" ? `${totalTokens} tok` : "unverifiable";
+}
+
 /** Políticas com degrau de escalonamento (promoção do degrau 0 para o 1). As demais reportam escalation_rate = null. */
 export const ESCALATING_POLICIES: readonly PolicyName[] = ["ladder", "predictive-harness-router"];
 
@@ -254,9 +262,20 @@ export function renderMarkdown(report: BenchReport): string {
 	headers.push("pass^k");
 	lines.push(`| ${headers.join(" | ")} |`, `| ${headers.map(() => "---").join(" | ")} |`);
 	for (const row of report.rows) {
-		const cells = COLUMNS.map((c) => cell(row[c]));
+		const tokenColumns: (keyof GroupRow)[] = [
+			"tokens_total",
+			"tokens_input",
+			"tokens_cached_read",
+			"tokens_cache_write",
+			"tokens_output",
+		];
+		const cells = COLUMNS.map((c) =>
+			tokenColumns.includes(c) && row.telemetry_status !== "MEASURED" ? "unverifiable" : cell(row[c]),
+		);
 		const tokensIdx = COLUMNS.indexOf("tokens_total");
-		if (row.budget_exceeded_runs > 0) cells[tokensIdx] = `${cells[tokensIdx]} †`;
+		if (row.budget_exceeded_runs > 0 && row.telemetry_status === "MEASURED") {
+			cells[tokensIdx] = `${cells[tokensIdx]} †`;
+		}
 		cells.splice(COLUMNS.indexOf("solve_rate") + 1, 0, ciCell(row));
 		lines.push(`| ${[...cells, `${row.pass_all}/${row.tasks}`].join(" | ")} |`);
 	}
@@ -274,7 +293,13 @@ export function renderMarkdown(report: BenchReport): string {
 	);
 	for (const run of report.runs) {
 		const escalated = run.escalated === null ? "n/a" : run.escalated ? "sim" : "não";
-		const path = run.steps.map((s) => `${s.role}:${s.verdict ?? "-"}`).join(" → ") || "-";
+		const path =
+			run.steps
+				.map(
+					(s) =>
+						`${s.role}:${s.verdict ?? "-"} (${formatTokenCount(s.metrics.total_tokens, s.metrics.telemetry_complete ? "MEASURED" : "UNVERIFIABLE")})`,
+				)
+				.join(" → ") || "-";
 		const ceiling = [...new Set(run.steps.map((s) => s.ceiling_status))].join(",") || "n/a";
 		lines.push(
 			`| ${run.task_id} | ${run.tier} | ${run.policy} | ${run.final_outcome} | ${path} | ${escalated} | ${ceiling} | ${run.conformance_status} |`,

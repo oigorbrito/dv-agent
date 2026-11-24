@@ -94,6 +94,8 @@ export interface StepRecord {
 	spent_lower_bound_usd: number;
 	ledger_path: string;
 	ledger_sha256: string;
+	telemetry_complete: boolean;
+	total_tokens: number;
 	oracle: { verdict: string; outcome: string; result_path: string } | null;
 	verification: Attempt["verification"];
 	plan_from_architect: boolean;
@@ -334,7 +336,8 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 				return finish(options, context, steps, "blocked", (error as Error).message);
 			}
 
-			tokensSpent += readLedgerMetrics(run.ledgerPath).total_tokens;
+			const metrics = readLedgerMetrics(run.ledgerPath);
+			tokensSpent += metrics.total_tokens;
 			if (isArchitect) plan = lastAssistantText(run.messages);
 			const oracle: OracleResult | null = isArchitect
 				? null
@@ -364,6 +367,8 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 				spent_lower_bound_usd: run.spentLowerBoundUsd,
 				ledger_path: run.ledgerPath,
 				ledger_sha256: run.ledgerSha256,
+				telemetry_complete: metrics.telemetry_complete,
+				total_tokens: metrics.total_tokens,
 				oracle:
 					oracle === null
 						? null

@@ -30,7 +30,7 @@ npm run build:runtime             # compila pacotes de runtime
 npm run build:dist                # prepara a distribuição npm em dist/ (offline, usa o catálogo local)
 npm run typecheck
 npm run lint                      # Biome 2.3.5 (mesma versão fixada pelo upstream)
-npm test                          # 72 testes offline, sem rede e sem provedor real
+npm test                          # testes offline, sem rede e sem provedor real
 npm run probe:providers           # probe offline (padrão, sem rede)
 npm run probe:providers -- --live --provider P --model M --auth-mode subscription   # chamada real (assinatura)
 npm run probe:providers -- --live --provider P --model M --auth-mode api-key        # chamada real (variável de ambiente)

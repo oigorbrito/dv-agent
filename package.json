@@ -8,7 +8,6 @@
 		"url": "https://github.com/engfinecode/dv-agent.git"
 	},
 	"private": false,
-	"license": "MIT",
 	"publishConfig": {
 		"access": "public"
 	},

@@ -28,6 +28,7 @@ import { sanitizeProviderErrorMessage } from "../ledger/redact.ts";
 import { buildCallTelemetry } from "../ledger/telemetry.ts";
 import { ToolOutcomeTracker } from "../ledger/tool_outcomes.ts";
 import { ledgerSha256, RunLedger } from "../ledger/writer.ts";
+import type { ReasoningEffort } from "../router/policy.ts";
 import { sha256Hex } from "../util/canonical.ts";
 
 export interface RungRunOptions {
@@ -52,6 +53,8 @@ export interface RungRunOptions {
 	maxOutputTokens?: number;
 	doomLoopMaxIdenticalConsecutive: number;
 	approvedProbes?: ReadonlySet<string>;
+	/** Nível de esforço de raciocínio (reasoning effort). */
+	reasoningEffort?: ReasoningEffort;
 	/** Versão do contrato do run. Padrão v4. Provedor agy exige v5. */
 	contractId?: string;
 	/** Decisão de roteamento que originou este degrau. Gravada como `route_decided` logo após `run_started`. */
@@ -140,7 +143,12 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 	const agent = new Agent({
 		streamFn,
 		beforeToolCall: recordingHook,
-		initialState: { model: options.model, systemPrompt: options.systemPrompt ?? "", tools: options.tools },
+		initialState: {
+			model: options.model,
+			systemPrompt: options.systemPrompt ?? "",
+			tools: options.tools,
+			...(options.reasoningEffort !== undefined ? { thinkingLevel: options.reasoningEffort } : {}),
+		},
 	});
 
 	agent.subscribe((event) => {

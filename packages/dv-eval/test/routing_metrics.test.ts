@@ -190,6 +190,7 @@ function run(policy: PolicyName, taskId: string, model: string, passed: boolean)
 				rung: 0,
 				role: "rung_0",
 				model,
+				reasoning_effort: null,
 				verdict: passed ? "PASS" : "FAIL",
 				run_status: "completed",
 				ceiling_status: "within_verified",

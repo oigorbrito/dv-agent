@@ -12,6 +12,16 @@ Dados de referência (`dv-baseline`, commit `e067dc7`) não foram alterados.
 
 ## Comandos
 
+### Effort laddering e scaffold adaptativo
+
+```bash
+# Esforço de raciocínio por degrau (provider/modelId:effort; effort em low|medium|high|xhigh)
+node scripts/dv-smoke.ts --policy ladder --ladder-models anthropic/claude-haiku-5-5:low,anthropic/claude-sonnet-4-6:high
+
+# Scaffold por porte do modelo (uniform é o padrão)
+node scripts/dv-smoke.ts --policy ladder --scaffold-mode adaptive --ladder-models anthropic/claude-haiku-5-5:low,anthropic/claude-sonnet-4-6:high
+```
+
 Após instalar `@engfinecode/dv-agent`, os executáveis `dv` e `dv-agent` oferecem a mesma CLI:
 
 ```bash

@@ -28,7 +28,11 @@ function listFiles(root: string): FixtureFile[] {
  * Turnos do modelo faux para a tarefa. Retorna undefined quando a tarefa não tem pasta offline/ (roteiro legado).
  * faux-cheap → cheap; faux-strong e faux-editor → strong; faux-architect → plano em texto (sem ferramentas).
  */
-export function fixtureTurns(taskDir: string, modelId: string): Turn[] | undefined {
+export function fixtureTurns(
+	taskDir: string,
+	modelId: string,
+	options: { bashOnly?: boolean } = {},
+): Turn[] | undefined {
 	const root = join(resolve(taskDir), "offline");
 	if (!existsSync(root)) return undefined;
 	const u = (): ReturnType<typeof usage> => usage(1000, 100, { reasoning: 0 });
@@ -40,9 +44,20 @@ export function fixtureTurns(taskDir: string, modelId: string): Turn[] | undefin
 	if (variant === undefined) throw new Error(`modelo faux sem roteiro na tarefa: ${modelId}`);
 	const dir = join(root, variant);
 	if (!existsSync(dir)) throw new Error(`roteiro ausente: ${dir}`);
-	const turns: Turn[] = listFiles(dir).map((file, index) =>
-		toolTurn("write_file", { path: file.rel, content: readFileSync(file.abs, "utf8") }, u(), `${variant}-${index}`),
-	);
+	const files = listFiles(dir);
+	const turns: Turn[] = files.map((file, index) => {
+		if (options.bashOnly) {
+			const hex = Buffer.from(readFileSync(file.abs)).toString("hex");
+			const cmd = `python -c "import pathlib; p = pathlib.Path('${file.rel}'); p.parent.mkdir(parents=True, exist_ok=True); p.write_bytes(bytes.fromhex('${hex}'))"`;
+			return toolTurn("run_bash", { command: cmd }, u(), `${variant}-${index}`);
+		}
+		return toolTurn(
+			"write_file",
+			{ path: file.rel, content: readFileSync(file.abs, "utf8") },
+			u(),
+			`${variant}-${index}`,
+		);
+	});
 	turns.push(textTurn("alteração feita", u()));
 	return turns;
 }

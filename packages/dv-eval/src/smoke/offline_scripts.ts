@@ -7,12 +7,20 @@ const RIGHT_EDIT = { old_text: "return a - b", new_text: "return a + b" };
 const SELF_CHECK = { command: 'python -c "import calc; print(calc.add(2, 3))"' };
 
 /** Turnos de um modelo faux, identificado pelo id do modelo (faux-cheap, faux-strong, faux-architect, faux-editor). */
-export function offlineTurns(modelId: string): Turn[] {
+export function offlineTurns(modelId: string, options: { bashOnly?: boolean } = {}): Turn[] {
 	const u = (): ReturnType<typeof usage> => usage(1000, 100, { reasoning: 0 });
 	if (modelId === "faux-architect") {
 		return [textTurn("Plano: em add(), trocar a subtração por adição; manter mul e safe_div.", u())];
 	}
 	const edit = modelId === "faux-strong" || modelId === "faux-editor" ? RIGHT_EDIT : WRONG_EDIT;
+	if (options.bashOnly) {
+		const pythonCmd = `python -c "c = open('calc.py', 'r').read(); f = open('calc.py', 'w'); f.write(c.replace('${edit.old_text}', '${edit.new_text}')); f.close()"`;
+		return [
+			toolTurn("run_bash", { command: pythonCmd }, u()),
+			toolTurn("run_bash", SELF_CHECK, u()),
+			textTurn("alteração feita", u()),
+		];
+	}
 	return [
 		toolTurn("read_file", { path: "calc.py" }, u()),
 		toolTurn("edit_file", { path: "calc.py", ...edit }, u()),

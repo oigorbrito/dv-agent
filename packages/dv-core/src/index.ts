@@ -88,6 +88,8 @@ export {
 	ExecutionGuidedLadderPolicy,
 	type LadderOptions,
 	type ModelRef,
+	REASONING_EFFORTS,
+	type ReasoningEffort,
 	type RouterDecision,
 	type RouterPolicy,
 	type RungSpec,
@@ -105,8 +107,26 @@ export { type AgyMockMode, type AgyMockOptions, createAgyMockSpawn, FakeAgyChild
 export { type FauxRuntime, fauxRuntime, type Turn, textTurn, toolTurn, usage } from "./testing/faux_runtime.ts";
 export { assertCommandAllowed, resolveInWorkspace, WorkspaceViolation } from "./tools/confinement.ts";
 export {
+	type AssembleScaffoldOptions,
+	assembleScaffold,
+	classifyModelTier,
+	DEFAULT_SYSTEM_PROMPT,
+	FAN_PLANNING_DIRECTIVE,
+	FRONTIER_BASH_SYSTEM_PROMPT,
+	FRONTIER_MODEL_PATTERNS,
+	LIGHTWEIGHT_MODEL_PATTERNS,
+	type ModelTier,
+	SCAFFOLD_MODES,
+	type ScaffoldMode,
+	type ScaffoldProfile,
+} from "./tools/scaffold.ts";
+export {
 	atomicWriteFile,
 	createWorkspaceTools,
+	editFileTool,
+	readFileTool,
+	runBashTool,
 	truncateHeadTail,
 	type WorkspaceToolsOptions,
+	writeFileTool,
 } from "./tools/workspace_tools.ts";

@@ -10,9 +10,10 @@ import { join, resolve } from "node:path";
 import {
 	ArchitectEditorPolicy,
 	type Attempt,
+	assembleScaffold,
 	type CeilingStatus,
 	CONTRACT_V5_ID,
-	createWorkspaceTools,
+	classifyModelTier,
 	type EmpiricalFailureIndex,
 	ExecutionGuidedLadderPolicy,
 	executeRung,
@@ -20,8 +21,11 @@ import {
 	type ModelRef,
 	PredictiveHarnessRouterPolicy,
 	type PriceBook,
+	REASONING_EFFORTS,
+	type ReasoningEffort,
 	type RouterDecision,
 	type RouterPolicy,
+	type ScaffoldMode,
 	SingleModelPolicy,
 } from "@dv-agent/core";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
@@ -80,6 +84,8 @@ export interface SmokeOptions {
 	/** Limites do papel editor. Padrão: EDITOR_LIMITS. */
 	editorLimits?: RoleLimits;
 	probesDir: string;
+	/** Modo de scaffold: uniform (padrão) ou adaptive. */
+	scaffoldMode?: ScaffoldMode;
 	/** Contrato do run. Padrão: v5 para provedor agy, v4 para os demais (executeRung). */
 	contractId?: string;
 }
@@ -89,6 +95,7 @@ export interface StepRecord {
 	rung: number;
 	role: string;
 	model: string;
+	reasoning_effort: string | null;
 	cap_usd: number;
 	run_status: string;
 	ceiling_status: CeilingStatus;
@@ -106,6 +113,7 @@ export interface SmokeSummary {
 	schema: "dv-smoke-summary-v1";
 	task_id: string;
 	policy: PolicyName;
+	scaffold_mode: ScaffoldMode;
 	auth_mode: AuthMode;
 	final_outcome: "solved" | "unsolved" | "inconclusive" | "budget_exhausted" | "blocked";
 	blocked_reason?: string;
@@ -118,11 +126,35 @@ export interface SmokeSummary {
 const OFFLINE_PROVIDER = "anthropic";
 const OFFLINE_PRICE = { input: 1, output: 4, cacheRead: 0.1, cacheWrite: 1.25 };
 
-/** Converte provider/modelId da CLI em ModelRef. Formato inválido é erro de configuração. */
+const VALID_EFFORTS = new Set<string>(REASONING_EFFORTS);
+
+/** Converte provider/modelId[:effort] da CLI em ModelRef. Formato inválido é erro de configuração. */
 export function parseModelRef(text: string): ModelRef {
-	const slash = text.indexOf("/");
-	if (slash <= 0 || slash === text.length - 1) throw new Error(`modelo deve ser provider/modelId: ${text}`);
-	return { provider: text.slice(0, slash), modelId: text.slice(slash + 1) };
+	const trimmed = text.trim();
+	const slash = trimmed.indexOf("/");
+	if (slash <= 0) throw new Error(`modelo deve ser provider/modelId: ${text}`);
+
+	const colon = trimmed.lastIndexOf(":");
+	if (colon > slash) {
+		const candidate = trimmed.slice(colon + 1).toLowerCase();
+		if (!VALID_EFFORTS.has(candidate)) {
+			throw new Error(
+				`effort inválido: "${trimmed.slice(colon + 1)}" em ${text} (deve ser low, medium, high ou xhigh)`,
+			);
+		}
+		const modelPart = trimmed.slice(0, colon);
+		const modelId = modelPart.slice(slash + 1);
+		if (modelId.length === 0) throw new Error(`modelo deve ser provider/modelId: ${text}`);
+		return {
+			provider: modelPart.slice(0, slash),
+			modelId,
+			reasoningEffort: candidate as ReasoningEffort,
+		};
+	}
+
+	const modelId = trimmed.slice(slash + 1);
+	if (modelId.length === 0) throw new Error(`modelo deve ser provider/modelId: ${text}`);
+	return { provider: trimmed.slice(0, slash), modelId };
 }
 
 const ANTHROPIC_LADDER_MODELS: Readonly<Record<string, string>> = {
@@ -132,8 +164,23 @@ const ANTHROPIC_LADDER_MODELS: Readonly<Record<string, string>> = {
 	"opus 5.5": "anthropic/claude-opus-5-5",
 };
 
-function parseLadderModel(text: string): ModelRef {
-	return parseModelRef(ANTHROPIC_LADDER_MODELS[text.trim().toLowerCase()] ?? text.trim());
+export function parseLadderModel(text: string): ModelRef {
+	const trimmed = text.trim();
+	const colon = trimmed.lastIndexOf(":");
+	if (colon > 0) {
+		const prefix = trimmed.slice(0, colon).trim().toLowerCase();
+		const effortCandidate = trimmed.slice(colon + 1).toLowerCase();
+		if (ANTHROPIC_LADDER_MODELS[prefix] !== undefined) {
+			if (!VALID_EFFORTS.has(effortCandidate)) {
+				throw new Error(
+					`effort inválido: "${trimmed.slice(colon + 1)}" em ${text} (deve ser low, medium, high ou xhigh)`,
+				);
+			}
+			return parseModelRef(`${ANTHROPIC_LADDER_MODELS[prefix]}:${effortCandidate}`);
+		}
+	}
+	const alias = ANTHROPIC_LADDER_MODELS[trimmed.toLowerCase()];
+	return parseModelRef(alias ?? trimmed);
 }
 
 /** Política e modelos por papel. Em offline, o id do modelo escolhe o roteiro faux. */
@@ -144,13 +191,15 @@ export function buildPolicy(options: SmokeOptions, history?: EmpiricalFailureInd
 	) {
 		const ladderModels = options.ladderModels;
 		if (ladderModels.length === 0) throw new Error("--ladder-models requer ao menos um modelo");
+		const parsed = ladderModels.map(parseLadderModel);
 		const models =
 			options.authMode === "offline-faux"
-				? ladderModels.map((_, index) => ({
+				? parsed.map((p, index) => ({
 						provider: OFFLINE_PROVIDER,
-						modelId: index === ladderModels.length - 1 ? "faux-strong" : "faux-cheap",
+						modelId: index === parsed.length - 1 ? "faux-strong" : "faux-cheap",
+						...(p.reasoningEffort !== undefined ? { reasoningEffort: p.reasoningEffort } : {}),
 					}))
-				: ladderModels.map(parseLadderModel);
+				: parsed;
 		const rungs = models.map((model, index) => ({ model, costShareCap: (index + 1) / models.length }));
 		if (options.policy === "predictive-harness-router") {
 			return makePredictivePolicy(options, rungs, history);
@@ -299,6 +348,11 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 			let run: Awaited<ReturnType<typeof executeRung>>;
 			try {
 				const engine = await prepareEngine(options, decision, workspace);
+				const scaffold = assembleScaffold({
+					workspaceRoot: workspace,
+					modelId: decision.model.modelId,
+					scaffoldMode: options.scaffoldMode,
+				});
 				run = await executeRung({
 					ledgerPath: join(stepDir, "ledger.jsonl"),
 					runId: `smoke-${task.id}-${step}`,
@@ -307,12 +361,13 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 					datasetSha256: datasetSha,
 					taskDefinitionSha256: taskSha,
 					model: engine.model,
-					systemPrompt: "Você é um agente de código. Use as ferramentas do workspace.",
-					tools: isArchitect ? [] : createWorkspaceTools({ workspaceRoot: workspace }),
+					systemPrompt: scaffold.systemPrompt,
+					tools: isArchitect ? [] : scaffold.tools,
 					prompt,
 					streamFn: withTemperature(engine.streamFn, options.temperature),
 					priceBook: engine.priceBook,
 					maxCostUsd: decision.cap_usd,
+					reasoningEffort: decision.model.reasoningEffort,
 					...(options.maxTokens === undefined ? {} : { maxTotalTokens: options.maxTokens - tokensSpent }),
 					...(decision.role === "editor" ? (options.editorLimits ?? EDITOR_LIMITS) : {}),
 					doomLoopMaxIdenticalConsecutive: 3,
@@ -362,6 +417,7 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 				rung: decision.rung,
 				role: decision.role,
 				model: `${decision.model.provider}/${decision.model.modelId}`,
+				reasoning_effort: decision.model.reasoningEffort ?? null,
 				cap_usd: decision.cap_usd,
 				run_status: run.status,
 				ceiling_status: run.ceilingStatus,
@@ -401,8 +457,9 @@ async function prepareEngine(
 	const key = `${ref.provider}/${ref.modelId}`;
 	if (options.authMode === "offline-faux") {
 		const id = ref.modelId;
+		const bashOnly = options.scaffoldMode === "adaptive" && classifyModelTier(id) === "frontier";
 		const runtime = fauxRuntime(OFFLINE_PROVIDER, [id]);
-		runtime.script(fixtureTurns(options.taskDir, id) ?? offlineTurns(id));
+		runtime.script(fixtureTurns(options.taskDir, id, { bashOnly }) ?? offlineTurns(id, { bashOnly }));
 		return {
 			model: runtime.modelOf(id),
 			streamFn: runtime.streamFn,
@@ -434,6 +491,7 @@ function finish(
 		schema: "dv-smoke-summary-v1",
 		task_id: context.task.id,
 		policy: options.policy,
+		scaffold_mode: options.scaffoldMode ?? "uniform",
 		auth_mode: options.authMode,
 		final_outcome: outcome,
 		...(outcome === "blocked" ? { blocked_reason: reason } : {}),

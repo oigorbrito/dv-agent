@@ -4,7 +4,13 @@
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { CONTRACT_V5_FILE, CONTRACT_V5_ID, type ConformanceStatus, checkLedgerConformance } from "@dv-agent/core";
+import {
+	CONTRACT_V5_FILE,
+	CONTRACT_V5_ID,
+	type ConformanceStatus,
+	checkLedgerConformance,
+	type ScaffoldMode,
+} from "@dv-agent/core";
 import { getBuiltinModel } from "@earendil-works/pi-ai/providers/all";
 import { findPackageRoot } from "../package_paths.ts";
 import { readLedgerMetrics } from "../smoke/ledger_metrics.ts";
@@ -34,6 +40,8 @@ export interface BenchOptions {
 	/** Lista explícita de tarefas (--tasks). Exclusiva com `task`. */
 	tasks?: readonly string[];
 	policies: readonly PolicyName[];
+	/** Modo de scaffold: uniform (padrão) ou adaptive. */
+	scaffoldMode?: ScaffoldMode;
 	authMode: AuthMode;
 	model?: string;
 	escalationModel?: string;
@@ -158,6 +166,7 @@ export async function runBench(options: BenchOptions): Promise<BenchReport> {
 		task: options.task ?? null,
 		tasks: options.tasks === undefined ? null : [...options.tasks],
 		policies: [...options.policies],
+		scaffold_mode: options.scaffoldMode ?? "uniform",
 		model: options.model ?? null,
 		escalation_model: options.escalationModel ?? null,
 		ladder_models: options.ladderModels === undefined ? null : [...options.ladderModels],
@@ -190,6 +199,7 @@ async function runOne(
 		taskDir: task.dir,
 		policy,
 		contractId,
+		scaffoldMode: options.scaffoldMode,
 		authMode: options.authMode,
 		model: options.model,
 		escalationModel: options.escalationModel,
@@ -224,6 +234,7 @@ async function runOne(
 			rung: step.rung,
 			role: step.role,
 			model: step.model,
+			reasoning_effort: step.reasoning_effort,
 			verdict: step.oracle?.verdict ?? null,
 			run_status: step.run_status,
 			ceiling_status: step.ceiling_status,

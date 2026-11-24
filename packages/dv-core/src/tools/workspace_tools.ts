@@ -97,7 +97,7 @@ export function atomicWriteFile(target: string, data: string): void {
 	}
 }
 
-function readFileTool(rootReal: string, maxOutput: number): AgentTool {
+export function readFileTool(rootReal: string, maxOutput: number = DEFAULT_MAX_OUTPUT_BYTES): AgentTool {
 	return {
 		name: "read_file",
 		label: "read_file",
@@ -144,7 +144,7 @@ function readFileTool(rootReal: string, maxOutput: number): AgentTool {
 	};
 }
 
-function writeFileTool(rootReal: string): AgentTool {
+export function writeFileTool(rootReal: string): AgentTool {
 	return {
 		name: "write_file",
 		label: "write_file",
@@ -163,7 +163,7 @@ function writeFileTool(rootReal: string): AgentTool {
 	};
 }
 
-function editFileTool(rootReal: string): AgentTool {
+export function editFileTool(rootReal: string): AgentTool {
 	return {
 		name: "edit_file",
 		label: "edit_file",
@@ -213,7 +213,11 @@ function countOccurrences(text: string, needle: string): number {
 	return count;
 }
 
-function runBashTool(rootReal: string, maxOutput: number, defaultTimeout: number): AgentTool {
+export function runBashTool(
+	rootReal: string,
+	maxOutput: number = DEFAULT_MAX_OUTPUT_BYTES,
+	defaultTimeout: number = DEFAULT_BASH_TIMEOUT_MS,
+): AgentTool {
 	return {
 		name: "run_bash",
 		label: "run_bash",

@@ -1,9 +1,13 @@
 // Políticas de roteamento: decidem o próximo passo a partir do histórico de tentativas. Decisões puras, sem I/O.
 // Tetos por degrau seguem contract v4, regra c: cap_i = min(global_max * cost_share_cap_i, global_max - spent_before_i).
 
+export const REASONING_EFFORTS = ["low", "medium", "high", "xhigh"] as const;
+export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
+
 export interface ModelRef {
 	provider: string;
 	modelId: string;
+	reasoningEffort?: ReasoningEffort;
 }
 
 /** Status de verificação externa. `fail` é veredito; os demais são ausência de veredito. */

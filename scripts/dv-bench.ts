@@ -45,6 +45,7 @@ const ALLOWED_FLAGS = [
 	"model",
 	"escalation-model",
 	"ladder-models",
+	"scaffold-mode",
 	"routing-history",
 	"routing-history-partition",
 	"max-tokens",
@@ -108,12 +109,18 @@ if (temperature !== undefined && (!Number.isFinite(temperature) || temperature <
 	throw new Error(`--temperature deve ser um número >= 0: ${temperatureText}`);
 }
 
+const scaffoldModeText = text("scaffold-mode") ?? "uniform";
+if (scaffoldModeText !== "uniform" && scaffoldModeText !== "adaptive") {
+	throw new Error("--scaffold-mode deve ser uniform ou adaptive");
+}
+
 const options: BenchOptions = {
 	corpusDir: resolve(text("corpus") ?? resolve(import.meta.dirname, "../packages/dv-eval/corpus")),
 	tier: tier as CorpusTier | "all",
 	...(text("task") === undefined ? {} : { task: text("task") }),
 	...(tasks === undefined ? {} : { tasks }),
 	policies: policyList as PolicyName[],
+	scaffoldMode: scaffoldModeText as "uniform" | "adaptive",
 	authMode,
 	...(text("model") === undefined ? {} : { model: text("model") }),
 	...(text("escalation-model") === undefined ? {} : { escalationModel: text("escalation-model") }),

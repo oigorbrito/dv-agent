@@ -38,6 +38,8 @@ export interface BenchOptions {
 	escalationModel?: string;
 	/** Lista ordenada de degraus para política ladder (provider/modelId ou alias documentado). */
 	ladderModels?: readonly string[];
+	routingHistory?: readonly string[];
+	routingHistoryPartition?: "calibration" | "train";
 	maxTokens?: number;
 	maxCostUsd: number;
 	/** Tetos do papel editor (architect-editor). Padrão: EDITOR_LIMITS. */
@@ -191,6 +193,12 @@ async function runOne(
 		model: options.model,
 		escalationModel: options.escalationModel,
 		ladderModels: options.ladderModels,
+		...(policy === "predictive-harness-router"
+			? {
+					routingHistory: options.routingHistory,
+					routingHistoryPartition: options.routingHistoryPartition,
+				}
+			: {}),
 		outdir: runDir,
 		maxCostUsd: options.maxCostUsd,
 		...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),

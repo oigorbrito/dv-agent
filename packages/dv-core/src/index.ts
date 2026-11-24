@@ -72,6 +72,15 @@ export {
 } from "./providers/agy/stream.ts";
 export { AGY_USAGE_FIELDS, type AgyTurnUsage, mapAgyUsage } from "./providers/agy/usage.ts";
 export {
+	buildEmpiricalFailureIndex,
+	chooseEmpiricalStartRung,
+	type EmpiricalFailureIndex,
+	type EmpiricalIndexSource,
+	type EmpiricalObservation,
+	type EmpiricalRouteEvidence,
+	type EmpiricalStats,
+} from "./router/empirical.ts";
+export {
 	ArchitectEditorPolicy,
 	type Attempt,
 	DEFAULT_ESCALATE_ON_STATUSES,

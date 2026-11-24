@@ -2,6 +2,7 @@
 //   node scripts/dv-smoke.ts --policy single                                   (offline, sem rede)
 //   node scripts/dv-smoke.ts --policy ladder --auth-mode subscription --ladder-models anthropic/<id>,anthropic/<id2>
 //   node scripts/dv-smoke.ts --policy single --auth-mode api-key --model openai/<id>
+//   node scripts/dv-smoke.ts --policy predictive-harness-router --routing-history runs/train/summary.json --routing-history-partition calibration
 // Opções: --policy single|ladder|architect-editor  --auth-mode offline-faux|api-key|subscription
 //   --model provider/modelId  --escalation-model provider/modelId  --ladder-models modelo,...  --auth-file CAMINHO  --outdir DIR
 //   --task DIR  --max-cost USD
@@ -10,15 +11,17 @@ import { parseArgs } from "../packages/dv-eval/src/cli/args.ts";
 import { type AuthMode, type PolicyName, runSmoke } from "../packages/dv-eval/src/smoke/runner.ts";
 
 const POLICIES: readonly PolicyName[] = ["single", "ladder", "architect-editor", "predictive-harness-router"];
-const AUTH_MODES: readonly AuthMode[] = ["offline-faux", "api-key", "subscription"];
+const AUTH_MODES: readonly string[] = ["offline-faux", "faux", "api-key", "subscription"];
 
-const args = parseArgs(process.argv.slice(2));
+const args = parseArgs(process.argv.slice(2), undefined, ["routing-history"]);
 const text = (name: string): string | undefined => {
 	const value = args.get(name);
+	if (value === true) throw new Error(`--${name} exige um valor`);
 	return typeof value === "string" ? value : undefined;
 };
 const policy = text("policy") ?? "";
-const authMode = text("auth-mode") ?? "offline-faux";
+const requestedAuthMode = text("auth-mode") ?? "offline-faux";
+const authMode = requestedAuthMode === "faux" ? "offline-faux" : requestedAuthMode;
 if (!(POLICIES as readonly string[]).includes(policy)) {
 	throw new Error(`--policy deve ser um de: ${POLICIES.join(", ")}`);
 }
@@ -36,6 +39,10 @@ const summary = await runSmoke({
 		?.split(",")
 		.map((model) => model.trim())
 		.filter(Boolean),
+	routingHistory: text("routing-history")
+		?.split("\u0000")
+		.map((path) => resolve(path)),
+	routingHistoryPartition: text("routing-history-partition") as "calibration" | "train" | undefined,
 	authPath: text("auth-file") === undefined ? undefined : resolve(text("auth-file") ?? ""),
 	outdir: resolve(text("outdir") ?? `runs/smoke-${policy}-${stamp}`),
 	maxCostUsd: Number(text("max-cost") ?? 0.05),

@@ -8,6 +8,8 @@
 //   --policies single,ladder,architect-editor,predictive-harness-router  --auth-mode faux|subscription|api-key
 //   --model provider/modelId (degrau 0 / editor)  --escalation-model provider/modelId (degrau 1 / architect)
 //   --ladder-models ref1,ref2,... (escada mista com qualquer quantidade de degraus)
+//   --routing-history summary.json (repetível, só com --policies predictive-harness-router)
+//   --routing-history-partition calibration|train (obrigatória quando há routing history)
 //   --max-tokens N (teto de tokens por execução, somado entre degraus; obrigatório em subscription)  --max-cost USD (padrão 0.05)
 //   --editor-max-turns N  --editor-max-output-tokens N (tetos do papel editor; padrão EDITOR_LIMITS)
 //   --repeats N (réplicas independentes por célula, em rep-0..rep-N-1; padrão 1)  --temperature T (>= 0; só vai a modelos que suportam)
@@ -42,6 +44,8 @@ const ALLOWED_FLAGS = [
 	"model",
 	"escalation-model",
 	"ladder-models",
+	"routing-history",
+	"routing-history-partition",
 	"max-tokens",
 	"max-cost",
 	"editor-max-turns",
@@ -57,7 +61,7 @@ function fail(message: string): never {
 }
 let args: Map<string, string | true>;
 try {
-	args = parseArgs(process.argv.slice(2), ALLOWED_FLAGS);
+	args = parseArgs(process.argv.slice(2), ALLOWED_FLAGS, ["routing-history"]);
 } catch (error) {
 	fail(error instanceof Error ? error.message : String(error));
 }
@@ -120,6 +124,16 @@ const options: BenchOptions = {
 					.map((model) => model.trim())
 					.filter(Boolean),
 			}),
+	...(text("routing-history") === undefined
+		? {}
+		: {
+				routingHistory: text("routing-history")!
+					.split("\u0000")
+					.map((path) => resolve(path)),
+			}),
+	...(text("routing-history-partition") === undefined
+		? {}
+		: { routingHistoryPartition: text("routing-history-partition") as "calibration" | "train" }),
 	...(maxTokens === undefined ? {} : { maxTokens }),
 	...(repeats === undefined ? {} : { repeats }),
 	...(temperature === undefined ? {} : { temperature }),

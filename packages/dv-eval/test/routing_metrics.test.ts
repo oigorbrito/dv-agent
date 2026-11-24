@@ -325,12 +325,13 @@ const baseOptions = (policy: SmokeOptions["policy"], extra: Partial<SmokeOptions
 	...extra,
 });
 
-test("wiring: buildPolicy('predictive-harness-router') devolve a política preditiva com degrau inicial 0 sem limiar", () => {
+test("wiring: buildPolicy('predictive-harness-router') começa no degrau 0 sem histórico", () => {
 	const policy = buildPolicy(baseOptions("predictive-harness-router"));
 	assert.ok(policy instanceof PredictiveHarnessRouterPolicy);
 	assert.equal(policy.name, "predictive_harness_router");
 	const first = policy.decide([]);
 	assert.equal(first.kind === "run" && first.rung, 0);
+	assert.match(policy.reason, /sem histórico aplicável/);
 });
 
 test("wiring: 'single' é parametrizado pelo modelo (Sonnet como baseline forte, sem chamada de rede)", () => {
@@ -351,7 +352,7 @@ test("wiring: execução offline do roteador grava route_decided no primeiro led
 		.split("\n")
 		.map((l) => JSON.parse(l) as { event: string; reason?: string });
 	assert.equal(lines[1]?.event, "route_decided");
-	assert.match(lines[1]?.reason ?? "", /sem limiar calibrado/);
+	assert.match(lines[1]?.reason ?? "", /sem histórico aplicável/);
 	for (const step of summary.steps) {
 		assert.equal(checkLedgerConformance(step.ledger_path).status, "PASS");
 	}

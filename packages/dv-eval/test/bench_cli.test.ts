@@ -12,7 +12,7 @@ import { parseArgs } from "../src/cli/args.ts";
 const ROOT = resolve(import.meta.dirname, "../../..");
 const CORPUS_DIR = resolve(import.meta.dirname, "../corpus");
 const CORPUS = discoverCorpus(CORPUS_DIR);
-const ALLOWED = ["tier", "task", "tasks", "outdir", "ladder-models"];
+const ALLOWED = ["tier", "task", "tasks", "outdir", "ladder-models", "routing-history", "routing-history-partition"];
 
 // ---------- parser estrito ----------
 
@@ -20,6 +20,17 @@ test("parser: flags aceitas são lidas e a lista vira um único valor", () => {
 	const args = parseArgs(["--tasks", "a,b", "--tier", "hard"], ALLOWED);
 	assert.equal(args.get("tasks"), "a,b");
 	assert.equal(args.get("tier"), "hard");
+});
+
+test("parser: --routing-history pode ser repetida sem relaxar as demais flags", () => {
+	const args = parseArgs(["--routing-history", "a/summary.json", "--routing-history", "b/summary.json"], ALLOWED, [
+		"routing-history",
+	]);
+	assert.deepEqual(args.get("routing-history"), `a/summary.json\u0000b/summary.json`);
+	assert.throws(
+		() => parseArgs(["--tier", "easy", "--tier", "hard"], ALLOWED, ["routing-history"]),
+		/flag repetida: --tier/,
+	);
 });
 
 test("parser: flag desconhecida (typo) é erro, com a lista das aceitas", () => {

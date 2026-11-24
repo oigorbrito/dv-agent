@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import {
 	type Attempt,
+	buildEmpiricalFailureIndex,
 	checkLedgerConformance,
 	ExecutionGuidedLadderPolicy,
 	executeRung,
@@ -19,9 +20,6 @@ const RUNGS = [
 	{ model: { provider: "anthropic", modelId: "economico" }, costShareCap: 0.5 },
 	{ model: { provider: "anthropic", modelId: "forte" }, costShareCap: 1 },
 ];
-const SIGNALS_SHALLOW = { source_files: 1, loc: 10, import_depth: 1 };
-const SIGNALS_DEEP = { source_files: 3, loc: 40, import_depth: 3 };
-
 function attempt(rung: number, oraclePass: boolean | null, status: "pass" | "fail" | "provider_error"): Attempt {
 	return {
 		rung,
@@ -79,101 +77,105 @@ test("sinais: sem arquivos Python, tudo é zero", () => {
 	});
 });
 
-// ---------- escolha do degrau e fallback ----------
+// ---------- índice empírico, escolha do degrau e fallback ----------
 
-test("escolha: sem limiar calibrado, começa no degrau 0 e o motivo diz isso", () => {
-	const policy = new PredictiveHarnessRouterPolicy({
-		rungs: RUNGS,
+const TASK = "frontier-calibration-task";
+const ROUTER_MODEL = "anthropic/economico";
+function indexOf(verdicts: readonly ("PASS" | "FAIL")[]) {
+	return buildEmpiricalFailureIndex(
+		verdicts.map((verdict, i) => ({
+			taskId: TASK,
+			category: "frontier",
+			model: ROUTER_MODEL,
+			verdict,
+			ledgerSha256: String(i + 1).padStart(64, "0"),
+		})),
+		[{ path: "calibration/summary.json", sha256: "a".repeat(64) }],
+	);
+}
+
+function predictive(history?: ReturnType<typeof indexOf>, rungCount = 2) {
+	return new PredictiveHarnessRouterPolicy({
+		rungs: Array.from({ length: rungCount }, (_, index) => ({
+			model: { provider: "anthropic", modelId: index === 0 ? "economico" : index === 1 ? "forte" : "opus" },
+			costShareCap: (index + 1) / rungCount,
+		})),
 		globalMaxCostUsd: 10,
-		signals: SIGNALS_DEEP,
-		strongFromDepth: null,
+		history,
+		taskId: TASK,
+		category: "frontier",
 	});
+}
+
+test("fallback empírico: sem histórico começa no degrau 0", () => {
+	const policy = predictive();
 	const first = policy.decide([]);
-	assert.equal(first.kind, "run");
+	assert.equal(policy.version, 2);
+	assert.equal(policy.startRung, 0);
 	assert.equal(first.kind === "run" && first.rung, 0);
-	assert.match(first.kind === "run" ? (first.route_reason ?? "") : "", /sem limiar calibrado/);
+	assert.equal(policy.routeEvidence.n, 0);
+	assert.match(policy.reason, /sem histórico aplicável/);
 });
 
-test("escolha: profundidade >= limiar começa direto no modelo forte, sem gastar o degrau 0", () => {
-	const policy = new PredictiveHarnessRouterPolicy({
-		rungs: RUNGS,
-		globalMaxCostUsd: 10,
-		signals: SIGNALS_DEEP,
-		strongFromDepth: 3,
-	});
+test("fallback empírico: n abaixo de 3 começa no degrau 0 mesmo com falha 2/2", () => {
+	const policy = predictive(indexOf(["FAIL", "FAIL"]));
+	assert.equal(policy.startRung, 0);
+	assert.equal(policy.routeEvidence.n, 2);
+	assert.equal(policy.routeEvidence.failure_rate, 1);
+	assert.match(policy.reason, /n=2 < n_min=3/);
+});
+
+test("regra empírica: falha 3/3 e n mínimo alcançado pula para rung 1", () => {
+	const policy = predictive(indexOf(["FAIL", "FAIL", "FAIL"]), 3);
 	const first = policy.decide([]);
+	assert.equal(policy.startRung, 1);
 	assert.equal(first.kind === "run" && first.rung, 1);
 	assert.equal(first.kind === "run" && first.model.modelId, "forte");
-	assert.match(first.kind === "run" ? (first.route_reason ?? "") : "", /direto no modelo forte/);
+	assert.equal(policy.routeEvidence.n, 3);
+	assert.equal(policy.routeEvidence.failures, 3);
+	assert.equal(policy.routeEvidence.failure_rate, 1);
+	assert.match(policy.reason, /3\/3=1\.0000 >= 0\.67/);
 });
 
-test("escolha: profundidade abaixo do limiar começa no degrau econômico", () => {
-	const policy = new PredictiveHarnessRouterPolicy({
-		rungs: RUNGS,
-		globalMaxCostUsd: 10,
-		signals: SIGNALS_SHALLOW,
-		strongFromDepth: 3,
-	});
+test("regra empírica: falha abaixo do threshold mantém rung 0", () => {
+	const policy = predictive(indexOf(["FAIL", "FAIL", "PASS"]));
 	assert.equal(policy.startRung, 0);
-	const first = policy.decide([]);
-	assert.equal(first.kind === "run" && first.rung, 0);
-	assert.match(first.kind === "run" ? (first.route_reason ?? "") : "", /começa no degrau econômico/);
+	assert.equal(policy.routeEvidence.failure_rate, 2 / 3);
 });
 
-test("fallback: o degrau econômico reprovado sobe ao forte via ExecutionGuidedLadderPolicy", () => {
-	const policy = new PredictiveHarnessRouterPolicy({
-		rungs: RUNGS,
-		globalMaxCostUsd: 10,
-		signals: SIGNALS_SHALLOW,
-		strongFromDepth: 3,
-	});
+test("fallback: falha do rung 0 sobe ao rung 1 via ExecutionGuidedLadderPolicy", () => {
+	const policy = predictive();
 	const next = policy.decide([attempt(0, false, "fail")]);
 	assert.equal(next.kind === "run" && next.rung, 1);
 	assert.equal(next.kind === "run" && next.route_reason, undefined, "motivo só vai na primeira decisão");
 });
 
-test("fallback: começando direto no forte, reprovação não volta ao degrau 0 (para no forte)", () => {
-	const policy = new PredictiveHarnessRouterPolicy({
-		rungs: RUNGS,
-		globalMaxCostUsd: 10,
-		signals: SIGNALS_DEEP,
-		strongFromDepth: 3,
-	});
+test("fallback: falha do rung 1 iniciado por histórico promove ao rung 2", () => {
+	const policy = predictive(indexOf(["FAIL", "FAIL", "FAIL"]), 3);
 	const next = policy.decide([attempt(1, false, "fail")]);
-	assert.equal(next.kind, "stop");
-	assert.equal(next.kind === "stop" && next.outcome, "unsolved");
+	assert.equal(next.kind === "run" && next.rung, 2);
 });
 
-test("fallback: falha de provedor não promove (infraestrutura não é evidência sobre o modelo)", () => {
-	const policy = new PredictiveHarnessRouterPolicy({
-		rungs: RUNGS,
-		globalMaxCostUsd: 10,
-		signals: SIGNALS_SHALLOW,
-		strongFromDepth: 3,
-	});
+test("fallback: falha de provedor não promove", () => {
+	const policy = predictive();
 	const next = policy.decide([attempt(0, false, "provider_error")]);
 	assert.equal(next.kind, "stop");
 });
 
-test("validação: limiar inválido e ladder com startRung fora da faixa são recusados", () => {
+test("validação: parâmetros inválidos e ladder sem degraus são recusados", () => {
 	assert.throws(
 		() =>
 			new PredictiveHarnessRouterPolicy({
 				rungs: RUNGS,
 				globalMaxCostUsd: 1,
-				signals: SIGNALS_SHALLOW,
-				strongFromDepth: 0,
+				taskId: TASK,
+				category: "frontier",
+				nMin: 0,
 			}),
-		/strongFromDepth inválido/,
+		/nMin inválido/,
 	);
 	assert.throws(
-		() =>
-			new PredictiveHarnessRouterPolicy({
-				rungs: [],
-				globalMaxCostUsd: 1,
-				signals: SIGNALS_SHALLOW,
-				strongFromDepth: null,
-			}),
+		() => new PredictiveHarnessRouterPolicy({ rungs: [], globalMaxCostUsd: 1, taskId: TASK, category: "frontier" }),
 		/sem degraus/,
 	);
 	assert.throws(
@@ -199,8 +201,9 @@ async function runOnce(withRoute: boolean, ledgerPath: string) {
 		policy: "predictive_harness_router",
 		rung: 0,
 		role: "rung_0",
-		reason: "profundidade de import 1 < 3: começa no degrau econômico",
-		signals: SIGNALS_SHALLOW,
+		reason:
+			"sem histórico aplicável para task=frontier-calibration-task, categoria=frontier, modelo=anthropic/economico; startRung=0",
+		signals: null,
 	};
 	return executeRung({
 		ledgerPath,

@@ -13,9 +13,9 @@ import {
 	type CeilingStatus,
 	CONTRACT_V5_ID,
 	createWorkspaceTools,
+	type EmpiricalFailureIndex,
 	ExecutionGuidedLadderPolicy,
 	executeRung,
-	extractPythonSignals,
 	fauxRuntime,
 	type ModelRef,
 	PredictiveHarnessRouterPolicy,
@@ -23,13 +23,12 @@ import {
 	type RouterDecision,
 	type RouterPolicy,
 	SingleModelPolicy,
-	type StaticSignals,
 } from "@dv-agent/core";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Model } from "@earendil-works/pi-ai";
 import { openLiveSession } from "../auth/live_session.ts";
 import { resolveAuthPath } from "../auth/subscription.ts";
-import { CALIBRATED_STRONG_FROM_DEPTH, readWorkspaceFiles } from "../bench/routing_calibration.ts";
+import { assertNoRoutingHistoryLeakage, loadRoutingHistory } from "../bench/routing_history.ts";
 import { hashTree, loadTask, type OracleResult, runOracle } from "../oracle/verifier.ts";
 import { loadApprovedProbes } from "../probe/provider_probe.ts";
 import { readLedgerMetrics } from "./ledger_metrics.ts";
@@ -68,6 +67,9 @@ export interface SmokeOptions {
 	escalationModel?: string;
 	/** Lista ordenada de provider/modelId para todos os degraus da política ladder. */
 	ladderModels?: readonly string[];
+	/** Um ou mais summaries históricos dv-bench; exige --routing-history-partition calibration|train. */
+	routingHistory?: readonly string[];
+	routingHistoryPartition?: "calibration" | "train";
 	outdir: string;
 	maxCostUsd: number;
 	/** Teto de tokens (prompt + completion) somado a todos os degraus. Opcional. */
@@ -132,8 +134,11 @@ function parseLadderModel(text: string): ModelRef {
 }
 
 /** Política e modelos por papel. Em offline, o id do modelo escolhe o roteiro faux. */
-export function buildPolicy(options: SmokeOptions): RouterPolicy {
-	if (options.policy === "ladder" && options.ladderModels !== undefined) {
+export function buildPolicy(options: SmokeOptions, history?: EmpiricalFailureIndex): RouterPolicy {
+	if (
+		(options.policy === "ladder" || options.policy === "predictive-harness-router") &&
+		options.ladderModels !== undefined
+	) {
 		const ladderModels = options.ladderModels;
 		if (ladderModels.length === 0) throw new Error("--ladder-models requer ao menos um modelo");
 		const models =
@@ -143,8 +148,12 @@ export function buildPolicy(options: SmokeOptions): RouterPolicy {
 						modelId: index === ladderModels.length - 1 ? "faux-strong" : "faux-cheap",
 					}))
 				: ladderModels.map(parseLadderModel);
+		const rungs = models.map((model, index) => ({ model, costShareCap: (index + 1) / models.length }));
+		if (options.policy === "predictive-harness-router") {
+			return makePredictivePolicy(options, rungs, history);
+		}
 		return new ExecutionGuidedLadderPolicy({
-			rungs: models.map((model, index) => ({ model, costShareCap: (index + 1) / models.length })),
+			rungs,
 			globalMaxCostUsd: options.maxCostUsd,
 		});
 	}
@@ -152,17 +161,14 @@ export function buildPolicy(options: SmokeOptions): RouterPolicy {
 	const secondary = resolveRef(options, "secondary");
 	if (options.policy === "single") return new SingleModelPolicy(primary, options.maxCostUsd);
 	if (options.policy === "predictive-harness-router") {
-		const task = loadTask(options.taskDir);
-		const signals = extractPythonSignals(readWorkspaceFiles(join(options.taskDir, task.workspace_dir)));
-		return new PredictiveHarnessRouterPolicy({
-			rungs: [
+		return makePredictivePolicy(
+			options,
+			[
 				{ model: primary, costShareCap: 0.5 },
 				{ model: secondary, costShareCap: 1 },
 			],
-			globalMaxCostUsd: options.maxCostUsd,
-			signals,
-			strongFromDepth: CALIBRATED_STRONG_FROM_DEPTH,
-		});
+			history,
+		);
 	}
 	if (options.policy === "ladder") {
 		return new ExecutionGuidedLadderPolicy({
@@ -178,6 +184,23 @@ export function buildPolicy(options: SmokeOptions): RouterPolicy {
 		editor: secondary,
 		globalMaxCostUsd: options.maxCostUsd,
 		maxEditorAttempts: 2,
+	});
+}
+
+function makePredictivePolicy(
+	options: SmokeOptions,
+	rungs: ConstructorParameters<typeof PredictiveHarnessRouterPolicy>[0]["rungs"],
+	history?: EmpiricalFailureIndex,
+): PredictiveHarnessRouterPolicy {
+	const task = loadTask(options.taskDir);
+	const definition = JSON.parse(readFileSync(join(options.taskDir, "task.json"), "utf8")) as { tier?: unknown };
+	if (typeof definition.tier !== "string") throw new Error(`task ${task.id} sem categoria tier`);
+	return new PredictiveHarnessRouterPolicy({
+		rungs,
+		globalMaxCostUsd: options.maxCostUsd,
+		history,
+		taskId: task.id,
+		category: definition.tier,
 	});
 }
 
@@ -216,9 +239,25 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 	const root = resolve(import.meta.dirname, "../../../..");
 	const taskDir = resolve(options.taskDir);
 	const task = loadTask(taskDir);
+	let historyIndex: EmpiricalFailureIndex | undefined;
+	if (options.routingHistory !== undefined) {
+		if (options.policy !== "predictive-harness-router") {
+			throw new Error("--routing-history só se aplica a --policy predictive-harness-router");
+		}
+		if (options.routingHistoryPartition === undefined) {
+			throw new Error("--routing-history exige --routing-history-partition calibration|train");
+		}
+		historyIndex = loadRoutingHistory(options.routingHistory, {
+			corpusDir: resolve(import.meta.dirname, "../../corpus"),
+			partition: options.routingHistoryPartition,
+		});
+		assertNoRoutingHistoryLeakage(historyIndex, options.outdir);
+	} else if (options.routingHistoryPartition !== undefined) {
+		throw new Error("--routing-history-partition exige --routing-history");
+	}
 	const workspaceSrc = join(taskDir, task.workspace_dir);
 	const expectedOracleHashes = hashTree(join(taskDir, task.oracle.dir));
-	const policy = buildPolicy(options);
+	const policy = buildPolicy(options, historyIndex);
 	const approved = loadApprovedProbes(options.probesDir);
 	const pin = JSON.parse(readFileSync(join(root, "UPSTREAM_PIN.json"), "utf8")) as { upstream: { commit: string } };
 	const provenance = { dv_agent_commit: gitCommit(root), pi_mono_commit: pin.upstream.commit };
@@ -236,7 +275,6 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 	let plan: string | undefined;
 	let decision: RouterDecision = policy.decide(attempts);
 	const context = { task, workspaceSrc, taskDir, provenance, datasetSha, taskSha, approved };
-	const staticSignals: StaticSignals = extractPythonSignals(readWorkspaceFiles(workspaceSrc));
 	while (decision.kind === "run") {
 		if (options.maxTokens !== undefined && tokensSpent >= options.maxTokens) {
 			return finish(options, context, steps, "budget_exhausted", "teto de tokens esgotado");
@@ -284,7 +322,9 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 									rung: decision.rung,
 									role: decision.role,
 									reason: decision.route_reason ?? "promoção por oráculo do degrau anterior",
-									signals: staticSignals,
+									signals: null,
+									empirical_evidence:
+										policy instanceof PredictiveHarnessRouterPolicy ? policy.routeEvidence : undefined,
 								},
 							}
 						: {}),

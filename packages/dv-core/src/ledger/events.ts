@@ -28,6 +28,23 @@ export interface RouteDecidedPayload {
 	reason: string;
 	/** Sinais estáticos usados na decisão; null quando a política não usa sinais. */
 	signals: { source_files: number; loc: number; import_depth: number } | null;
+	/** Evidência histórica auditável do predictive router v2; nulo para políticas que não usam o índice. */
+	empirical_evidence?: {
+		partition: "calibration";
+		sources: { path: string; sha256: string }[];
+		index_sha256: string;
+		match: "task" | "category" | "none";
+		task_id: string;
+		category: string;
+		model: string;
+		n: number;
+		failures: number;
+		failure_rate: number | null;
+		n_min: number;
+		failure_threshold: number;
+		start_rung: number;
+		reason: string;
+	};
 }
 
 export interface CallStartedPayload {

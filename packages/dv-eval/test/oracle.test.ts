@@ -7,7 +7,14 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { PassThrough } from "node:stream";
 import { test } from "node:test";
-import { copyCandidate, execVerifier, type OracleResult, runOracle, type SpawnFn } from "../src/oracle/verifier.ts";
+import {
+	copyCandidate,
+	execVerifier,
+	type OracleResult,
+	runOracle,
+	type SpawnFn,
+	verifyOracleIntegrity,
+} from "../src/oracle/verifier.ts";
 
 const TASK = resolve(import.meta.dirname, "../tasks/calc-basic");
 
@@ -154,4 +161,62 @@ test("python e python3 ausentes propagam ENOENT sem loop", async () => {
 		/ENOENT/,
 	);
 	assert.deepEqual(calls, ["python", "python3"]);
+});
+
+test("verifyOracleIntegrity detecta adulteração, remoção e inserção de arquivos de teste", () => {
+	const base = [
+		{ path: "tests/test_a.py", sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+		{ path: "tests/test_b.py", sha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+	];
+
+	// Intacto
+	const ok = verifyOracleIntegrity(base, [...base]);
+	assert.equal(ok.intact, true);
+	assert.equal(ok.tamper_detected, false);
+	assert.equal(ok.violations.length, 0);
+
+	// Adulterado
+	const tampered = verifyOracleIntegrity(base, [
+		{ path: "tests/test_a.py", sha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" },
+		base[1],
+	]);
+	assert.equal(tampered.intact, false);
+	assert.equal(tampered.tamper_detected, true);
+	assert.match(tampered.violations[0], /adulterado/);
+
+	// Removido
+	const removed = verifyOracleIntegrity(base, [base[0]]);
+	assert.equal(removed.intact, false);
+	assert.equal(removed.tamper_detected, true);
+	assert.match(removed.violations[0], /removido/);
+
+	// Inserido
+	const inserted = verifyOracleIntegrity(base, [
+		...base,
+		{ path: "tests/malicious.py", sha256: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" },
+	]);
+	assert.equal(inserted.intact, false);
+	assert.equal(inserted.tamper_detected, true);
+	assert.match(inserted.violations[0], /não autorizado/);
+});
+
+test("runOracle fail-closed com NO_VERDICT e tamper_detected se expectedOracleHashes divergir", async () => {
+	const out = mkdtempSync(join(tmpdir(), "dv-out-tamper-"));
+	// Espera um hash forjado que não bate com o oráculo real
+	const bogusExpected = [
+		{ path: "check.py", sha256: "0000000000000000000000000000000000000000000000000000000000000000" },
+	];
+	const result = await runOracle({
+		taskDir: TASK,
+		candidateDir: candidate(CORRECT),
+		outdir: out,
+		expectedOracleHashes: bogusExpected,
+	});
+
+	assert.equal(result.verdict, "NO_VERDICT");
+	assert.equal(result.outcome, "INCONCLUSIVE");
+	assert.equal(result.oracle_tampered, true);
+	assert.equal(result.verification.status, "provider_error");
+	assert.equal(result.verification.oracle_pass, null);
+	assert.ok((result.tamper_violations?.length ?? 0) > 0);
 });

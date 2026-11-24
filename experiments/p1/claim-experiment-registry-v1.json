@@ -1,0 +1,86 @@
+{
+  "schema_id": "dv-claim-experiment-registry-v1",
+  "status": "C_T1_REVISION_2_READY_FOR_EXECUTION_WHEN_CREDENTIAL_PRESENT",
+  "purpose": "Frozen experimental designs that map a claim_id to a paired baseline/treatment comparison. dv_claim_experiment_gate.py refuses any request whose claim has no entry here.",
+  "treatment_identity_source": "experiments/p1/wp07-treatment-bindings-v1.json (WP07 designs) or designs[*].arm_profiles (arm_source FREE_TIER_MICROBATCH_PROFILES)",
+  "claim_status_source": "claims/claims-v1.json",
+  "design_required_fields": {
+    "corpus_slices": "map slice_id -> {path, sha256}; frozen corpus slices only. For FREE_TIER_MICROBATCH_PROFILES the slice is a dv-free-tier-microbatch-slice-v1 manifest with 1..5 tasks, each with a pinned bundle",
+    "verifier_files": "list of {path, sha256}; oracle/verifier files pinned and re-checked after execution. An empty list blocks the plan",
+    "runs_per_arm": "positive integer; frozen repetition count",
+    "estimated_usd_per_run": "map arm -> number; pre-run estimate used for the budget gate. Free-quota arms may use 0.0 (tokens are still accounted)",
+    "arm_profiles": "FREE_TIER_MICROBATCH_PROFILES only: map arm -> frozen profile (observation_elision none | keep_last_k with k)",
+    "timeouts_ms": "frozen executor and run timeouts (informational until the execution adapter exists)"
+  },
+  "rules": {
+    "unbound_treatment_blocks_cell": true,
+    "estimate_missing_blocks_run": true,
+    "design_change_requires_new_revision": true,
+    "promotion_is_never_automatic": true,
+    "free_quota_is_not_zero_cost": true
+  },
+  "designs": {
+    "C-T1": {
+      "arm_source": "FREE_TIER_MICROBATCH_PROFILES",
+      "claim_proxy_note": "C-T1 concerns rule-based elision BEFORE LLM summarization. This design tests only the rule-based elision of old observations (no LLM summary stage). It is a partial proxy and cannot confirm or refute C-T1 as stated.",
+      "design_note": "Pilot micro-batch (3 tasks, 1 run per arm). Not a statistical sample; INCONCLUSIVE is an admissible outcome.",
+      "corpus_slices": {
+        "FT-S2-MB3-01": {
+          "path": "experiments/p1/free-tier-microbatch-slice-v1.json",
+          "sha256": "4e97ea7b83a3f447dbb2e189adc3d55e14f6f0b13648fd1f504595e761cdccce"
+        },
+        "FT-PY-MB3-01": {
+          "path": "experiments/p1/free-tier-microbatch-slice-py-v1.json",
+          "sha256": "45841fefa18b5fa211ee630ca35802aa803803696a9a60ebb9941c994204d0b4"
+        }
+      },
+      "arm_profiles": {
+        "FT-BASE-FULL": {
+          "observation_elision": "none"
+        },
+        "FT-ELIDE-K4": {
+          "observation_elision": "keep_last_k",
+          "k": 4
+        }
+      },
+      "verifier_files": [
+        {
+          "path": "experiments/p1/microbatch-py-mb3-01/PY-MB-01-slugify/oracle/test_slugs.py",
+          "sha256": "2f48b757ae47a41e69ee6c4f941cb492abaa3068213366512d50548c9c2c6a9b"
+        },
+        {
+          "path": "experiments/p1/microbatch-py-mb3-01/PY-MB-02-intervals/oracle/test_intervals.py",
+          "sha256": "f536966c63f7cf525316f2c60032324e0f87b59c40ffeeab4d04c2021afd3480"
+        },
+        {
+          "path": "experiments/p1/microbatch-py-mb3-01/PY-MB-03-durations/oracle/test_durations.py",
+          "sha256": "d38449cff815f2181eaffc2dae578fa7dee130b43571ea8e9e8556f7017d0687"
+        }
+      ],
+      "runs_per_arm": 1,
+      "estimated_usd_per_run": {
+        "FT-BASE-FULL": 0.0,
+        "FT-ELIDE-K4": 0.0
+      },
+      "free_quota": true,
+      "providers_allowed": [
+        "gemini_free",
+        "groq_free"
+      ],
+      "blocking_reasons_at_registration": [
+        "FT-S2-MB3-01: all three S2-W01 task bundles are NOT_MATERIALIZED (unchanged in revision 2)"
+      ],
+      "status": "REVISION_2_FT_PY_MB3_01_PINNED_FT_S2_MB3_01_BLOCKED",
+      "revisions": [
+        {
+          "revision": 1,
+          "change": "Initial registration: FT-S2-MB3-01 (S2-W01 candidates). Blocked: verifier not pinned, bundles NOT_MATERIALIZED. Never executed."
+        },
+        {
+          "revision": 2,
+          "change": "Added slice FT-PY-MB3-01: 3 synthetic Python micro-tasks with pinned bundles and unittest oracles. Pins verifier_files. FT-S2-MB3-01 entry and its manifest are unchanged and remain blocked (S2 candidates not materialized). Not a substitution of S2 identity."
+        }
+      ]
+    }
+  }
+}

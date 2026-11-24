@@ -24,6 +24,7 @@ import { argumentsSha256 } from "../guards/tool_signature.ts";
 import { assertProviderCanRun } from "../ledger/capabilities.ts";
 import type { LimitReason, RouteDecidedPayload, RunStatus } from "../ledger/events.ts";
 import type { PriceBook } from "../ledger/prices.ts";
+import { sanitizeProviderErrorMessage } from "../ledger/redact.ts";
 import { buildCallTelemetry } from "../ledger/telemetry.ts";
 import { ToolOutcomeTracker } from "../ledger/tool_outcomes.ts";
 import { ledgerSha256, RunLedger } from "../ledger/writer.ts";
@@ -177,7 +178,9 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 			call_index: index,
 			record: {
 				stop_reason: message.stopReason,
-				...(message.errorMessage === undefined ? {} : { error_message: message.errorMessage }),
+				...(message.errorMessage === undefined
+					? {}
+					: { error_message: sanitizeProviderErrorMessage(message.errorMessage) }),
 				usage: {
 					input: message.usage.input,
 					output: message.usage.output,

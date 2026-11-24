@@ -1,0 +1,30 @@
+{
+  "schema_id": "dv-free-tier-task-bundle-v1",
+  "task_id": "PY-MB-01-slugify",
+  "provenance": "SYNTHETIC_PYTHON_MICROTASK_NOT_S2_CANDIDATE",
+  "workspace_zip": {
+    "path": "workspace.zip",
+    "sha256": "b7e3bf959c4eed9bddb943f2b5737fad078f33740bee3b2d6680b85a32debb71"
+  },
+  "prompt": {
+    "path": "prompt.md",
+    "sha256": "c7009e70900fe3e0b1e2fc1a796d440ee69ae7d25a9968021a420a0b23edec34"
+  },
+  "verify": {
+    "command": [
+      "python",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-p",
+      "test_*.py"
+    ],
+    "cwd": "workspace",
+    "timeout_s": 60,
+    "test_paths": [
+      "tests"
+    ]
+  }
+}

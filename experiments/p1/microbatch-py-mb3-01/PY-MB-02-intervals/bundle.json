@@ -1,0 +1,30 @@
+{
+  "schema_id": "dv-free-tier-task-bundle-v1",
+  "task_id": "PY-MB-02-intervals",
+  "provenance": "SYNTHETIC_PYTHON_MICROTASK_NOT_S2_CANDIDATE",
+  "workspace_zip": {
+    "path": "workspace.zip",
+    "sha256": "8a215bc81a07bea7060e3f4f3001f66ff8a762a423feb1aba468462b42044f11"
+  },
+  "prompt": {
+    "path": "prompt.md",
+    "sha256": "ade4215e0aee835ca977e39dbbe94d3fe172deb1d9b4689657f65798a8698fa0"
+  },
+  "verify": {
+    "command": [
+      "python",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-p",
+      "test_*.py"
+    ],
+    "cwd": "workspace",
+    "timeout_s": 60,
+    "test_paths": [
+      "tests"
+    ]
+  }
+}

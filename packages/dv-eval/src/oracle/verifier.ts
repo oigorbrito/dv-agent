@@ -30,6 +30,8 @@ export interface OracleInput {
 	candidateDir: string;
 	outdir: string;
 	ledgerPath?: string;
+	/** Hashes esperados dos arquivos do oráculo. Se fornecidos, violações disparam fail-closed. */
+	expectedOracleHashes?: readonly { path: string; sha256: string }[];
 }
 
 export interface OracleResult {
@@ -53,6 +55,48 @@ export interface OracleResult {
 		summary: LedgerSummary;
 	} | null;
 	verification: Verification;
+	oracle_tampered?: boolean;
+	tamper_violations?: string[];
+}
+
+export interface OracleIntegrityResult {
+	intact: boolean;
+	tamper_detected: boolean;
+	violations: string[];
+}
+
+/**
+ * Compara dois conjuntos de hashes de arquivos do oráculo (antes vs depois da execução).
+ * Qualquer diferença (arquivo alterado, excluído ou injetado) é detectada como violação de integridade.
+ */
+export function verifyOracleIntegrity(
+	expectedHashes: readonly { path: string; sha256: string }[],
+	actualHashes: readonly { path: string; sha256: string }[],
+): OracleIntegrityResult {
+	const violations: string[] = [];
+	const expectedMap = new Map(expectedHashes.map((h) => [h.path, h.sha256]));
+	const actualMap = new Map(actualHashes.map((h) => [h.path, h.sha256]));
+
+	for (const [path, expectedSha] of expectedMap) {
+		const actualSha = actualMap.get(path);
+		if (actualSha === undefined) {
+			violations.push(`arquivo de teste do oráculo removido: ${path}`);
+		} else if (actualSha !== expectedSha) {
+			violations.push(
+				`arquivo de teste do oráculo adulterado: ${path} (esperado ${expectedSha.slice(0, 8)}, obtido ${actualSha.slice(0, 8)})`,
+			);
+		}
+	}
+	for (const path of actualMap.keys()) {
+		if (!expectedMap.has(path)) {
+			violations.push(`arquivo não autorizado adicionado ao oráculo: ${path}`);
+		}
+	}
+	return {
+		intact: violations.length === 0,
+		tamper_detected: violations.length > 0,
+		violations,
+	};
 }
 
 /** Lê task.json e valida o schema mínimo. */
@@ -119,6 +163,13 @@ export async function runOracle(input: OracleInput): Promise<OracleResult> {
 	const task = loadTask(input.taskDir);
 	const oracleDir = resolve(input.taskDir, task.oracle.dir);
 	const entry = task.oracle.command[task.oracle.command.length - 1] ?? "";
+	const oracleBefore = hashTree(oracleDir);
+
+	let preViolation: OracleIntegrityResult | undefined;
+	if (input.expectedOracleHashes !== undefined) {
+		preViolation = verifyOracleIntegrity(input.expectedOracleHashes, oracleBefore);
+	}
+
 	const isolated = mkdtempSync(join(tmpdir(), "dv-oracle-"));
 	const workDir = join(isolated, "work");
 	const verifierDir = join(isolated, "oracle");
@@ -126,20 +177,34 @@ export async function runOracle(input: OracleInput): Promise<OracleResult> {
 		copyCandidate(input.candidateDir, workDir);
 		cpSync(oracleDir, verifierDir, { recursive: true });
 		const run = await execVerifier(task.oracle.command, verifierDir, workDir, task.oracle.timeout_ms);
-		const verdict = verdictOf(run.exitCode, run.timedOut);
+
+		const oracleAfter = hashTree(oracleDir);
+		const postIntegrity = verifyOracleIntegrity(oracleBefore, oracleAfter);
+		const isTampered = Boolean(preViolation?.tamper_detected) || postIntegrity.tamper_detected;
+		const tamperViolations = [...(preViolation?.violations ?? []), ...postIntegrity.violations];
+
+		let verdict = verdictOf(run.exitCode, run.timedOut);
+		let outcome = OUTCOME[verdict];
 		const ledger = input.ledgerPath === undefined ? null : ledgerEvidence(input.ledgerPath);
-		const verification = classifyVerification({
+		let verification = classifyVerification({
 			oracle: verdict,
 			doomLoopBlocks: ledger?.summary.doom_loop_blocks ?? 0,
 			budgetTripped: ledger?.summary.run_status === "budget_exceeded",
 			budgetUnverifiable: ledger?.summary.ceiling_status === "unverifiable",
 			providerError: ledger?.summary.run_status === "provider_error",
 		});
+
+		if (isTampered) {
+			verdict = "NO_VERDICT";
+			outcome = "INCONCLUSIVE";
+			verification = { oracle_pass: null, status: "provider_error" };
+		}
+
 		const result: OracleResult = {
 			schema: ORACLE_RESULT_SCHEMA,
 			task_id: task.id,
 			verdict,
-			outcome: OUTCOME[verdict],
+			outcome,
 			exit_code: run.exitCode,
 			timed_out: run.timedOut,
 			stdout_tail: tail(run.stdout),
@@ -153,6 +218,7 @@ export async function runOracle(input: OracleInput): Promise<OracleResult> {
 			candidate: { files: hashTree(input.candidateDir) },
 			ledger,
 			verification,
+			...(isTampered ? { oracle_tampered: true, tamper_violations: tamperViolations } : {}),
 		};
 		mkdirSync(input.outdir, { recursive: true });
 		writeFileSync(join(input.outdir, "result.json"), `${JSON.stringify(result, null, 2)}\n`, "utf8");

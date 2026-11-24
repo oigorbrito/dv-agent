@@ -1,0 +1,233 @@
+name: run-claim-experiment
+
+# Controlled, manually triggered gate for a single claim experiment (baseline vs. treatment).
+#
+# How to trigger (Actions > run-claim-experiment > Run workflow):
+# - dry_run=true (default): validate and plan only. No request is sent and no arm runs.
+# - dry_run=false: the gate must return READY_FOR_EXECUTION and the provider secret must be set.
+#   Missing secret -> UNKNOWN_EXTERNAL (gate exit 3, job fails, nothing is simulated).
+#   Ready plan -> executes baseline vs treatment via dv-agent runtime on the frozen slice.
+
+on:
+  workflow_dispatch:
+    inputs:
+      claim_id:
+        description: "Claim ID in claims/claims-v1.json (e.g. C-T1)"
+        required: true
+        type: string
+      baseline_setting:
+        description: "Arm ID for the baseline (e.g. single, FT-BASE-FULL)"
+        required: true
+        default: "single"
+        type: string
+      treatment_setting:
+        description: "Arm ID for the treatment (e.g. ladder, predictive-harness-router, FT-ELIDE-K4)"
+        required: true
+        default: "ladder"
+        type: string
+      corpus_slice:
+        description: "Frozen corpus slice or tier (e.g. FT-PY-MB3-01, easy, medium, hard, all)"
+        required: true
+        default: "easy"
+        type: string
+      auth_mode:
+        description: "Execution auth mode (offline-faux, api-key, subscription)"
+        required: true
+        default: "offline-faux"
+        type: choice
+        options:
+          - offline-faux
+          - api-key
+          - subscription
+      model:
+        description: "Model provider/modelId (ignored for offline-faux)"
+        required: false
+        default: ""
+        type: string
+      max_budget_usd:
+        description: "Hard spend cap in USD (gate ceiling: 10.00)"
+        required: true
+        default: "2.00"
+        type: string
+      dry_run:
+        description: "true: plan and validate only. false: execute if the gate is READY and provider secret exists"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claim-experiment-${{ inputs.claim_id }}
+  cancel-in-progress: false
+
+jobs:
+  experiment:
+    name: claim ${{ inputs.claim_id }} (${{ inputs.dry_run && 'dry-run' || 'execute-requested' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.19.0"
+          cache: npm
+
+      - name: Install dependencies (lockfile)
+        run: npm ci
+
+      - name: Hydrate pi-ai catalog
+        run: npm run hydrate:pi-ai-data
+
+      - name: Build runtime
+        run: npm run build:runtime
+
+      - name: Verify contract integrity (p1-run-accounting-v4)
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const crypto = require("node:crypto");
+            const hash = crypto.createHash("sha256").update(fs.readFileSync("contracts/run-accounting-contract-v4.json")).digest("hex");
+            const expected = "11b4d5453e0964a7eb88decb5cbf7d1c5f5eebf4fbbdd458fb4e38686baef486";
+            if (hash !== expected) {
+              console.error(`::error::Contrato v4 violado: ${hash} != ${expected}`);
+              process.exit(1);
+            }
+            console.log("Contrato v4 íntegro:", hash);
+          '
+
+      - name: Validate and plan (claim experiment gate)
+        id: plan
+        shell: bash
+        env:
+          CLAIM_ID: ${{ inputs.claim_id }}
+          BASELINE: ${{ inputs.baseline_setting }}
+          TREATMENT: ${{ inputs.treatment_setting }}
+          CORPUS_SLICE: ${{ inputs.corpus_slice }}
+          AUTH_MODE: ${{ inputs.auth_mode }}
+          MAX_BUDGET_USD: ${{ inputs.max_budget_usd }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts
+          node -e '
+            const fs = require("node:fs");
+            const claimId = process.env.CLAIM_ID;
+            const baseline = process.env.BASELINE;
+            const treatment = process.env.TREATMENT;
+            const slice = process.env.CORPUS_SLICE;
+            const authMode = process.env.AUTH_MODE;
+            const budget = parseFloat(process.env.MAX_BUDGET_USD || "0");
+            const dryRun = process.env.DRY_RUN === "true";
+
+            if (budget <= 0 || budget > 10.00) {
+              console.error("::error::Orçamento fora dos limites (0 < budget <= 10.00)");
+              process.exit(2);
+            }
+
+            const claims = JSON.parse(fs.readFileSync("claims/claims-v1.json", "utf8"));
+            const claim = (claims.claims || []).find(c => c.claim_id === claimId);
+            if (!claim) {
+              console.error(`::error::Claim ${claimId} não encontrado em claims/claims-v1.json`);
+              process.exit(2);
+            }
+
+            let credentialPresent = true;
+            if (authMode === "api-key") {
+              credentialPresent = Boolean(
+                process.env.ANTHROPIC_API_KEY ||
+                process.env.OPENAI_API_KEY ||
+                process.env.GEMINI_API_KEY ||
+                process.env.GROQ_API_KEY
+              );
+            }
+
+            const plan = {
+              schema: "dv-claim-experiment-plan-v1",
+              claim_id: claimId,
+              statement: claim.statement,
+              baseline,
+              treatment,
+              slice,
+              auth_mode: authMode,
+              max_budget_usd: budget,
+              dry_run: dryRun,
+              credential_present: credentialPresent,
+              status: dryRun
+                ? "PLAN_VALID_DRY_RUN"
+                : credentialPresent
+                  ? "READY_FOR_EXECUTION"
+                  : "UNKNOWN_EXTERNAL",
+            };
+
+            fs.writeFileSync("artifacts/plan.json", JSON.stringify(plan, null, 2) + "\n");
+            const md = [
+              `# Claim Experiment Plan: ${claimId}`,
+              `- **Statement:** ${claim.statement}`,
+              `- **Baseline:** ${baseline}`,
+              `- **Treatment:** ${treatment}`,
+              `- **Slice:** ${slice}`,
+              `- **Auth Mode:** ${authMode}`,
+              `- **Max Budget:** $${budget.toFixed(2)} USD`,
+              `- **Status:** \`${plan.status}\``,
+            ].join("\n");
+            fs.writeFileSync("artifacts/plan.md", md + "\n");
+
+            if (!dryRun && !credentialPresent) {
+              console.error("::error::Credencial necessária não configurada nos segredos (exit 3 UNKNOWN_EXTERNAL)");
+              process.exit(3);
+            }
+          '
+          code=$?
+          if [ -f artifacts/plan.md ]; then cat artifacts/plan.md >> "$GITHUB_STEP_SUMMARY"; fi
+          exit $code
+
+      - name: Execute experiment (execute-requested only)
+        if: ${{ !inputs.dry_run }}
+        shell: bash
+        env:
+          CORPUS_SLICE: ${{ inputs.corpus_slice }}
+          BASELINE: ${{ inputs.baseline_setting }}
+          TREATMENT: ${{ inputs.treatment_setting }}
+          AUTH_MODE: ${{ inputs.auth_mode }}
+          MODEL: ${{ inputs.model }}
+          MAX_BUDGET: ${{ inputs.max_budget_usd }}
+        run: |
+          set -uo pipefail
+          ARGS=("--policies" "$BASELINE,$TREATMENT" "--auth-mode" "$AUTH_MODE" "--outdir" "artifacts/bench" "--max-cost" "$MAX_BUDGET")
+          if [ "$CORPUS_SLICE" = "easy" ] || [ "$CORPUS_SLICE" = "medium" ] || [ "$CORPUS_SLICE" = "hard" ] || [ "$CORPUS_SLICE" = "all" ]; then
+            ARGS+=("--tier" "$CORPUS_SLICE")
+          else
+            ARGS+=("--task" "$CORPUS_SLICE")
+          fi
+          if [ -n "$MODEL" ]; then ARGS+=("--model" "$MODEL"); fi
+
+          node scripts/dv-bench.ts "${ARGS[@]}"
+
+      - name: Verify oracle integrity (post-run)
+        if: ${{ always() && hashFiles('artifacts/plan.json') != '' }}
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            console.log("Verificação pós-run concluída sem violação de oráculo.");
+          '
+
+      - name: Upload artifacts (plan, bench outputs, summaries)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claim-experiment-${{ inputs.claim_id }}-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 30

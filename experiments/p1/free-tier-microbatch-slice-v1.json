@@ -1,0 +1,47 @@
+{
+  "schema_id": "dv-free-tier-microbatch-slice-v1",
+  "slice_id": "FT-S2-MB3-01",
+  "purpose": "Frozen micro-batch (3 tasks, hard limit 5) drawn from the S2 candidate wave for free-tier baseline vs treatment execution. Pilot scale: not a statistical sample.",
+  "max_tasks": 5,
+  "selection_rule": "First three candidates of S2-W01 with distinct languages (ts, java, python). Chosen for language spread, not for expected difficulty or solvability.",
+  "source_wave": {
+    "path": "experiments/p1/s2-candidate-wave-01.json",
+    "sha256": "29dd2ee8f5c9655759c6b6d647f23f3052b3f02652eff59ee877f5dc12a29e83"
+  },
+  "admission_status": "NOT_ADMITTED",
+  "admission_note": "S2-W01 has admitted_count=0; verifier pins and workspace bundles are not yet frozen. Gate blocks execution until every task has a pinned bundle.",
+  "executor_visible_fields_only": true,
+  "treatment_execution": "NOT_EXECUTED",
+  "tasks": [
+    {
+      "task_id": "S2W01-elastic__synthetics-316",
+      "source_instance_id": "elastic__synthetics-316",
+      "repository": "elastic/synthetics",
+      "language": "ts",
+      "base_revision": "f52f0bf3d18ca418d1eec4afd1370751fdd914ce",
+      "source_record_sha256": "4e7fc2ba73ba1862748ecb4d303ca8f29f946edc0cd4b4cdf7b08426d9445801",
+      "bundle": null,
+      "bundle_status": "NOT_MATERIALIZED"
+    },
+    {
+      "task_id": "S2W01-crawler-commons__crawler-commons-227",
+      "source_instance_id": "crawler-commons__crawler-commons-227",
+      "repository": "crawler-commons/crawler-commons",
+      "language": "java",
+      "base_revision": "ab9e33a5f9fdb02c57141412867a4ec985135aa7",
+      "source_record_sha256": "c1c927fa02b10cff971046dcd4f24f6bfaf9749ffc8cb5099501aee55b079d9e",
+      "bundle": null,
+      "bundle_status": "NOT_MATERIALIZED"
+    },
+    {
+      "task_id": "S2W01-aws-cloudformation__cfn-lint-3965",
+      "source_instance_id": "aws-cloudformation__cfn-lint-3965",
+      "repository": "aws-cloudformation/cfn-lint",
+      "language": "python",
+      "base_revision": "b4d790dd57b324c20ea9031b4769ba4d75ecd691",
+      "source_record_sha256": "d8a5141d631550b2acbbb8b8f11700f0978474c71a67445615e42f1c498af394",
+      "bundle": null,
+      "bundle_status": "NOT_MATERIALIZED"
+    }
+  ]
+}

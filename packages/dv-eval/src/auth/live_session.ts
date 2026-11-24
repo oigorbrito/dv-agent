@@ -1,7 +1,7 @@
 // Sessão viva de um provedor real para runner e probe: resolve modelo, stream e tabela de custo conforme o modo.
 // api-key: pi-ai com variável de ambiente. subscription: Models do pi-ai com o auth.json (sem API key).
 
-import type { PriceBook } from "@dv-agent/core";
+import { DV_CLIENT_IDENTITY, type PriceBook } from "@dv-agent/core";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
 import { createModels } from "@earendil-works/pi-ai";
@@ -43,7 +43,7 @@ export async function openLiveSession(options: {
 	if (options.authMode === "api-key") {
 		return {
 			model,
-			streamFn: (m, c, o) => streamSimpleWithEnvAuth(m, c, o),
+			streamFn: (m, c, o) => streamSimpleWithEnvAuth(m, c, { ...o, identity: DV_CLIENT_IDENTITY }),
 			priceBook: {
 				kind: "metered",
 				id: "pi-catalog",
@@ -57,7 +57,7 @@ export async function openLiveSession(options: {
 	if (provider === undefined) throw new Error(`provedor sem implementação no pi-ai: ${options.provider}`);
 	const store = new FileCredentialStore(options.authPath);
 	await requireSubscriptionSession(store, provider);
-	const models = createModels({ credentials: store });
+	const models = createModels({ credentials: store, identity: DV_CLIENT_IDENTITY });
 	models.setProvider(provider);
 	return {
 		model,

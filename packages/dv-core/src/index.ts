@@ -15,9 +15,22 @@ export {
 export { type ConformanceReport, type ConformanceStatus, checkLedgerConformance } from "./ledger/conformance.ts";
 export type { LimitReason, RouteDecidedPayload, RunStatus } from "./ledger/events.ts";
 export type { PriceBook, PriceEntry } from "./ledger/prices.ts";
-export { redactText, redactValue } from "./ledger/redact.ts";
+export {
+	classifyProviderError,
+	type ProviderErrorClassification,
+	redactText,
+	redactValue,
+	sanitizeProviderErrorMessage,
+} from "./ledger/redact.ts";
 export { buildCallTelemetry, type CallTelemetry } from "./ledger/telemetry.ts";
 export { type DeclaredToolCall, ToolOutcomeTracker } from "./ledger/tool_outcomes.ts";
+export {
+	type ClientIdentity,
+	DV_CLIENT_IDENTITY,
+	DV_USER_AGENT,
+	dvHttpHeaders,
+	isCloudflareBlocked,
+} from "./ledger/transport_identity.ts";
 export { ledgerSha256, RunLedger } from "./ledger/writer.ts";
 export {
 	ArchitectEditorPolicy,

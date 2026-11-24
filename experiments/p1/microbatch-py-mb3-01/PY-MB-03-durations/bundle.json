@@ -1,0 +1,30 @@
+{
+  "schema_id": "dv-free-tier-task-bundle-v1",
+  "task_id": "PY-MB-03-durations",
+  "provenance": "SYNTHETIC_PYTHON_MICROTASK_NOT_S2_CANDIDATE",
+  "workspace_zip": {
+    "path": "workspace.zip",
+    "sha256": "f3b3ff78e65b8676b4389ed5eaa41fc4aa5908c18f11ea3eced321a065fc9826"
+  },
+  "prompt": {
+    "path": "prompt.md",
+    "sha256": "f928375142eb163387d8cd7d50401aca42ef73ebcbf7a768559260ef567c4552"
+  },
+  "verify": {
+    "command": [
+      "python",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-p",
+      "test_*.py"
+    ],
+    "cwd": "workspace",
+    "timeout_s": 60,
+    "test_paths": [
+      "tests"
+    ]
+  }
+}

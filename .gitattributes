@@ -1,3 +1,5 @@
 * text=auto eol=lf
 *.json -diff
-contracts/** binary
+contracts/** -text
+claims/** -text
+experiments/** -text

@@ -1,0 +1,42 @@
+{
+  "schema_id": "dv-free-tier-microbatch-slice-v1",
+  "slice_id": "FT-PY-MB3-01",
+  "revision": 1,
+  "purpose": "Frozen pilot micro-batch of 3 Python engineering micro-tasks (buggy module + unittest oracle) for claim C-T1 free-tier arms. Pilot scale, not a statistical sample.",
+  "max_tasks": 5,
+  "provenance": "SYNTHETIC_PYTHON_MICROTASK_NOT_S2_CANDIDATE. Replaces nothing in S2-W01; the S2 slice FT-S2-MB3-01 remains unmaterialized.",
+  "admission_status": "PINNED_SYNTHETIC",
+  "treatment_execution": "NOT_EXECUTED",
+  "tasks": [
+    {
+      "task_id": "PY-MB-01-slugify",
+      "language": "python",
+      "source": "SYNTHETIC_MICROTASK",
+      "bundle": {
+        "path": "experiments/p1/microbatch-py-mb3-01/PY-MB-01-slugify/bundle.json",
+        "sha256": "346cb6e7c1a0aec6a4547a84e1bc1430425558d1953d4b18cae492cb8543b80f"
+      },
+      "bundle_status": "PINNED"
+    },
+    {
+      "task_id": "PY-MB-02-intervals",
+      "language": "python",
+      "source": "SYNTHETIC_MICROTASK",
+      "bundle": {
+        "path": "experiments/p1/microbatch-py-mb3-01/PY-MB-02-intervals/bundle.json",
+        "sha256": "9c99affa569cbabfea8833ae88ac7731b25ef496ae055fae262ebd8c5ef80660"
+      },
+      "bundle_status": "PINNED"
+    },
+    {
+      "task_id": "PY-MB-03-durations",
+      "language": "python",
+      "source": "SYNTHETIC_MICROTASK",
+      "bundle": {
+        "path": "experiments/p1/microbatch-py-mb3-01/PY-MB-03-durations/bundle.json",
+        "sha256": "df7ace835f1ef09c4ce02ff2f218c25d7ddfe33d03908bea3fa9a9f4bb5cca67"
+      },
+      "bundle_status": "PINNED"
+    }
+  ]
+}

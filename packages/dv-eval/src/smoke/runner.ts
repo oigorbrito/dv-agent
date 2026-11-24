@@ -209,6 +209,7 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 	const taskDir = resolve(options.taskDir);
 	const task = loadTask(taskDir);
 	const workspaceSrc = join(taskDir, task.workspace_dir);
+	const expectedOracleHashes = hashTree(join(taskDir, task.oracle.dir));
 	const policy = buildPolicy(options);
 	const approved = loadApprovedProbes(options.probesDir);
 	const pin = JSON.parse(readFileSync(join(root, "UPSTREAM_PIN.json"), "utf8")) as { upstream: { commit: string } };
@@ -288,7 +289,13 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 			if (isArchitect) plan = lastAssistantText(run.messages);
 			const oracle: OracleResult | null = isArchitect
 				? null
-				: await runOracle({ taskDir, candidateDir: workspace, outdir: stepDir, ledgerPath: run.ledgerPath });
+				: await runOracle({
+						taskDir,
+						candidateDir: workspace,
+						outdir: stepDir,
+						ledgerPath: run.ledgerPath,
+						expectedOracleHashes,
+					});
 			const verification: Attempt["verification"] = oracle?.verification ?? null;
 			attempts.push({
 				rung: decision.rung,

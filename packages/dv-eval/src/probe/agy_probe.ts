@@ -7,6 +7,7 @@
 // consumiu 13.311 tokens (13.193 de entrada). Ver docs do comando no CLI para o orçamento.
 import {
 	AcpClient,
+	type AcpModelSwitch,
 	type AcpSetModelProbe,
 	AGY_API,
 	AGY_DEFAULT_COMMAND,
@@ -62,6 +63,8 @@ export interface AgyProbeResult {
 	handshake: { protocol_version: number | null; agent_name: string | null; auth_methods: number } | null;
 	models: { current_model_id: string | null; available_model_ids: string[] } | null;
 	set_model_probe: AcpSetModelProbe | null;
+	/** Troca feita na abertura (só se o modelo pedido difere do padrão). */
+	model_switch: AcpModelSwitch | null;
 	prompt_format: "content_blocks_text";
 	turns: AgyProbeTurn[];
 	semantics: AgyUsageVerdict | null;
@@ -99,6 +102,7 @@ export async function runAgyProbe(options: AgyProbeOptions): Promise<AgyProbeRes
 		handshake: null,
 		models: null,
 		set_model_probe: null,
+		model_switch: null,
 		prompt_format: "content_blocks_text",
 		turns: [],
 		semantics: null,
@@ -122,6 +126,10 @@ export async function runAgyProbe(options: AgyProbeOptions): Promise<AgyProbeRes
 	}
 
 	try {
+		result.model_switch = client.modelSwitch;
+		if (result.model_switch?.status === "unconfirmed") {
+			reasons.push("troca de modelo não confirmada: session/set_model respondeu sem o modelo");
+		}
 		const handshake = client.handshake;
 		result.handshake = {
 			protocol_version: handshake.protocolVersion,

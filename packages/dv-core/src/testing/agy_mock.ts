@@ -27,8 +27,11 @@ export interface AgyMockOptions {
 	usageSequence?: readonly Record<string, unknown>[];
 	/** protocolVersion devolvido no initialize (padrão 1). */
 	protocolVersion?: unknown;
-	/** Se o agente aceita session/set_model (padrão: não; responde -32601). */
-	setModelSupported?: boolean;
+	/**
+	 * Resposta a session/set_model. `unsupported` (padrão) responde -32601; `empty` aceita sem modelo; `echo` devolve o
+	 * modelo pedido; `mismatch` devolve outro modelo; `error` responde erro JSON-RPC.
+	 */
+	setModelReply?: "unsupported" | "empty" | "echo" | "mismatch" | "error";
 }
 
 export class FakeAgyChild extends EventEmitter implements ProcessLike {
@@ -121,15 +124,34 @@ function serve(child: FakeAgyChild, options: AgyMockOptions): void {
 				return;
 			case "session/cancel":
 				return;
-			case "session/set_model":
-				if (options.setModelSupported === true) reply(msg.id, {});
-				else
-					send({
-						jsonrpc: "2.0",
-						id: msg.id,
-						error: { code: -32601, message: "método desconhecido: session/set_model" },
-					});
+			case "session/set_model": {
+				const requested = (msg.params as { modelId?: unknown } | undefined)?.modelId;
+				switch (options.setModelReply ?? "unsupported") {
+					case "empty":
+						reply(msg.id, {});
+						break;
+					case "echo":
+						reply(msg.id, { currentModelId: requested });
+						break;
+					case "mismatch":
+						reply(msg.id, { currentModelId: "modelo-diferente" });
+						break;
+					case "error":
+						send({
+							jsonrpc: "2.0",
+							id: msg.id,
+							error: { code: -32000, message: "modelo indisponível para esta conta" },
+						});
+						break;
+					default:
+						send({
+							jsonrpc: "2.0",
+							id: msg.id,
+							error: { code: -32601, message: "método desconhecido: session/set_model" },
+						});
+				}
 				return;
+			}
 			default:
 				send({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: `método desconhecido: ${msg.method}` } });
 		}

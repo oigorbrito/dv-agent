@@ -129,7 +129,8 @@ test("cliente: modelo diferente do que a sessão abriu é recusado e o processo 
 	const mock = createAgyMockSpawn({ mode: "wrong_model" });
 	await assert.rejects(
 		AcpClient.open({ cwd: "/tmp", modelId: "gemini-3.8-flash-high", timeoutMs: 2000, spawn: mock.spawn }),
-		(error: unknown) => error instanceof TransportError && /troca de modelo não verificada/.test(error.message),
+		(error: unknown) =>
+			error instanceof TransportError && /troca para gemini-3.8-flash-high falhou/.test(error.message),
 	);
 	assert.equal(mock.children[0]?.alive, false);
 });
@@ -238,4 +239,72 @@ test("cliente: close é idempotente", async () => {
 	await client.close();
 	await client.close();
 	assert.equal(mock.children[0]?.alive, false);
+});
+
+// ---------- troca de modelo (session/set_model) ----------
+
+const OTHER = "gemini-3.8-flash-medium";
+
+test("troca: modelo pedido diferente do padrão, sem suporte do agente -> erro de troca e processo encerrado", async () => {
+	const mock = createAgyMockSpawn({ setModelReply: "unsupported" });
+	await assert.rejects(
+		AcpClient.open({ cwd: "/tmp", modelId: OTHER, timeoutMs: 2000, spawn: mock.spawn }),
+		(error: unknown) =>
+			error instanceof TransportError && /troca para gemini-3.8-flash-medium falhou/.test(error.message),
+	);
+	assert.equal(mock.children[0]?.alive, false);
+});
+
+test("troca: agente devolve o modelo pedido -> confirmed", async () => {
+	const mock = createAgyMockSpawn({ setModelReply: "echo" });
+	const client = await AcpClient.open({ cwd: "/tmp", modelId: OTHER, timeoutMs: 2000, spawn: mock.spawn });
+	assert.deepEqual(client.modelSwitch, { requested: OTHER, status: "confirmed" });
+	await client.close();
+});
+
+test("troca: resposta sem modelo -> unconfirmed (aceita, mas não confirmada)", async () => {
+	const mock = createAgyMockSpawn({ setModelReply: "empty" });
+	const client = await AcpClient.open({ cwd: "/tmp", modelId: OTHER, timeoutMs: 2000, spawn: mock.spawn });
+	assert.deepEqual(client.modelSwitch, { requested: OTHER, status: "unconfirmed" });
+	await client.close();
+});
+
+test("troca: agente devolve outro modelo -> erro de protocolo", async () => {
+	const mock = createAgyMockSpawn({ setModelReply: "mismatch" });
+	await assert.rejects(
+		AcpClient.open({ cwd: "/tmp", modelId: OTHER, timeoutMs: 2000, spawn: mock.spawn }),
+		(error: unknown) =>
+			error instanceof TransportError && /troca reportou modelo-diferente, esperado/.test(error.message),
+	);
+	assert.equal(mock.children[0]?.alive, false);
+});
+
+test("troca: erro JSON-RPC do agente -> erro de troca com mensagem redigida", async () => {
+	const mock = createAgyMockSpawn({ setModelReply: "error" });
+	await assert.rejects(
+		AcpClient.open({ cwd: "/tmp", modelId: OTHER, timeoutMs: 2000, spawn: mock.spawn }),
+		(error: unknown) =>
+			error instanceof TransportError &&
+			/troca para gemini-3.8-flash-medium falhou: .*indisponível/.test(error.message),
+	);
+});
+
+test("troca: modelo fora da lista anunciada -> recusado sem tentar a troca", async () => {
+	const mock = createAgyMockSpawn({ setModelReply: "echo" });
+	await assert.rejects(
+		AcpClient.open({ cwd: "/tmp", modelId: "modelo-inexistente", timeoutMs: 2000, spawn: mock.spawn }),
+		(error: unknown) => error instanceof TransportError && /não anunciado pelo agy/.test(error.message),
+	);
+});
+
+test("troca: sem troca pedida (modelo igual ao padrão), não há set_model e modelSwitch é null", async () => {
+	const mock = createAgyMockSpawn({ setModelReply: "unsupported" });
+	const client = await AcpClient.open({
+		cwd: "/tmp",
+		modelId: "gemini-3.8-flash-high",
+		timeoutMs: 2000,
+		spawn: mock.spawn,
+	});
+	assert.equal(client.modelSwitch, null);
+	await client.close();
 });

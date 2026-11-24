@@ -175,19 +175,27 @@ async function executeTurn(
 		const result: AcpPromptResult = await client.prompt(promptFromContext(context), {
 			...(signal === undefined ? {} : { signal }),
 		});
+		const switchStatus = client.modelSwitch?.status;
 		await client.close();
 		client = undefined;
 		const mapped = mapStopReason(result.stopReason);
 		const usage = mapAgyUsage(result.usage);
+		// Diagnósticos auditáveis: campo de usage ausente e troca de modelo não confirmada viram baldes ausentes na telemetria.
+		const diagnostics: NonNullable<AssistantMessage["diagnostics"]> = [
+			...(usage.missing.length === 0
+				? []
+				: [{ type: "usage_incomplete", timestamp: Date.now(), details: { missing: usage.missing } }]),
+			...(switchStatus === "unconfirmed"
+				? [{ type: "model_switch_unconfirmed", timestamp: Date.now(), details: { requested: model.id } }]
+				: []),
+		];
 		const message: AssistantMessage = {
 			...base,
 			content: result.text === "" ? [] : [{ type: "text", text: result.text }],
 			usage: usage.usage,
 			stopReason: mapped.stopReason,
 			...(mapped.errorMessage === undefined ? {} : { errorMessage: mapped.errorMessage }),
-			...(usage.missing.length === 0
-				? {}
-				: { diagnostics: [{ type: "usage_incomplete", timestamp: Date.now(), details: { missing: usage.missing } }] }),
+			...(diagnostics.length === 0 ? {} : { diagnostics }),
 		};
 		if (message.stopReason === "error" || message.stopReason === "aborted") {
 			return { message, events: [{ type: "error", reason: message.stopReason, error: message }] };

@@ -76,6 +76,11 @@ export interface AcpSetModelProbe {
 	message?: string;
 }
 
+export interface AcpModelSwitch {
+	requested: string;
+	status: "confirmed" | "unconfirmed";
+}
+
 export interface AcpOpenOptions {
 	command?: readonly string[];
 	spawn?: SpawnFn;
@@ -96,6 +101,7 @@ export class AcpClient {
 	private closed = false;
 	private handshakeInfo: AcpHandshake = { protocolVersion: null, agentName: null, authMethods: 0 };
 	private modelInfo: AcpModels = { currentModelId: null, availableModelIds: [] };
+	private switchInfo: AcpModelSwitch | null = null;
 
 	private constructor(proc: ProcessLike, timeoutMs: number) {
 		this.proc = proc;
@@ -146,13 +152,6 @@ export class AcpClient {
 			if (typeof sessionId !== "string" || sessionId === "") {
 				throw new TransportError("protocol", "session/new sem sessionId");
 			}
-			if (currentModelId !== options.modelId) {
-				// Troca de modelo por ACP não foi verificada por probe: falha explícita em vez de usar o modelo errado.
-				throw new TransportError(
-					"protocol",
-					`modelo ${options.modelId} indisponível: a sessão abriu com ${String(currentModelId)} (troca de modelo não verificada)`,
-				);
-			}
 			client.sessionId = sessionId;
 			const available = (created?.models as { availableModels?: unknown } | undefined)?.availableModels;
 			client.modelInfo = {
@@ -163,6 +162,16 @@ export class AcpClient {
 							.filter((id): id is string => typeof id === "string")
 					: [],
 			};
+			if (currentModelId !== options.modelId) {
+				// Modelo pedido diferente do padrão da sessão: só troca se o agente anunciou o modelo.
+				if (!client.modelInfo.availableModelIds.includes(options.modelId)) {
+					throw new TransportError(
+						"protocol",
+						`modelo ${options.modelId} não anunciado pelo agy (disponíveis: ${client.modelInfo.availableModelIds.join(", ")})`,
+					);
+				}
+				await client.switchModel(options.modelId);
+			}
 			return client;
 		} catch (error) {
 			await client.close();
@@ -176,6 +185,43 @@ export class AcpClient {
 
 	get models(): AcpModels {
 		return { currentModelId: this.modelInfo.currentModelId, availableModelIds: [...this.modelInfo.availableModelIds] };
+	}
+
+	/** Troca de modelo feita na abertura: `confirmed` se o agente devolveu o modelo, `unconfirmed` se a resposta veio sem ele. */
+	get modelSwitch(): AcpModelSwitch | null {
+		return this.switchInfo === null ? null : { ...this.switchInfo };
+	}
+
+	/**
+	 * session/set_model. Erro de troca é TransportError (vira provider_error no adaptador). Resposta com modelo diferente
+	 * do pedido também é erro. Resposta sem modelo é aceita, mas fica `unconfirmed`: não se sabe se a troca aconteceu.
+	 */
+	private async switchModel(modelId: string): Promise<void> {
+		let result: unknown;
+		try {
+			result = await this.conn.request(
+				"session/set_model",
+				{ sessionId: this.sessionId, modelId },
+				{ timeoutMs: this.timeoutMs },
+			);
+		} catch (error) {
+			const detail = error instanceof Error ? error.message : String(error);
+			throw new TransportError("protocol", `troca para ${modelId} falhou: ${sanitizeTransportMessage(detail)}`);
+		}
+		if (result !== null && result !== undefined && typeof result !== "object") {
+			throw new TransportError("protocol", "resposta de session/set_model inválida");
+		}
+		const body = (result ?? {}) as { currentModelId?: unknown; modelId?: unknown };
+		const reported =
+			typeof body.currentModelId === "string"
+				? body.currentModelId
+				: typeof body.modelId === "string"
+					? body.modelId
+					: undefined;
+		if (reported !== undefined && reported !== modelId) {
+			throw new TransportError("protocol", `troca reportou ${sanitizeTransportMessage(reported)}, esperado ${modelId}`);
+		}
+		this.switchInfo = { requested: modelId, status: reported === undefined ? "unconfirmed" : "confirmed" };
 	}
 
 	get pid(): number | undefined {

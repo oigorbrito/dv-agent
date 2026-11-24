@@ -221,3 +221,27 @@ test("executeRung: agy como degrau; usage e conformidade registrados; gate PROVI
 	// A execução bloqueada pelo gate falha antes do streamFn: só a aprovada abriu um processo.
 	assert.equal(mock.children.length, 1);
 });
+
+test("troca de modelo não confirmada: diagnóstico model_switch_unconfirmed e telemetria INCONCLUSIVE, nunca MEASURED", async () => {
+	const mock = createAgyMockSpawn({ chunks: ["ok"], usage: PROBE_USAGE, setModelReply: "empty" });
+	const streamFn = createAgyStreamFn({ cwd: "/tmp", timeoutMs: 2000, spawn: mock.spawn });
+	const medium = agyModel("gemini-3.8-flash-medium");
+	const events = await collect(streamFn(medium, CONTEXT as never, {} as never));
+	const done = events.at(-1)?.message as { diagnostics?: { type: string }[]; usage: never };
+	assert.equal(events.at(-1)?.type, "done");
+	assert.ok(done.diagnostics?.some((d) => d.type === "model_switch_unconfirmed"));
+	const telemetry = buildCallTelemetry("agy", done as never, { kind: "subscription", id: "t", source: "t" });
+	assert.ok(telemetry.missing_buckets.includes("model_switch_unconfirmed"));
+	assert.equal(telemetry.cost_accounting_status, "INCONCLUSIVE");
+});
+
+test("troca com erro do agente: stopReason error com mensagem de troca (vira provider_error no executeRung)", async () => {
+	const mock = createAgyMockSpawn({ chunks: ["ok"], usage: PROBE_USAGE, setModelReply: "error" });
+	const streamFn = createAgyStreamFn({ cwd: "/tmp", timeoutMs: 2000, spawn: mock.spawn });
+	const events = await collect(streamFn(agyModel("gemini-3.8-flash-medium"), CONTEXT as never, {} as never));
+	const last = events.at(-1) as unknown as { type: string; error: { stopReason: string; errorMessage: string } };
+	assert.equal(last.type, "error");
+	assert.equal(last.error.stopReason, "error");
+	assert.match(last.error.errorMessage, /troca para gemini-3.8-flash-medium falhou/);
+	assert.equal(mock.children[0]?.alive, false);
+});

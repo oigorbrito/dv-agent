@@ -37,6 +37,7 @@ export {
 	ACP_PROTOCOL_VERSION,
 	AcpClient,
 	type AcpHandshake,
+	type AcpModelSwitch,
 	type AcpModels,
 	type AcpSetModelProbe,
 	AGY_DEFAULT_COMMAND,

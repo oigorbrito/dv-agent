@@ -57,6 +57,7 @@ export function buildCallTelemetry(provider: string, message: AssistantMessage, 
 	}
 	// Usage incompleto declarado pelo adaptador (campos ausentes viraram 0 e não são medição).
 	if (message.diagnostics?.some((d) => d.type === "usage_incomplete")) missing.push("usage_incomplete");
+	if (message.diagnostics?.some((d) => d.type === "model_switch_unconfirmed")) missing.push("model_switch_unconfirmed");
 	if (uncached === null) missing.push("uncached_input_tokens");
 	if (cost === null) missing.push("cost_usd");
 

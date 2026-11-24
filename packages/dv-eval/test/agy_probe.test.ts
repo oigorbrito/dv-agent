@@ -131,11 +131,11 @@ test("probe: modelo diferente do padrão da sessão -> INCONCLUSIVE, sem prompt 
 	const result = await runAgyProbe({ ...base, turns: 1, spawn: mock.spawn });
 	assert.equal(result.status, "INCONCLUSIVE");
 	assert.equal(result.turns.length, 0);
-	assert.ok(result.reasons[0]?.includes("troca de modelo não verificada"));
+	assert.ok(result.reasons[0]?.includes("troca para gemini-3.8-flash-high falhou"));
 });
 
 test("probe: set_model suportado é registrado como supported, sem prompt extra", async () => {
-	const mock = createAgyMockSpawn({ chunks: ["ok"], usageSequence: [COLD, WARM_OUTSIDE], setModelSupported: true });
+	const mock = createAgyMockSpawn({ chunks: ["ok"], usageSequence: [COLD, WARM_OUTSIDE], setModelReply: "empty" });
 	const result = await runAgyProbe({ ...base, turns: 2, spawn: mock.spawn });
 	assert.equal(result.set_model_probe?.status, "supported");
 	assert.equal(result.status, "VERIFIED");
@@ -183,4 +183,12 @@ test("teto de tokens do probe: com teto menor que o primeiro turno, o segundo n�
 	assert.equal(result.status, "INCONCLUSIVE");
 	assert.ok(result.reasons.some((r) => /teto de tokens do probe atingido/.test(r)));
 	assert.equal(mock.children[0]?.alive, false);
+});
+
+test("probe: troca de modelo sem confirmação -> INCONCLUSIVE com motivo, e a troca fica registrada", async () => {
+	const mock = createAgyMockSpawn({ chunks: ["ok"], usageSequence: [COLD, WARM_OUTSIDE], setModelReply: "empty" });
+	const result = await runAgyProbe({ ...base, modelId: "gemini-3.8-flash-medium", turns: 2, spawn: mock.spawn });
+	assert.deepEqual(result.model_switch, { requested: "gemini-3.8-flash-medium", status: "unconfirmed" });
+	assert.equal(result.status, "INCONCLUSIVE");
+	assert.ok(result.reasons.some((r) => /troca de modelo não confirmada/.test(r)));
 });

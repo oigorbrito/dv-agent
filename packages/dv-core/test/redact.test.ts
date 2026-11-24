@@ -63,3 +63,20 @@ test("classifyProviderError categoriza 5xx como PROVIDER_UNAVAILABLE e 401/403/4
 	assert.equal(classifyProviderError(null, "request timed out"), "TIMEOUT");
 	assert.equal(classifyProviderError(400, "bad request body"), "PROVIDER_ERROR");
 });
+
+test("atribuições de código não são segredo (token = 0, token = math.ceil(raw)) e não são redigidas", () => {
+	assert.equal(redactText("token = 0"), "token = 0");
+	assert.equal(redactText("token = math.ceil(raw)"), "token = math.ceil(raw)");
+	assert.equal(redactText("token: 0\nsecret = 42"), "token: 0\nsecret = 42");
+	// Mesmo conteúdo dentro de um payload do ledger (o que a conformidade lê): sem marcação.
+	const payload = redactValue({ text: "token = 0\n\ntoken = math.ceil(raw)\n\n" }) as { text: string };
+	assert.equal(payload.text, "token = 0\n\ntoken = math.ceil(raw)\n\n");
+});
+
+test("credenciais reais continuam redigidas: sk-ant-..., Bearer ..., literal entre aspas e valor misto sem aspas", () => {
+	assert.equal(redactText("key sk-ant-api03-ABCDEFGHIJKLMNOP"), "key [REDACTED]");
+	assert.equal(redactText("Authorization: Bearer abcdefghijklmnop123"), "Authorization: [REDACTED]");
+	assert.equal(redactText('token = "abc12345"'), "token = [REDACTED]");
+	assert.equal(redactText("password: 'hunter22hunter'"), "password: [REDACTED]");
+	assert.equal(redactText("token=supersecretvalue123"), "token=[REDACTED]");
+});

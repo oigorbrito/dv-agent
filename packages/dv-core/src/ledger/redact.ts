@@ -12,7 +12,9 @@ const SECRET_PATTERNS: readonly RegExp[] = [
 	/\bAIza[0-9A-Za-z_-]{30,}/g,
 	/\bAKIA[0-9A-Z]{16}\b/g,
 	/\bgh[pousr]_[A-Za-z0-9]{20,}/g,
-	/\b((?:api[_-]?key|secret|token|password)\s*[=:]\s*)[^\s"',;]+/gi,
+	// Atribuição de credencial: literal entre aspas (>= 8 chars) ou valor sem aspas com >= 16 chars misturando letras e dígitos.
+	// Não casa expressões de código (`token = 0`, `token = math.ceil(raw)`), que são texto legítimo do modelo.
+	/\b((?:api[_-]?key|secret|token|password)\s*[=:]\s*)(?:(["'])[^"'\s]{8,}\2|(?=[A-Za-z0-9_\-./+]*\d)(?=[A-Za-z0-9_\-./+]*[A-Za-z])[A-Za-z0-9_\-./+]{16,})/gi,
 ];
 
 /** Substitui padrões de credencial num texto. Preserva o nome da chave quando o padrão é `chave=valor`. */

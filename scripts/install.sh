@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 REPO_URL="https://github.com/oigorbrito/dv-agent.git"
 INSTALL_DIR="${DV_INSTALL_DIR:-$HOME/dv-agent}"
-BRANCH="${DV_INSTALL_BRANCH:-main}"
+BRANCH="${DV_INSTALL_BRANCH:-feat/harness-router}"
 SKIP_TESTS=0
 
 usage() {

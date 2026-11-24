@@ -7,6 +7,7 @@ explicitamente na seção 6.
 
 ## 1. Resumo
 
+- **Rodada holdout N=3 (seção 9, auditada):** o roteador resolveu 27/27 com 5,0 M tokens; o Sonnet, 26/27 com 9,3 M. A economia de tokens frente ao Sonnet é sustentada pelo bootstrap; a vantagem de resolução, não.
 - **Governança do contrato v4 funciona de ponta a ponta.** Nenhuma violação estrutural nos ledgers de todas as
   rodadas. Em subscription a conformidade é `INCONCLUSIVE` por regra (c), porque o teto de custo em USD não é
   verificável.
@@ -181,3 +182,67 @@ node scripts/dv-bench.ts --tier frontier --repeats 3 --temperature 0 \
 
 Cada `summary.md` declara o contrato (SHA-256), os tetos do editor, as réplicas, a temperatura por modelo e o IC de
 Wilson por linha.
+
+## 9. Rodada holdout N=3 (auditada)
+
+**Conjunto:** holdout da partição fixa (9 tarefas: `easy-02-log-parser`, `easy-04-rle-codec`, `frontier-01-ssa-dominator-opt`, `frontier-03-incremental-type-infer`, `hard-02-wal-ledger-replay`, `hard-04-crdt-lww-map`, `medium-01-semver-resolver`, `medium-03-topo-build-planner`, `medium-05-rate-limiter-sliding`), 3 réplicas, 27 execuções por braço. Assinatura (subscription), temperatura 0, teto de 1,5 M tokens por execução. Resumos e saída consolidada em `runs/holdout-n3/` (não versionados).
+
+**Proveniência (`dv_agent_commit` gravado em cada ledger):** Haiku, 27/27 em `a0194fe`. Sonnet, 26 em `a0194fe` e 1 em `52c1f6e` (o commit seguinte só acrescenta o bootstrap e o CLI de métricas, sem mudar o caminho de execução). Roteador, 30 degraus em `52c1f6e`, antes de `922ef1f` alterar o runner.
+
+| Braço | Resolvidas | IC 95% (Wilson) | Tokens | Chamadas | Custo estimado (USD)* |
+|---|---|---|---|---|---|
+| `single` Haiku 5.5 | 25/27 | [76,6%; 97,9%] | 2.590.886 | 278 | 0,15 |
+| `single` Sonnet 4.6 | 26/27 | [81,7%; 99,3%] | 9.261.330 | 522 | 11,34 |
+| Roteador (`predictive-harness-router`) | **27/27** | [87,5%; 100%] | **5.019.231** | 388 | 1,77 |
+
+\*Custo calculado a partir dos buckets medidos (entrada não cacheada, leitura e escrita de cache, saída) × preços do catálogo local (USD por 1M: Haiku 0,10 / 0,50 / cache 0,01 / 0,125; Sonnet 3 / 15 / 0,30 / 3,75). Em assinatura o CLI não reporta USD; o valor é referência de fronteira.
+
+**Falhas:** Haiku em `frontier-01#2` e `frontier-03#2`; Sonnet em `medium-01#2`; roteador nenhuma. O roteador escalou para o Sonnet em 3 de 27 execuções, todas em `frontier-03` (uma em cada réplica). O escalonamento resgatou a falha do Haiku em `frontier-03#2`. Em `frontier-01#2`, o Haiku sozinho resolveu.
+
+**Orçamento:** estimado em 27,5 M tokens e US$ 20 para N=3. Realizado: 16,9 M tokens e US$ 13,3 (estimado).
+
+### 9.1 Métricas de roteamento (`dv-bench-metrics.ts`)
+
+- **PGR (ponto único) = 1,997** e **APGR = 1,443**. Os dois passam de 1 porque o roteador (27/27) superou o Sonnet (26/27) em uma única execução. Não é ganho sustentado sobre o forte.
+- **Fronteira de Pareto** (tokens × taxa de resolução): Haiku e roteador. O Sonnet fica dominado pelo roteador.
+- **AIQ do conjunto** (um ponto por política, `x_max` = 9.261.330 tokens): 0,711.
+
+### 9.2 Bootstrap pareado por tarefa (GAP-8)
+
+9 tarefas, 10.000 reamostragens, seed `20261123`. **Sinal:** braço − baseline, média por execução. O CLI imprime `single − roteador`, com o sinal inverso; a tabela já está no sinal `roteador − baseline`.
+
+| Comparação | Métrica | Diferença | IC 95% |
+|---|---|---|---|
+| roteador − Sonnet | taxa de resolução | +0,037 | [0; +0,111] |
+| roteador − Sonnet | tokens | **−157.115** | **[−290.095; −45.119]** |
+| roteador − Haiku | taxa de resolução | +0,074 | [0; +0,185] |
+| roteador − Haiku | tokens | +89.939 | [−4.831; +223.620] |
+
+Custo em USD: n/a no bootstrap (não há valor pareado de custo em assinatura).
+
+**Leitura.** Contra o Sonnet, a economia de tokens do roteador é sustentada: o IC inteiro fica abaixo de zero. A vantagem de resolução não é: o IC toca zero. Contra o Haiku, nem a qualidade nem o custo são conclusivos com n = 9 tarefas.
+
+### 9.3 Nota de governança (conformidade do braço Sonnet)
+
+- **Classificação oficial:** o braço Sonnet tem duas violações de conformidade, em `medium-05-rate-limiter-sliding` rep-1 e rep-2, com a mensagem "padrão de segredo presente sem redação". Essas violações estão no `summary.json` e não foram editadas. Como as duas execuções foram resolvidas, elas entram no `solve_rate` de 26/27.
+- **Inspeção:** os trechos casados eram `token = 0` e `token = math.ceil(raw)`, código gerado pelo modelo. Nenhum padrão de credencial de provedor (`sk-`, `Bearer`, `AIza`, `AKIA`, PEM, `gh*_`) aparece nos ledgers. A causa é a regra `token\s*[=:]` do redator e do verificador, que era ampla demais. Foi corrigida em `8293d60`, para rodadas futuras.
+- **Reavaliação informativa:** com a regra nova, nenhum dos 84 ledgers do holdout continua marcado. Essa reavaliação não altera a classificação registrada no resumo histórico.
+- **Sensibilidade:** excluir as duas execuções levaria o Sonnet a 24/25. A decisão de exclusão não foi tomada, e esta seção não a toma.
+- **Conformidade v4 dos três braços:** `INCONCLUSIVE` por regra (c), porque o teto de custo em USD não é verificável em assinatura.
+
+### 9.4 Limites desta rodada
+
+- **n pequeno.** Com 27 execuções e 9 tarefas, os intervalos de confiança se sobrepõem. A diferença de qualidade entre braços não é significativa.
+- **O roteador não exercitou o atalho.** O limiar calibrado é `null`, então todas as tarefas começam no Haiku. O braço mede a escada com o roteador novo, não a predição estática.
+- **Haiku ignora temperatura** (`supportsTemperature = false`). Só o Sonnet recebeu temperatura 0.
+- **Proveniência mista.** A branch recebeu commits de outra sessão durante a coleta (`52c1f6e`, `922ef1f`, `986271a`). Os caminhos de execução usados pelo holdout não foram alterados por eles, conforme a tabela de proveniência acima.
+
+### 9.5 Reprodução (somente leitura, sem chamadas)
+
+```bash
+node scripts/dv-bench-metrics.ts --weak anthropic/claude-haiku-5-5 --strong anthropic/claude-sonnet-4-6 \
+  runs/holdout-n3/weak-haiku/summary.json runs/holdout-n3/strong-sonnet/summary.json runs/holdout-n3/router/summary.json
+
+node scripts/dv-bench-metrics.ts --paired-policy-a predictive-harness-router --paired-policy-b single \
+  --seed 20261123 --resamples 10000 runs/holdout-n3/strong-sonnet/summary.json runs/holdout-n3/router/summary.json
+```

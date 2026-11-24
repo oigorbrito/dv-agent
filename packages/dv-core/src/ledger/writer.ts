@@ -8,6 +8,7 @@ import { canonicalJson } from "../util/canonical.ts";
 import type {
 	CallFinishedPayload,
 	CallStartedPayload,
+	RouteDecidedPayload,
 	RunFinishedPayload,
 	RunStartedPayload,
 	ToolFinishedPayload,
@@ -28,6 +29,10 @@ export class RunLedger {
 
 	appendRunStarted(payload: RunStartedPayload): void {
 		this.append("run_started", payload);
+	}
+
+	appendRouteDecided(payload: RouteDecidedPayload): void {
+		this.append("route_decided", payload);
 	}
 
 	appendCallStarted(payload: CallStartedPayload): void {

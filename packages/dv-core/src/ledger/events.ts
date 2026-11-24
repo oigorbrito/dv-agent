@@ -19,6 +19,17 @@ export interface RunStartedPayload {
 	guards: { doom_loop_max_identical_consecutive: number };
 }
 
+/** Decisão de roteamento tomada antes de um degrau (evento `route_decided`, no máximo um por ledger, logo após run_started). */
+export interface RouteDecidedPayload {
+	policy: string;
+	rung: number;
+	role: string;
+	/** Motivo legível da escolha do degrau (ex.: profundidade de import abaixo do limiar). */
+	reason: string;
+	/** Sinais estáticos usados na decisão; null quando a política não usa sinais. */
+	signals: { source_files: number; loc: number; import_depth: number } | null;
+}
+
 export interface CallStartedPayload {
 	call_index: number;
 	provider: string;

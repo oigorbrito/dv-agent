@@ -16,7 +16,14 @@ export interface ConformanceReport {
 
 type Json = Record<string, unknown>;
 
-const EVENTS = new Set(["run_started", "call_started", "call_finished", "tool_finished", "run_finished"]);
+const EVENTS = new Set([
+	"run_started",
+	"route_decided",
+	"call_started",
+	"call_finished",
+	"tool_finished",
+	"run_finished",
+]);
 const HEX64 = /^[0-9a-f]{64}$/;
 const TOLERANCE = 1e-9;
 
@@ -78,6 +85,10 @@ function checkOrder(events: Json[], violations: string[]): void {
 	if (names.at(-1) !== "run_finished") violations.push("último evento não é run_finished");
 	if (names.filter((n) => n === "run_started").length !== 1) violations.push("run_started deve aparecer uma vez");
 	if (names.filter((n) => n === "run_finished").length !== 1) violations.push("run_finished deve aparecer uma vez");
+	// route_decided é opcional: no máximo um, imediatamente após run_started. Não altera telemetria.
+	const routes = names.filter((n) => n === "route_decided").length;
+	if (routes > 1) violations.push("route_decided deve aparecer no máximo uma vez");
+	if (routes === 1 && names[1] !== "route_decided") violations.push("route_decided deve seguir run_started");
 }
 
 /** Traceabilidade por run (regra d): campos obrigatórios presentes. Campo ausente é falha, não zero. */

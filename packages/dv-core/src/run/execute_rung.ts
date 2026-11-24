@@ -22,7 +22,7 @@ import { composeBeforeToolCall } from "../guards/compose.ts";
 import { DoomLoopDetector } from "../guards/doom_loop.ts";
 import { argumentsSha256 } from "../guards/tool_signature.ts";
 import { assertProviderCanRun } from "../ledger/capabilities.ts";
-import type { LimitReason, RunStatus } from "../ledger/events.ts";
+import type { LimitReason, RouteDecidedPayload, RunStatus } from "../ledger/events.ts";
 import type { PriceBook } from "../ledger/prices.ts";
 import { buildCallTelemetry } from "../ledger/telemetry.ts";
 import { ToolOutcomeTracker } from "../ledger/tool_outcomes.ts";
@@ -51,6 +51,8 @@ export interface RungRunOptions {
 	maxOutputTokens?: number;
 	doomLoopMaxIdenticalConsecutive: number;
 	approvedProbes?: ReadonlySet<string>;
+	/** Decisão de roteamento que originou este degrau. Gravada como `route_decided` logo após `run_started`. */
+	routeDecision?: RouteDecidedPayload;
 }
 
 export interface RungRunResult {
@@ -100,6 +102,7 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 		max_cost_usd: options.maxCostUsd,
 		guards: { doom_loop_max_identical_consecutive: options.doomLoopMaxIdenticalConsecutive },
 	});
+	if (options.routeDecision !== undefined) ledger.appendRouteDecided(options.routeDecision);
 
 	// Registra call_started antes de qualquer tentativa do provedor (I1: chamada iniciada sem fim fica em voo).
 	const streamFn: StreamFn = (model, context, streamOptions) => {

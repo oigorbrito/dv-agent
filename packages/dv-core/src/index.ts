@@ -13,7 +13,7 @@ export {
 	transportFor,
 } from "./ledger/capabilities.ts";
 export { type ConformanceReport, type ConformanceStatus, checkLedgerConformance } from "./ledger/conformance.ts";
-export type { LimitReason, RunStatus } from "./ledger/events.ts";
+export type { LimitReason, RouteDecidedPayload, RunStatus } from "./ledger/events.ts";
 export type { PriceBook, PriceEntry } from "./ledger/prices.ts";
 export { redactText, redactValue } from "./ledger/redact.ts";
 export { buildCallTelemetry, type CallTelemetry } from "./ledger/telemetry.ts";
@@ -34,6 +34,8 @@ export {
 	type Verification,
 	type VerificationStatus,
 } from "./router/policy.ts";
+export { PredictiveHarnessRouterPolicy, type PredictiveRouterOptions } from "./router/predictive.ts";
+export { extractPythonSignals, type SourceFile, type StaticSignals } from "./router/signals.ts";
 export { classifyVerification, type OracleVerdict, type RunSignals } from "./router/verification.ts";
 export { executeRung, type RungRunOptions, type RungRunResult } from "./run/execute_rung.ts";
 // Runtime faux (provider mockado com usage declarado): testes e smoke offline. Não usar em runs reais.

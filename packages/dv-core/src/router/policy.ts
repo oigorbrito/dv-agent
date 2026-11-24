@@ -36,7 +36,7 @@ export interface Attempt {
 export type StopOutcome = "solved" | "unsolved" | "inconclusive" | "budget_exhausted";
 
 export type RouterDecision =
-	| { kind: "run"; rung: number; role: string; model: ModelRef; cap_usd: number }
+	| { kind: "run"; rung: number; role: string; model: ModelRef; cap_usd: number; route_reason?: string }
 	| { kind: "stop"; outcome: StopOutcome; reason: string };
 
 export interface RouterPolicy {
@@ -58,6 +58,8 @@ export interface LadderOptions {
 	 * o padrão é DEFAULT_ESCALATE_ON_STATUSES (decisão deste código, aprovada pelo usuário).
 	 */
 	escalateOnStatuses?: readonly VerificationStatus[];
+	/** Degrau da primeira tentativa (padrão 0). Degraus abaixo dele nunca são executados nesta política. */
+	startRung?: number;
 }
 
 /** Soma do limite inferior de todos os degraus executados, incluindo os reprovados (regra c). */
@@ -95,6 +97,10 @@ export class ExecutionGuidedLadderPolicy implements RouterPolicy {
 
 	constructor(options: LadderOptions) {
 		if (options.rungs.length === 0) throw new Error("ladder sem degraus");
+		const start = options.startRung ?? 0;
+		if (!Number.isInteger(start) || start < 0 || start >= options.rungs.length) {
+			throw new Error(`startRung ${start} fora dos degraus 0..${options.rungs.length - 1}`);
+		}
 		this.options = options;
 	}
 
@@ -104,7 +110,7 @@ export class ExecutionGuidedLadderPolicy implements RouterPolicy {
 		const spent = totalSpent(history);
 		const last = history.at(-1);
 
-		if (last === undefined) return this.runRung(0, spent);
+		if (last === undefined) return this.runRung(this.options.startRung ?? 0, spent);
 		const verification = last.verification;
 		if (verification === null) return { kind: "stop", outcome: "inconclusive", reason: "tentativa sem oráculo" };
 		if (verification.oracle_pass === true) return { kind: "stop", outcome: "solved", reason: "oráculo aprovou" };

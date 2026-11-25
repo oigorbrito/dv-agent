@@ -1,0 +1,139 @@
+{
+  "schema": "dv-external-slice-manifest-v1",
+  "slice_id": "external-terminal-bench-slice-v1",
+  "provenance": {
+    "source_repo": "laude-institute/terminal-bench",
+    "source_url": "https://github.com/laude-institute/terminal-bench",
+    "source_tree_sha": "d28711d0da2675d0bb1d56de45ae5df6082438a3",
+    "source_license": "Apache-2.0 (LICENSE verificado em raw.githubusercontent.com/laude-institute/terminal-bench/main/LICENSE)",
+    "retrieved_on": "2026-11-25",
+    "tasks": {
+      "tb-log-summary": {
+        "source": "original-tasks/log-summary (instrução e objetivo de contagem de severidades)",
+        "adaptation": "Caminhos /app trocados por workspace relativo; logs reescritos do zero (sem dependências de Docker); saída em summary.csv na raiz; oráculo Python sem Docker. Nenhum arquivo de solução ou log original copiado."
+      },
+      "tb-jsonl-top-aggregates": {
+        "source": "Inspirada no conceito de original-tasks/jsonl-aggregator (agregação de registros JSONL em aggregates.json)",
+        "adaptation": "Dados pequenos escritos do zero (não há cópia de task-deps/generate_records.py); top-2 usuários e top-3 tags; oráculo com valores fixos calculados a partir dos registros entregues."
+      },
+      "tb-confparse-equals-bug": {
+        "source": "Autoral, no estilo de tarefas de depuração do terminal-bench",
+        "adaptation": "Módulo confparse.py com defeito deliberado (split sem limite); oráculo importa o módulo do workspace e verifica casos de borda."
+      }
+    }
+  },
+  "gate": {
+    "name": "intake_gate",
+    "fail_closed": true,
+    "dry_run_auth_mode": "faux"
+  },
+  "tasks_dir": "external-terminal-bench-slice-v1/tasks",
+  "dataset_sha256": "4678226546db5368292114d104854e8cfcb9781fe7bfa7dc79f9a13aa64297e6",
+  "tasks": [
+    {
+      "task_id": "tb-confparse-equals-bug",
+      "manifest_sha256": "0b2bac23753fe069df4bdb5a671efd0114edbdced04589ef004a21c70666b3a2",
+      "files": [
+        {
+          "path": "gold.patch",
+          "sha256": "76b491db8ec5c4bac2fbd13e1913ba9aaa5bb13c5fc285decd7610d40c378548"
+        },
+        {
+          "path": "offline/cheap/confparse.py",
+          "sha256": "af9749e7de2cd70cafd4d572b74b72898c591c3436572fbf99551e3750b51118"
+        },
+        {
+          "path": "offline/strong/confparse.py",
+          "sha256": "924c43b815b0cee5559e6035879e262d2122d5a6de4014c161b8d8ba9da2eb98"
+        },
+        {
+          "path": "oracle/check.py",
+          "sha256": "671ea2a4f1a91d0b5ec348d65fee0f89fcd66dfe3603f3c8c276155c73e4b982"
+        },
+        {
+          "path": "task.json",
+          "sha256": "ea592e6673f9f81d6c4da60b55f7aec3ba1dfcdeb41dbb4ee91295f45ca00fda"
+        },
+        {
+          "path": "workspace/confparse.py",
+          "sha256": "f14f949980acf0534b786e6ff75f3ed24a84963f23f43a4ae0a9361d3ce36c17"
+        }
+      ],
+      "tier": "hard"
+    },
+    {
+      "task_id": "tb-jsonl-top-aggregates",
+      "manifest_sha256": "fb09b39b06d32ff7e116c5c63b848cbff3c6ed7d059fde1f3e64a49e8d7d8db0",
+      "files": [
+        {
+          "path": "gold.patch",
+          "sha256": "83225ac078f8830c7f86201065364bc2821e2efc4416e80df5f1820c24f7088c"
+        },
+        {
+          "path": "offline/cheap/aggregates.json",
+          "sha256": "0c1690add72cd8a169be71baa95e4d65b91201ed9d01e17a9e03093f8e9c0e93"
+        },
+        {
+          "path": "offline/strong/aggregates.json",
+          "sha256": "63e02264f26adc735c4263b242d787b3785a111535cbf5dd5e53373e58d8446a"
+        },
+        {
+          "path": "oracle/check.py",
+          "sha256": "286f9f77db74a8389ecd169305b5c14c61d993aaac934dfa42f2870867fa76ea"
+        },
+        {
+          "path": "task.json",
+          "sha256": "5b5e48caa62436078216e4ad5226c43d99a7193a630f6f0d0cd5ae00e5e695fa"
+        },
+        {
+          "path": "workspace/records_1.jsonl",
+          "sha256": "b53112f2d53d149502a54e4080ce32fe7731ad2f7ec4091aba81e6d1e8f5cc0a"
+        },
+        {
+          "path": "workspace/records_2.jsonl",
+          "sha256": "c3bf026d60a4922358d713f621da7b731482e3fa8bb01ab2f6da98705668c392"
+        }
+      ],
+      "tier": "medium"
+    },
+    {
+      "task_id": "tb-log-summary",
+      "manifest_sha256": "c48d8058dedc3f5c93af2bea20414c95996f3d94c5c4eeaa41ee42f2cfb8ac60",
+      "files": [
+        {
+          "path": "gold.patch",
+          "sha256": "2a8c7a6aeb0e3ab740ac9a4af7510ca46d993dcc70d0316493b34b2f9907f697"
+        },
+        {
+          "path": "offline/cheap/summary.csv",
+          "sha256": "41876960fc6fe5d6ebb8e003886412322ca201274bddf14feb1838f4928feef1"
+        },
+        {
+          "path": "offline/strong/summary.csv",
+          "sha256": "87c87ef47b5456bdaa53f92525423046242e644c7dc4b823acc6d88eec887c9c"
+        },
+        {
+          "path": "oracle/check.py",
+          "sha256": "8f4af60267ef87388a3907bc5fd488345e5159c5040ff8ab11a706ecf2c8d661"
+        },
+        {
+          "path": "task.json",
+          "sha256": "7da7b5d23cf7ae2e5f5a306a806507cffc9ff59a04bd23ec1e3125700a043de1"
+        },
+        {
+          "path": "workspace/logs/app1.log",
+          "sha256": "474a031b6b3dd8f5c42e1cb6c221fd067a0c7bd27d830a6fb42e707759c97054"
+        },
+        {
+          "path": "workspace/logs/app2.log",
+          "sha256": "4603bd45cd13f4bd10451d5370dfde84ffff1fdaa9e62828278ca545da6618b9"
+        },
+        {
+          "path": "workspace/logs/db.log",
+          "sha256": "64cbf9dfabbf244ce7e07d98d035fba88deb9c0c46b4fd52ac0f7c0b24532f8c"
+        }
+      ],
+      "tier": "easy"
+    }
+  ]
+}

@@ -1,17 +1,21 @@
 // Testes offline do módulo de intake e gate de integridade de tarefas externas.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { test } from "node:test";
 import {
 	computeStableFileSha256,
 	type ExternalTaskDefinition,
+	loadVerifiedSlice,
+	type SliceManifest,
 	validateTaskIntake,
 	validateTasksBatch,
+	verifySliceManifest,
 } from "../src/intake/index.ts";
 import { applyUnifiedDiff } from "../src/intake/patch_applier.ts";
+import { findPackageRoot } from "../src/package_paths.ts";
 
 function createMockTask(
 	baseDir: string,
@@ -483,6 +487,168 @@ test("atualização delimitada: fixture Atom com versão diferente é deduplicad
 		writeFileSync(brokenPath, broken, "utf8");
 		assert.throws(() => updateFindingsDocument(brokenPath, [], "0".repeat(64), today), /incompletos/);
 		assert.equal(readFileSync(brokenPath, "utf8"), broken, "arquivo com marcadores quebrados não pode ser alterado");
+	} finally {
+		rmSync(tmp, { recursive: true, force: true });
+	}
+});
+
+// --- Fatia externa congelada (external-terminal-bench-slice-v1) ---
+
+const REPO_ROOT = findPackageRoot(import.meta.dirname);
+const SLICE_MANIFEST = resolve(REPO_ROOT, "experiments/p1/external-terminal-bench-slice-v1.json");
+const SLICE_DATASET_SHA256 = "4678226546db5368292114d104854e8cfcb9781fe7bfa7dc79f9a13aa64297e6";
+const SLICE_TASK_IDS = ["tb-confparse-equals-bug", "tb-jsonl-top-aggregates", "tb-log-summary"];
+
+/** Copia manifesto e tarefas da fatia para um diretório temporário, preservando o layout relativo. */
+function copySliceToTmp(): { tmp: string; manifestPath: string } {
+	const tmp = mkdtempSync(join(tmpdir(), "dv-slice-copy-"));
+	cpSync(SLICE_MANIFEST, join(tmp, "external-terminal-bench-slice-v1.json"));
+	cpSync(
+		resolve(SLICE_MANIFEST, "..", "external-terminal-bench-slice-v1"),
+		join(tmp, "external-terminal-bench-slice-v1"),
+		{
+			recursive: true,
+		},
+	);
+	return { tmp, manifestPath: join(tmp, "external-terminal-bench-slice-v1.json") };
+}
+
+test("fatia congelada: manifesto verifica integridade e dataset_sha256 é o congelado", () => {
+	const result = verifySliceManifest(SLICE_MANIFEST);
+	assert.deepEqual(result.errors, [], "sem erros de integridade na fatia versionada");
+	assert.equal(result.ok, true);
+	assert.equal(result.manifest?.dataset_sha256, SLICE_DATASET_SHA256);
+	assert.deepEqual(
+		result.manifest?.tasks.map((t) => t.task_id),
+		SLICE_TASK_IDS,
+		"tarefas congeladas em ordem determinística",
+	);
+	assert.deepEqual(
+		result.manifest?.tasks.map((t) => t.tier),
+		["hard", "medium", "easy"],
+		"tiers por tarefa registrados",
+	);
+	const loaded = loadVerifiedSlice(SLICE_MANIFEST);
+	assert.equal(existsSync(join(loaded.tasksDir, "tb-log-summary", "task.json")), true);
+});
+
+test("fatia congelada: todas as tarefas têm gold.patch fora do workspace e nenhum .git ou solução vazada", () => {
+	for (const id of SLICE_TASK_IDS) {
+		const dir = join(REPO_ROOT, "experiments/p1/external-terminal-bench-slice-v1/tasks", id);
+		assert.equal(existsSync(join(dir, "gold.patch")), true, `${id}: gold.patch na raiz da tarefa`);
+		assert.equal(existsSync(join(dir, "workspace", ".git")), false, `${id}: sem .git no workspace`);
+		assert.equal(existsSync(join(dir, "workspace", "gold.patch")), false, `${id}: sem gold.patch no workspace`);
+		assert.equal(existsSync(join(dir, "workspace", "oracle")), false, `${id}: sem oráculo no workspace`);
+	}
+});
+
+test("fatia adulterada: arquivo do workspace alterado é rejeitado com a tarefa e o arquivo identificados", () => {
+	const { tmp, manifestPath } = copySliceToTmp();
+	try {
+		const target = join(
+			tmp,
+			"external-terminal-bench-slice-v1",
+			"tasks",
+			"tb-log-summary",
+			"workspace",
+			"logs",
+			"app1.log",
+		);
+		writeFileSync(
+			target,
+			`${readFileSync(target, "utf8")}2026-11-20T09:00:00Z INFO  injetado
+`,
+			"utf8",
+		);
+		const result = verifySliceManifest(manifestPath);
+		assert.equal(result.ok, false);
+		assert.ok(
+			result.errors.some(
+				(e) => e.includes("tb-log-summary") && e.includes("arquivo adulterado: workspace/logs/app1.log"),
+			),
+			`erro identifica tarefa e arquivo: ${result.errors.join(" | ")}`,
+		);
+		assert.throws(() => loadVerifiedSlice(manifestPath), /fatia externa rejeitada/);
+	} finally {
+		rmSync(tmp, { recursive: true, force: true });
+	}
+});
+
+test("fatia adulterada: arquivo novo injetado em uma tarefa é rejeitado como não declarado", () => {
+	const { tmp, manifestPath } = copySliceToTmp();
+	try {
+		writeFileSync(
+			join(tmp, "external-terminal-bench-slice-v1", "tasks", "tb-confparse-equals-bug", "gold.patch.bak"),
+			"x",
+			"utf8",
+		);
+		const result = verifySliceManifest(manifestPath);
+		assert.equal(result.ok, false);
+		assert.ok(
+			result.errors.some((e) => e.includes("arquivo não declarado: gold.patch.bak")),
+			result.errors.join(" | "),
+		);
+	} finally {
+		rmSync(tmp, { recursive: true, force: true });
+	}
+});
+
+test("fatia adulterada: tarefa extra no diretório e tarefa removida são rejeitadas", () => {
+	const { tmp, manifestPath } = copySliceToTmp();
+	try {
+		const tasksDir = join(tmp, "external-terminal-bench-slice-v1", "tasks");
+		mkdirSync(join(tasksDir, "tb-intruso"));
+		writeFileSync(join(tasksDir, "tb-intruso", "task.json"), "{}", "utf8");
+		rmSync(join(tasksDir, "tb-log-summary"), { recursive: true, force: true });
+		const result = verifySliceManifest(manifestPath);
+		assert.equal(result.ok, false);
+		assert.ok(
+			result.errors.some((e) => e.includes("tarefa não declarada no manifesto: tb-intruso")),
+			result.errors.join(" | "),
+		);
+		assert.ok(
+			result.errors.some((e) => e.includes("tb-log-summary: diretório da tarefa ausente")),
+			result.errors.join(" | "),
+		);
+	} finally {
+		rmSync(tmp, { recursive: true, force: true });
+	}
+});
+
+test("fatia adulterada: dataset_sha256 ou manifest_sha256 editados no manifesto são rejeitados", () => {
+	const { tmp, manifestPath } = copySliceToTmp();
+	try {
+		const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as SliceManifest;
+		manifest.dataset_sha256 = "0".repeat(64);
+		writeFileSync(
+			manifestPath,
+			`${JSON.stringify(manifest, null, 2)}
+`,
+			"utf8",
+		);
+		const byDataset = verifySliceManifest(manifestPath);
+		assert.equal(byDataset.ok, false);
+		assert.ok(
+			byDataset.errors.some((e) => e.includes("dataset_sha256 não confere")),
+			byDataset.errors.join(" | "),
+		);
+
+		manifest.dataset_sha256 = SLICE_DATASET_SHA256;
+		const entry = manifest.tasks[0];
+		assert.ok(entry);
+		entry.manifest_sha256 = "f".repeat(64);
+		writeFileSync(
+			manifestPath,
+			`${JSON.stringify(manifest, null, 2)}
+`,
+			"utf8",
+		);
+		const byManifest = verifySliceManifest(manifestPath);
+		assert.equal(byManifest.ok, false);
+		assert.ok(
+			byManifest.errors.some((e) => e.includes("manifest_sha256 não confere")),
+			byManifest.errors.join(" | "),
+		);
 	} finally {
 		rmSync(tmp, { recursive: true, force: true });
 	}

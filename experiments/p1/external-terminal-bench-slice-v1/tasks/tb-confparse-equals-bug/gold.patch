@@ -1,0 +1,11 @@
+--- a/confparse.py
++++ b/confparse.py
+@@ -14,7 +14,7 @@
+             continue
+         if "=" not in line:
+             raise ValueError(f"linha inválida: {raw!r}")
+-        key, value = line.split("=")
++        key, value = line.split("=", 1)
+         target = result if section is None else result.setdefault(section, {})
+         target[key.strip()] = value.strip()
+     return result

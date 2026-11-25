@@ -98,6 +98,18 @@ export function hashTaskFiles(taskDir: string): { path: string; sha256: string }
 	return out.sort((a, b) => (a.path < b.path ? -1 : 1));
 }
 
+/** SHA-256 do manifesto de uma tarefa: hash canônico da lista ordenada de {path, sha256}. */
+export function computeManifestSha256(files: { path: string; sha256: string }[]): string {
+	const filesCanonical = `${JSON.stringify(files)}\n`.replace(/\r\n/g, "\n");
+	return createHash("sha256").update(filesCanonical).digest("hex");
+}
+
+/** SHA-256 do conjunto de tarefas (entradas ordenadas por task_id e manifest_sha256, LF). */
+export function computeDatasetSha256(entries: TaskManifestEntry[]): string {
+	const tasksPayload = `${JSON.stringify(entries, null, 2)}\n`.replace(/\r\n/g, "\n");
+	return createHash("sha256").update(tasksPayload).digest("hex");
+}
+
 /** Executa uma verificação dry-run determinística com provider faux para aferir conformidade v4 e v5. */
 async function dryRunFauxConformance(task: EvalTask): Promise<{ v4_ok: boolean; v5_ok: boolean }> {
 	const tempOut = mkdtempSync(join(tmpdir(), "dv-dryrun-"));
@@ -351,8 +363,7 @@ export async function validateTaskIntake(taskDir: string): Promise<IntakeGateRes
 
 	// 6. Geração de manifesto imutável da tarefa
 	const files = hashTaskFiles(taskDirReal);
-	const filesCanonical = `${JSON.stringify(files)}\n`.replace(/\r\n/g, "\n");
-	const manifest_sha256 = createHash("sha256").update(filesCanonical).digest("hex");
+	const manifest_sha256 = computeManifestSha256(files);
 
 	const manifestEntry: TaskManifestEntry = {
 		task_id,
@@ -414,8 +425,7 @@ export async function validateTasksBatch(tasksRootDir: string, manifestOutputDir
 	});
 
 	// Calcula dataset_sha256 determinístico com eol=lf
-	const tasksPayload = `${JSON.stringify(manifestEntries, null, 2)}\n`.replace(/\r\n/g, "\n");
-	const dataset_sha256 = createHash("sha256").update(tasksPayload).digest("hex");
+	const dataset_sha256 = computeDatasetSha256(manifestEntries);
 
 	let manifestPath: string | undefined;
 	if (manifestOutputDir && manifestEntries.length > 0) {

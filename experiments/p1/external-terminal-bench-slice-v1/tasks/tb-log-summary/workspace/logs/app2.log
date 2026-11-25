@@ -1,0 +1,5 @@
+2026-11-20T08:00:02Z INFO  worker: consumer attached to queue orders
+2026-11-20T08:04:59Z ERROR worker: failed to decode message 88213
+2026-11-20T08:05:00Z ERROR worker: message 88213 moved to dead letter
+2026-11-20T08:06:30Z INFO  worker: heartbeat ok
+2026-11-20T08:07:31Z WARNING worker: queue depth above 500

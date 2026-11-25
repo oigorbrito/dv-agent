@@ -10,3 +10,5 @@ runs/
 
 # Logs da fatia externa congelada são dados de entrada versionados (não artefatos de execução).
 !experiments/p1/external-terminal-bench-slice-v1/**/*.log
+
+!experiments/p1/external-terminal-bench-slice-v2/**/*.log

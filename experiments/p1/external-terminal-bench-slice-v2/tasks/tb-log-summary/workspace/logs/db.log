@@ -1,0 +1,5 @@
+2026-11-20T08:00:00Z INFO  db: connection pool ready (size=10)
+2026-11-20T08:03:33Z INFO  db: checkpoint completed in 220ms
+2026-11-20T08:05:12Z WARNING db: long running query exceeded 2s
+2026-11-20T08:09:00Z INFO  db: vacuum skipped (no candidates)
+2026-11-20T08:10:00Z INFO  db: connection pool stats idle=8 busy=2

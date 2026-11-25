@@ -1,0 +1,6 @@
+2026-11-20T08:00:01Z INFO  api: server started on port 8080
+2026-11-20T08:00:05Z INFO  api: request GET /health 200
+2026-11-20T08:01:12Z WARNING api: slow response GET /orders 1210ms
+2026-11-20T08:02:44Z ERROR api: upstream timeout calling payments
+2026-11-20T08:02:45Z INFO  api: retry 1 scheduled
+2026-11-20T08:03:10Z INFO  api: request POST /orders 201

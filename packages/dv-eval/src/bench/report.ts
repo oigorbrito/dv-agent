@@ -3,7 +3,7 @@
 import type { ConformanceStatus, ScaffoldMode } from "@dv-agent/core";
 import type { LedgerMetrics } from "../smoke/ledger_metrics.ts";
 import type { PolicyName, RoleLimits } from "../smoke/runner.ts";
-import { CORPUS_TIERS, type CorpusTier, TIERS } from "./corpus.ts";
+import { CORPUS_TIERS, type CorpusTier, NEGATIVE_TIER, TIERS } from "./corpus.ts";
 
 export const BENCH_SCHEMA = "dv-bench-summary-v2";
 
@@ -87,7 +87,8 @@ export const ESCALATING_POLICIES: readonly PolicyName[] = ["ladder", "predictive
 const CEILING_RANK: Record<CeilingStatus, number> = { within_verified: 1, unverifiable: 2, exceeded: 3 };
 
 /**
- * Agrega por política. Linhas por tier executado; linha "all" somente quando os três tiers foram executados.
+ * Agrega por política. Linhas por tier executado; linha "all" quando mais de um tier positivo foi executado
+ * (inclui fatias externas com easy/medium/hard) ou quando os quatro tiers do corpus foram executados.
  * `tiers` são os tiers efetivamente executados (não o filtro pedido).
  */
 export function aggregate(
@@ -96,7 +97,8 @@ export function aggregate(
 	tiers: readonly CorpusTier[],
 ): GroupRow[] {
 	const rows: GroupRow[] = [];
-	const allExecuted = TIERS.every((t) => tiers.includes(t));
+	const positiveExecuted = tiers.filter((t) => t !== NEGATIVE_TIER);
+	const allExecuted = positiveExecuted.length > 1 || TIERS.every((t) => tiers.includes(t));
 	for (const policy of policies) {
 		const byPolicy = runs.filter((r) => r.policy === policy);
 		if (allExecuted) rows.push(groupRow(policy, "all", byPolicy));

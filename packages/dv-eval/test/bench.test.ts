@@ -528,3 +528,30 @@ test("Wilson 95%: renderiza [low%, high%] e a coluna ci_95 antes de pass^k no su
 	assert.match(md, /\| solve_rate \| ci_95 \|/);
 	assert.ok(md.indexOf("| ci_95 |") < md.indexOf("| pass^k |"));
 });
+
+test('agregação: linha "all" existe com mais de um tier executado (fatia externa easy/medium/hard) e não existe com tier único', () => {
+	const rec = (task: string, tier: "easy" | "medium" | "hard", solved: boolean): RunRecord => ({
+		task_id: task,
+		repeat: 0,
+		tier,
+		policy: "ladder",
+		final_outcome: solved ? "solved" : "unsolved",
+		solved,
+		escalated: false,
+		steps: [],
+		conformance_status: "PASS",
+		conformance_violations: [],
+	});
+	const runs = [rec("a", "easy", true), rec("b", "medium", false), rec("c", "hard", true)];
+	const multi = aggregate(runs, ["ladder"], ["easy", "medium", "hard"]);
+	const overall = multi.find((r) => r.tier === "all");
+	assert.ok(overall, "linha all presente com três tiers");
+	assert.equal(overall?.runs, 3);
+	assert.equal(overall?.solved, 2);
+	const single = aggregate(runs.slice(0, 1), ["ladder"], ["easy"]);
+	assert.equal(
+		single.some((r) => r.tier === "all"),
+		false,
+		"tier único não gera linha all",
+	);
+});

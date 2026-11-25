@@ -10,7 +10,7 @@ import {
 	checkLedgerConformance,
 	classifyModelTier,
 	FAN_PLANNING_DIRECTIVE,
-	FRONTIER_BASH_SYSTEM_PROMPT,
+	FRONTIER_SYSTEM_PROMPT,
 } from "@dv-agent/core";
 import { findPackageRoot } from "../src/package_paths.ts";
 import { fixtureTurns } from "../src/smoke/offline_fixtures.ts";
@@ -109,7 +109,7 @@ test("scaffold: uniform fornece 4 ferramentas e prompt padrão para todos os por
 	}
 });
 
-test("scaffold: adaptive alterna entre kit completo com diretriz (leves) e bash-only (fronteira)", () => {
+test("scaffold: adaptive dá kit completo com diretriz (leves) e kit completo com prompt enxuto (fronteira)", () => {
 	const ws = mkdtempSync(join(tmpdir(), "dv-scaffold-adaptive-"));
 	try {
 		const light = assembleScaffold({ workspaceRoot: ws, modelId: "claude-haiku-5-5", scaffoldMode: "adaptive" });
@@ -122,9 +122,9 @@ test("scaffold: adaptive alterna entre kit completo com diretriz (leves) e bash-
 			modelId: "claude-sonnet-4-6",
 			scaffoldMode: "adaptive",
 		});
-		assert.equal(frontier.tools.length, 1);
-		assert.equal(frontier.tools[0]?.name, "run_bash");
-		assert.equal(frontier.systemPrompt, FRONTIER_BASH_SYSTEM_PROMPT);
+		assert.deepEqual(frontier.tools.map((t) => t.name).sort(), ["edit_file", "read_file", "run_bash", "write_file"]);
+		assert.equal(frontier.systemPrompt, FRONTIER_SYSTEM_PROMPT);
+		assert.doesNotMatch(frontier.systemPrompt, new RegExp(FAN_PLANNING_DIRECTIVE));
 	} finally {
 		rmSync(ws, { recursive: true, force: true });
 	}
@@ -214,7 +214,7 @@ function toolNamesOf(ledgerPath: string): string[] {
 	return names;
 }
 
-test("porte real no offline: single com --model sonnet + adaptive usa roteiro forte e só run_bash", async () => {
+test("porte real no offline: single com --model sonnet + adaptive usa roteiro forte com kit completo", async () => {
 	const outdir = mkdtempSync(join(tmpdir(), "dv-test-single-frontier-"));
 	try {
 		const summary = await runSmoke({
@@ -231,8 +231,8 @@ test("porte real no offline: single com --model sonnet + adaptive usa roteiro fo
 		const names = toolNamesOf(summary.steps[0]!.ledger_path);
 		assert.ok(names.length > 0, "há chamadas de ferramenta");
 		assert.ok(
-			names.every((n) => n === "run_bash"),
-			`fronteira em adaptive usa só run_bash: ${[...new Set(names)].join(",")}`,
+			names.includes("read_file") || names.includes("edit_file"),
+			`fronteira em adaptive mantém kit de arquivo: ${[...new Set(names)].join(",")}`,
 		);
 	} finally {
 		rmSync(outdir, { recursive: true, force: true });

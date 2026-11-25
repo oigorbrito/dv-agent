@@ -477,9 +477,8 @@ async function prepareEngine(
 	const key = `${ref.provider}/${ref.modelId}`;
 	if (options.authMode === "offline-faux") {
 		const id = ref.modelId;
-		const bashOnly = options.scaffoldMode === "adaptive" && classifyModelTier(ref.tierModelId ?? id) === "frontier";
 		const runtime = fauxRuntime(OFFLINE_PROVIDER, [id]);
-		runtime.script(fixtureTurns(options.taskDir, id, { bashOnly }) ?? offlineTurns(id, { bashOnly }));
+		runtime.script(fixtureTurns(options.taskDir, id) ?? offlineTurns(id));
 		return {
 			model: runtime.modelOf(id),
 			streamFn: runtime.streamFn,

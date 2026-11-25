@@ -1,9 +1,10 @@
 // Perfil de scaffold adaptativo por porte do modelo (--scaffold-mode uniform|adaptive).
 // Fan et al. (2026), arXiv:2609.20804:
 // - Modelos leves se beneficiam de kit tipado completo + disciplina curta de planejamento.
-// - Modelos de fronteira operam eficientemente em modo enxuto (bash-only), cortando overhead de definições e turnos.
+// - Modelos de fronteira mantêm o kit de arquivo tipado (read/write/edit/bash), mas com prompt de sistema enxuto.
+//   Forçar bash-only em fronteira causou estouro de tokens (escaping de shell) no piloto live.
 import type { AgentTool } from "@earendil-works/pi-agent-core";
-import { createWorkspaceTools, runBashTool, type WorkspaceToolsOptions } from "./workspace_tools.ts";
+import { createWorkspaceTools, type WorkspaceToolsOptions } from "./workspace_tools.ts";
 
 export type ScaffoldMode = "uniform" | "adaptive";
 export type ModelTier = "light" | "frontier";
@@ -43,8 +44,8 @@ export const FAN_PLANNING_DIRECTIVE =
 	"Antes da primeira edição de qualquer arquivo, planeje a abordagem em poucas linhas.";
 
 export const DEFAULT_SYSTEM_PROMPT = "Você é um agente de código. Use as ferramentas do workspace.";
-export const FRONTIER_BASH_SYSTEM_PROMPT =
-	"Você é um agente de código. Use a ferramenta run_bash para inspecionar e editar o workspace.";
+/** Prompt enxuto para fronteira em adaptive: sem diretriz de planejamento e sem boilerplate. */
+export const FRONTIER_SYSTEM_PROMPT = "Você é um agente de código. Use as ferramentas do workspace.";
 
 export interface ScaffoldProfile {
 	mode: ScaffoldMode;
@@ -64,7 +65,7 @@ export interface AssembleScaffoldOptions extends WorkspaceToolsOptions {
  * - uniform: kit padrão de 4 ferramentas tipadas e prompt base para todos os degraus.
  * - adaptive:
  *   - leves (haiku, flash, mini, luna, cheap): kit completo + diretriz de planejamento;
- *   - fronteira (sonnet, opus, terra, astra, strong): modo enxuto (run_bash exclusivo).
+ *   - fronteira (sonnet, opus, terra, astra, strong): kit completo + prompt enxuto (sem diretriz de planejamento).
  */
 export function assembleScaffold(options: AssembleScaffoldOptions): ScaffoldProfile {
 	const mode = options.scaffoldMode ?? "uniform";
@@ -84,8 +85,8 @@ export function assembleScaffold(options: AssembleScaffoldOptions): ScaffoldProf
 		return {
 			mode,
 			tier,
-			tools: [runBashTool(options.workspaceRoot, options.maxOutputBytes, options.bashTimeoutMs)],
-			systemPrompt: FRONTIER_BASH_SYSTEM_PROMPT,
+			tools: createWorkspaceTools(options),
+			systemPrompt: FRONTIER_SYSTEM_PROMPT,
 		};
 	}
 

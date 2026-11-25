@@ -194,6 +194,9 @@ test("fluxo completo: Agent com provider faux executa read_file -> edit_file -> 
 	);
 	assert.match(results[0]?.text ?? "", /return a - b/);
 	assert.equal(readFileSync(join(root, "calc.py"), "utf8"), "def add(a, b):\n    return a + b\n");
-	assert.match(results[2]?.text ?? "", /^5/);
+
+	const ansi = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
+	const output = (results[2]?.text ?? "").replace(ansi, "");
+	assert.match(output, /^5/);
 	assert.ok(tool("edit_file"));
 });

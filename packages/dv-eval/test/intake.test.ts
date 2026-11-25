@@ -532,6 +532,20 @@ test("fatia congelada: manifesto verifica integridade e dataset_sha256 é o cong
 	assert.equal(existsSync(join(loaded.tasksDir, "tb-log-summary", "task.json")), true);
 });
 
+test("fatia v2: manifesto corrigido verifica integridade e preserva o schema de saída explícito", () => {
+	const manifest = resolve(REPO_ROOT, "experiments/p1/external-terminal-bench-slice-v2.json");
+	const result = verifySliceManifest(manifest);
+	assert.equal(result.ok, true, result.errors.join(" | "));
+	assert.equal(result.manifest?.dataset_sha256, "86d1d082fa2ebbf010440bed9a0f4aa7d786884e2d094a8a395ad8ce5dc0df5a");
+	const task = JSON.parse(
+		readFileSync(
+			resolve(REPO_ROOT, "experiments/p1/external-terminal-bench-slice-v2/tasks/tb-jsonl-top-aggregates/task.json"),
+			"utf8",
+		),
+	);
+	assert.match(task.prompt, /dicionário JSON indexado.*<user>/);
+});
+
 test("fatia congelada: todas as tarefas têm gold.patch fora do workspace e nenhum .git ou solução vazada", () => {
 	for (const id of SLICE_TASK_IDS) {
 		const dir = join(REPO_ROOT, "experiments/p1/external-terminal-bench-slice-v1/tasks", id);

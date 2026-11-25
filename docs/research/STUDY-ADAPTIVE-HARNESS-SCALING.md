@@ -239,3 +239,12 @@ Os dados desta execução sugerem:
 - Custo em USD e conformidade v4 não foram medidos. A recomendação não atende o critério 4 de §5.
 
 **Próximo passo sugerido:** repetir A, C e D com N=3 no `holdout` e incluir tarefas `frontier` adicionais, com teto de tokens por degrau, antes de definir o limiar de escalonamento.
+
+### 8.8 Consolidação final offline (Marco 1 e Marco 2, N=3)
+
+- **Marco 1:** `tb-jsonl-top-aggregates` falhou por formato de saída: Haiku e Sonnet produziram listas, enquanto o oráculo exige dicionário indexado por usuário. Não foi falha de cálculo; o Sonnet registrou 4 chamadas concluídas com telemetria MEASURED.
+- **Fatia v2:** `experiments/p1/external-terminal-bench-slice-v2.json`, validada offline pelo `intake_gate` faux; dataset SHA-256 `86d1d082fa2ebbf010440bed9a0f4aa7d786884e2d094a8a395ad8ce5dc0df5a`. O enunciado passou a exigir `{ \"<user>\": { ... } }`; a v1 permanece preservada.
+- **Marco 2 — Sonnet controle:** 27/27 resolvidas; 7.282.572 tokens; telemetria MEASURED.
+- **Escada:** 26/27 resolvidas; Δ = −151.293 tokens/tarefa, IC 95% [−263.982; −62.760], seed 20261124 e 10.000 reamostragens. Solve rate −0,037, IC 95% [−0,111; 0].
+- **Haiku single e Preditivo live:** 0/27 e INCONCLUSIVE em ambos; ledger aponta HTTP 429 `rate_limit_error` da assinatura OAuth, sem tokens consumidos. APGR, AIQ e fronteira de Pareto ficam pendentes de nova janela de cota.
+- O roteador offline faux com histórico de calibração passou 1/1, MEASURED e v4 PASS, registrando `route_decided` com a partição calibration.

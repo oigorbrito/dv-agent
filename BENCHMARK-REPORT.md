@@ -308,3 +308,12 @@ Fatia congelada pelo gate fail-closed, `dataset_sha256` `4678226546db5368292114d
 
 - A seção 9 (holdout N=3) continua válida como registro **sem histórico** (partida fria, limiar `null`). Não substitui o Marco 2.
 - Os critérios de conformidade v4 ficam `INCONCLUSIVE` em assinatura, pela regra (c) já documentada.
+
+### 11.4 Consolidação final offline (N=3)
+
+- **Marco 1 — v1:** `tb-jsonl-top-aggregates` falhou em Haiku e Sonnet por formato de saída, não por valores: ambos produziram listas de objetos, enquanto o oráculo exige um dicionário indexado por usuário. O Sonnet usou 4 chamadas concluídas com telemetria MEASURED.
+- **Fatia v2 offline:** `experiments/p1/external-terminal-bench-slice-v2.json`, validada por `scripts/dv-freeze-external-slice.ts` e pelo `intake_gate` faux; dataset SHA-256 `86d1d082fa2ebbf010440bed9a0f4aa7d786884e2d094a8a395ad8ce5dc0df5a`. O enunciado de `tb-jsonl-top-aggregates` agora exige `{ \"<user>\": { ... } }`. A v1 permanece intacta.
+- **Marco 2 — Sonnet controle:** 27/27 resolvidas, 7.282.572 tokens, telemetria MEASURED.
+- **Marco 2 — escada:** 26/27 resolvidas; bootstrap pareado por tarefa, tratamento menos controle: Δ = −151.293 tokens/tarefa, IC 95% [−263.982; −62.760], seed 20261124 e 10.000 reamostragens. Diferença de solve rate −0,037, IC 95% [−0,111; 0].
+- **Braços Haiku single e Preditivo live:** não produziram medição válida. O Haiku registrou 27 runs, 0 resolvidas e telemetria INCONCLUSIVE; o Preditivo registrou 27 runs, 0 resolvidas e telemetria INCONCLUSIVE. O ledger identifica HTTP 429 `rate_limit_error` da assinatura OAuth sem consumo de tokens. APGR, AIQ e a fronteira de Pareto ficam pendentes de nova janela de cota; esses resultados não são tratados como qualidade do modelo/política.
+- A validação offline faux do roteador com histórico de calibração passou: 1/1, MEASURED, v4 PASS; o ledger registrou `route_decided` com partição calibration.

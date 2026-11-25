@@ -286,7 +286,11 @@ test("bash-only: comandos gerados por fixture gravam os arquivos byte a byte, ca
 	// Executa os comandos em um workspace limpo e compara com a fonte do roteiro.
 	const ws = mkdtempSync(join(tmpdir(), "dv-test-bash-only-"));
 	try {
-		for (const command of commands) execSync(command, { cwd: ws, stdio: "pipe" });
+		const pyBin = process.platform === "win32" ? "python" : "python3";
+		for (const command of commands) {
+			const resolvedCmd = command.startsWith("python ") ? `${pyBin}${command.slice("python".length)}` : command;
+			execSync(resolvedCmd, { cwd: ws, stdio: "pipe" });
+		}
 		const sourceDir = join(taskDir, "offline", "strong");
 		const walk = (dir: string, rel = ""): string[] =>
 			readdirSync(join(dir, rel), { withFileTypes: true }).flatMap((e) =>

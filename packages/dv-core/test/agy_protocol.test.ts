@@ -159,7 +159,12 @@ test("cliente: handshake e turno com chunks de texto, usage e contagem de usage_
 		terminal: true,
 	});
 	await client.close();
-	assert.deepEqual(commands[0], [...AGY_DEFAULT_COMMAND]);
+	assert.equal(commands[0]?.length, AGY_DEFAULT_COMMAND.length);
+	assert.ok(
+		commands[0]?.[0] === AGY_DEFAULT_COMMAND[0] || commands[0]?.[0]?.endsWith("agy.exe"),
+		`executável inesperado: ${commands[0]?.[0]}`,
+	);
+	assert.deepEqual(commands[0]?.slice(1), AGY_DEFAULT_COMMAND.slice(1));
 	assert.equal(mock.children[0]?.alive, false, "processo encerrado ao fechar");
 });
 

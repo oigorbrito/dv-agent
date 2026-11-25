@@ -56,25 +56,25 @@ test("run: corte por orçamento interrompe o agente, bloqueia a ferramenta segui
 		doomLoopMaxIdenticalConsecutive: 10,
 	});
 
+	// Gate pré-chamada: a 2ª chamada (pior caso 2,0 USD > saldo 0,5) nem chega ao provedor. O teto nunca é excedido.
 	assert.equal(result.status, "budget_exceeded");
-	assert.equal(result.ceilingStatus, "exceeded");
-	assert.equal(result.spentLowerBoundUsd, 2);
-	assert.equal(runtime.faux.getPendingResponseCount(), 2, "respostas após o corte não são consumidas");
-	assert.equal(executions, 1, "só a primeira ferramenta roda; a do estouro e as seguintes são bloqueadas");
+	assert.equal(result.ceilingStatus, "within_verified");
+	assert.equal(result.spentLowerBoundUsd, 1);
+	assert.equal(
+		runtime.faux.getPendingResponseCount(),
+		3,
+		"só a 1ª resposta é consumida; o provedor não é chamado de novo",
+	);
+	assert.equal(executions, 1, "só a primeira ferramenta roda");
+	assert.equal(workspace.has("a.txt"), true);
 	assert.equal(workspace.has("b.txt"), false);
 
 	const lines = readFileSync(ledgerPath, "utf8")
 		.split("\n")
 		.filter(Boolean)
 		.map((l) => JSON.parse(l) as Record<string, unknown>);
-	// O corte ocorre em message_end. A ferramenta pendente do turno do estouro não executa: registro explícito not_executed.
 	const toolStatuses = lines.filter((ev) => ev.event === "tool_finished").map((ev) => [ev.tool_call_id, ev.status]);
-	assert.deepEqual(toolStatuses, [
-		["c1", "ok"],
-		["c2", "blocked"],
-	]);
-	const cut = lines.find((ev) => ev.event === "tool_finished" && ev.tool_call_id === "c2") as { block_reason: string };
-	assert.equal(cut.block_reason, "not_executed: budget_exceeded");
+	assert.deepEqual(toolStatuses, [["c1", "ok"]]);
 	const finished = lines.at(-1) as { status: string; guard_events: { budget_blocked_tools: number } };
 	assert.equal(finished.status, "budget_exceeded");
 	assert.equal(finished.guard_events.budget_blocked_tools, 0);

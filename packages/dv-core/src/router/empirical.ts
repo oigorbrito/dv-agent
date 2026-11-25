@@ -1,5 +1,6 @@
 // Índice empírico determinístico para roteamento. Não faz I/O; a leitura/partição dos resumos fica em dv-eval.
 import { createHash } from "node:crypto";
+import type { KnnExample } from "./knn_predictor.ts";
 
 export interface EmpiricalObservation {
 	taskId: string;
@@ -28,6 +29,9 @@ export interface EmpiricalFailureIndex {
 	observations: EmpiricalObservation[];
 	byTask: Record<string, EmpiricalStats>;
 	byCategory: Record<string, EmpiricalStats>;
+	knnExamples?: KnnExample[];
+	knnCalibrationIds?: string[];
+	knnHoldoutIds?: string[];
 }
 
 export interface EmpiricalRouteEvidence {

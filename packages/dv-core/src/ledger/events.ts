@@ -45,6 +45,15 @@ export interface RouteDecidedPayload {
 		start_rung: number;
 		reason: string;
 	};
+	knn_evidence?: {
+		start_rung: 0 | 1;
+		reason_code: string;
+		neighbors: { task_id: string; similarity: number; failed_rung0: boolean }[];
+		weighted_failure_rate: number | null;
+		weight_sum: number;
+		k: number;
+		theta: number;
+	};
 }
 
 export interface CallStartedPayload {

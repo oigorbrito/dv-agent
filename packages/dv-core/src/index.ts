@@ -82,6 +82,14 @@ export {
 	type EmpiricalStats,
 } from "./router/empirical.ts";
 export {
+	extractTaskFeatures,
+	type KnnExample,
+	type KnnNeighbor,
+	type KnnPrediction,
+	KnnRoutingPredictor,
+	type TaskFeatureVector,
+} from "./router/knn_predictor.ts";
+export {
 	ArchitectEditorPolicy,
 	type Attempt,
 	DEFAULT_ESCALATE_ON_STATUSES,

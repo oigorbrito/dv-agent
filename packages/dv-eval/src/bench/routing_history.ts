@@ -1,8 +1,16 @@
 // Loader dos históricos dv-bench. Isola a calibração pela partição registrada no corpus e detecta reuso de evidência.
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
-import { buildEmpiricalFailureIndex, type EmpiricalFailureIndex, type EmpiricalObservation } from "@dv-agent/core";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import {
+	buildEmpiricalFailureIndex,
+	type EmpiricalFailureIndex,
+	type EmpiricalObservation,
+	extractPythonSignals,
+	extractTaskFeatures,
+	type KnnExample,
+	type SourceFile,
+} from "@dv-agent/core";
 import { discoverCorpus } from "./corpus.ts";
 import { partitionTaskIds } from "./routing_calibration.ts";
 
@@ -93,7 +101,41 @@ export function loadRoutingHistory(
 		);
 		sources.set(path, { path, sha256: digest });
 	}
-	return buildEmpiricalFailureIndex(observations, [...sources.values()]);
+	const index = buildEmpiricalFailureIndex(observations, [...sources.values()]);
+	const obsByTask = new Map<string, { runs: number; failures: number }>();
+	for (const obs of index.observations) {
+		const s = obsByTask.get(obs.taskId) ?? { runs: 0, failures: 0 };
+		s.runs += 1;
+		if (obs.verdict === "FAIL") s.failures += 1;
+		obsByTask.set(obs.taskId, s);
+	}
+	const knnExamples: KnnExample[] = [];
+	for (const task of tasks) {
+		if (!calibrationTaskIds.has(task.id)) continue;
+		const stats = obsByTask.get(task.id);
+		if (stats === undefined || stats.runs === 0) continue;
+		const taskJson = JSON.parse(readFileSync(join(task.dir, "task.json"), "utf8")) as {
+			prompt?: unknown;
+			workspace_dir?: unknown;
+		};
+		const wsDir = join(task.dir, typeof taskJson.workspace_dir === "string" ? taskJson.workspace_dir : "workspace");
+		const sourceFiles = collectWorkspaceFiles(wsDir);
+		const signals = extractPythonSignals(sourceFiles);
+		const specText = [
+			typeof taskJson.prompt === "string" ? taskJson.prompt : "",
+			...sourceFiles.filter((f) => f.path.endsWith(".md")).map((f) => f.content),
+		].join("\n");
+		knnExamples.push({
+			taskId: task.id,
+			partition: "calibration",
+			features: extractTaskFeatures(specText, sourceFiles, signals),
+			failedRung0: stats.failures / stats.runs >= 0.5,
+		});
+	}
+	index.knnExamples = knnExamples;
+	index.knnCalibrationIds = [...partition.calibration];
+	index.knnHoldoutIds = [...partition.holdout];
+	return index;
 }
 
 /** Impede que o índice inclua exatamente as execuções já gravadas no outdir que será roteado. */
@@ -145,4 +187,17 @@ function assertStepHashes(raw: unknown, knownLedgers: ReadonlySet<string>, path:
 			throw new Error(`data leakage recusado: ledger do outdir atual também consta no histórico (${path})`);
 		}
 	}
+}
+
+function collectWorkspaceFiles(rootDir: string, relBase = ""): SourceFile[] {
+	if (!existsSync(rootDir)) return [];
+	const out: SourceFile[] = [];
+	for (const name of readdirSync(rootDir).sort()) {
+		const full = join(rootDir, name);
+		const rel = relBase === "" ? name : `${relBase}/${name}`;
+		const st = statSync(full);
+		if (st.isDirectory()) out.push(...collectWorkspaceFiles(full, rel));
+		else if (st.isFile()) out.push({ path: rel, content: readFileSync(full, "utf8") });
+	}
+	return out;
 }

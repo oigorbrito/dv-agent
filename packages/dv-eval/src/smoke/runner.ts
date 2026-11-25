@@ -4,7 +4,17 @@
 // - api-key: provedor real via catálogo do pi-ai. Só executa se a regra de capacidade (contract v4, regra b) permitir.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -17,6 +27,8 @@ import {
 	type EmpiricalFailureIndex,
 	ExecutionGuidedLadderPolicy,
 	executeRung,
+	extractPythonSignals,
+	extractTaskFeatures,
 	fauxRuntime,
 	type ModelRef,
 	PredictiveHarnessRouterPolicy,
@@ -27,6 +39,7 @@ import {
 	type RouterPolicy,
 	type ScaffoldMode,
 	SingleModelPolicy,
+	type SourceFile,
 } from "@dv-agent/core";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Model } from "@earendil-works/pi-ai";
@@ -242,6 +255,19 @@ export function buildPolicy(options: SmokeOptions, history?: EmpiricalFailureInd
 	});
 }
 
+function collectInitialFiles(rootDir: string, relBase = ""): SourceFile[] {
+	if (!existsSync(rootDir)) return [];
+	const out: SourceFile[] = [];
+	for (const name of readdirSync(rootDir).sort()) {
+		const full = join(rootDir, name);
+		const rel = relBase === "" ? name : `${relBase}/${name}`;
+		const st = statSync(full);
+		if (st.isDirectory()) out.push(...collectInitialFiles(full, rel));
+		else if (st.isFile()) out.push({ path: rel, content: readFileSync(full, "utf8") });
+	}
+	return out;
+}
+
 function makePredictivePolicy(
 	options: SmokeOptions,
 	rungs: ConstructorParameters<typeof PredictiveHarnessRouterPolicy>[0]["rungs"],
@@ -250,12 +276,17 @@ function makePredictivePolicy(
 	const task = loadTask(options.taskDir);
 	const definition = JSON.parse(readFileSync(join(options.taskDir, "task.json"), "utf8")) as { tier?: unknown };
 	if (typeof definition.tier !== "string") throw new Error(`task ${task.id} sem categoria tier`);
+	const wsFiles = collectInitialFiles(join(resolve(options.taskDir), task.workspace_dir));
+	const signals = extractPythonSignals(wsFiles);
+	const specText = [task.prompt, ...wsFiles.filter((f) => f.path.endsWith(".md")).map((f) => f.content)].join("\n");
+	const taskFeatures = extractTaskFeatures(specText, wsFiles, signals);
 	return new PredictiveHarnessRouterPolicy({
 		rungs,
 		globalMaxCostUsd: options.maxCostUsd,
 		history,
 		taskId: task.id,
 		category: definition.tier,
+		taskFeatures,
 	});
 }
 
@@ -400,6 +431,23 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 									signals: null,
 									empirical_evidence:
 										policy instanceof PredictiveHarnessRouterPolicy ? policy.routeEvidence : undefined,
+									...(policy instanceof PredictiveHarnessRouterPolicy && policy.knnEvidence !== undefined
+										? {
+												knn_evidence: {
+													start_rung: policy.knnEvidence.startRung,
+													reason_code: policy.knnEvidence.reasonCode,
+													neighbors: policy.knnEvidence.neighbors.map((n) => ({
+														task_id: n.taskId,
+														similarity: n.similarity,
+														failed_rung0: n.failedRung0,
+													})),
+													weighted_failure_rate: policy.knnEvidence.weightedFailureRate,
+													weight_sum: policy.knnEvidence.weightSum,
+													k: policy.knnEvidence.k,
+													theta: policy.knnEvidence.theta,
+												},
+											}
+										: {}),
 								},
 							}
 						: {}),

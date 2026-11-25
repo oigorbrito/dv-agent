@@ -8,6 +8,8 @@ export interface PriceEntry {
 	output: number;
 	cacheRead: number;
 	cacheWrite: number;
+	/** Faixas por tamanho de entrada (pi-ai: a maior faixa atingida vale para a requisição inteira). */
+	tiers?: readonly { inputTokensAbove: number; input: number; output: number; cacheRead: number; cacheWrite: number }[];
 }
 
 /** Tabela de preços versionada. Chave: `provider/modelId`. */

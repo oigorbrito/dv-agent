@@ -7,12 +7,14 @@
 //   --model provider/modelId  --escalation-model provider/modelId  --ladder-models modelo,...  --auth-file CAMINHO  --outdir DIR
 //   --task DIR  --max-cost USD
 import { resolve } from "node:path";
+import type { ScaffoldMode } from "../packages/dv-core/src/tools/scaffold.ts";
 import { formatTokenCount } from "../packages/dv-eval/src/bench/report.ts";
 import { parseArgs } from "../packages/dv-eval/src/cli/args.ts";
 import { type AuthMode, type PolicyName, runSmoke } from "../packages/dv-eval/src/smoke/runner.ts";
 
 const POLICIES: readonly PolicyName[] = ["single", "ladder", "architect-editor", "predictive-harness-router"];
 const AUTH_MODES: readonly string[] = ["offline-faux", "faux", "api-key", "subscription"];
+const SCAFFOLD_MODES: readonly string[] = ["uniform", "adaptive"];
 
 const args = parseArgs(process.argv.slice(2), undefined, ["routing-history"]);
 const text = (name: string): string | undefined => {
@@ -23,11 +25,15 @@ const text = (name: string): string | undefined => {
 const policy = text("policy") ?? "";
 const requestedAuthMode = text("auth-mode") ?? "offline-faux";
 const authMode = requestedAuthMode === "faux" ? "offline-faux" : requestedAuthMode;
+const scaffoldMode = (text("scaffold-mode") ?? "uniform") as ScaffoldMode;
 if (!(POLICIES as readonly string[]).includes(policy)) {
 	throw new Error(`--policy deve ser um de: ${POLICIES.join(", ")}`);
 }
 if (!(AUTH_MODES as readonly string[]).includes(authMode)) {
 	throw new Error(`--auth-mode deve ser um de: ${AUTH_MODES.join(", ")}`);
+}
+if (!(SCAFFOLD_MODES as readonly string[]).includes(scaffoldMode)) {
+	throw new Error(`--scaffold-mode deve ser um de: ${SCAFFOLD_MODES.join(", ")}`);
 }
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const summary = await runSmoke({
@@ -45,6 +51,7 @@ const summary = await runSmoke({
 		.map((path) => resolve(path)),
 	routingHistoryPartition: text("routing-history-partition") as "calibration" | "train" | undefined,
 	authPath: text("auth-file") === undefined ? undefined : resolve(text("auth-file") ?? ""),
+	scaffoldMode,
 	outdir: resolve(text("outdir") ?? `runs/smoke-${policy}-${stamp}`),
 	maxCostUsd: Number(text("max-cost") ?? 0.05),
 	probesDir: resolve(import.meta.dirname, "../packages/dv-eval/probe-results"),
@@ -58,6 +65,7 @@ console.log(
 				step: s.step,
 				role: s.role,
 				model: s.model,
+				reasoning_effort: s.reasoning_effort,
 				verdict: s.oracle?.verdict ?? null,
 				tokens: formatTokenCount(s.total_tokens, s.telemetry_complete ? "MEASURED" : "UNVERIFIABLE"),
 				spent_lower_bound_usd: s.spent_lower_bound_usd,

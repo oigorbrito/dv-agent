@@ -1,0 +1,13 @@
+{
+  "schema": "dv-eval-task-v1",
+  "id": "tb-confparse-equals-bug",
+  "tier": "hard",
+  "title": "Corrigir leitor de configuração que quebra valores com '='",
+  "prompt": "confparse.py (raiz do workspace) lê arquivos chave = valor com seções [nome]. Há um defeito: valores que contêm '=' (por exemplo url = http://h/?a=1&b=2) fazem o parser falhar. Corrija parse_config em confparse.py para que o valor inteiro, incluindo todos os '=' após o primeiro, seja preservado. Mantenha o comportamento para comentários, linhas em branco, seções e linhas inválidas (ValueError). Não altere o oráculo nem crie arquivos de teste fora de confparse.py.",
+  "workspace_dir": "workspace",
+  "oracle": {
+    "dir": "oracle",
+    "command": ["python", "check.py"],
+    "timeout_ms": 30000
+  }
+}

@@ -1,0 +1,182 @@
+name: ingest-external-studies
+
+on:
+  schedule:
+    # Semanal: toda segunda-feira às 09:00 UTC
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+    inputs:
+      run_faux_gate:
+        description: "Executar gate offline determinístico (--auth-mode faux) sobre tarefas pendentes"
+        required: false
+        default: true
+        type: boolean
+      run_live_eval:
+        description: "Executar ablação live controlada (bloqueado por padrão, fail-closed)"
+        required: false
+        default: false
+        type: boolean
+      max_tokens:
+        description: "Orçamento explícito de tokens para execução live (obrigatório se run_live_eval for true)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  ingest-and-offline-gate:
+    name: ingest-and-offline-gate (custo zero de API)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      date: ${{ steps.date.outputs.date }}
+      pr_created: ${{ steps.cpr.outputs.pull-request-number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Obter data de hoje
+        id: date
+        run: echo "date=$(date +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.19.0"
+          cache: npm
+
+      - name: Python para os oráculos das tarefas (gate offline)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependências (lockfile)
+        run: npm ci
+
+      - name: Verificar integridade e SHA-256 dos contratos v4 e v5 (imutabilidade)
+        run: |
+          EXPECTED_V4="11b4d5453e0964a7eb88decb5cbf7d1c5f5eebf4fbbdd458fb4e38686baef486"
+          EXPECTED_V5="5029e770865a8fdf6c70f1dad9283ff06d8bb6012018d613eb77a2363c3820ad"
+
+          ACTUAL_V4=$(sha256sum contracts/run-accounting-contract-v4.json | awk '{print $1}')
+          ACTUAL_V5=$(sha256sum contracts/run-accounting-contract-v5.json | awk '{print $1}')
+
+          echo "Contrato v4: $ACTUAL_V4 (esperado: $EXPECTED_V4)"
+          echo "Contrato v5: $ACTUAL_V5 (esperado: $EXPECTED_V5)"
+
+          if [ "$ACTUAL_V4" != "$EXPECTED_V4" ]; then
+            echo "ERRO FATAL: Contrato v4 foi adulterado ou diverge do hash canônico!"
+            exit 1
+          fi
+
+          if [ "$ACTUAL_V5" != "$EXPECTED_V5" ]; then
+            echo "ERRO FATAL: Contrato v5 foi adulterado ou diverge do hash canônico!"
+            exit 1
+          fi
+
+      - name: Hidratar catálogo pi-ai e compilar runtime vendorado
+        run: |
+          npm run hydrate:pi-ai-data
+          npm run build:runtime
+
+      - name: Coletar feeds públicos e executar gate offline
+        run: |
+          RUN_GATE_ARG=""
+          if [ "${{ github.event.inputs.run_faux_gate }}" = "false" ]; then
+            RUN_GATE_ARG="--run-gate false"
+          fi
+          node scripts/dv-ingest-studies.ts --live-feeds $RUN_GATE_ARG
+
+      - name: Criar ou atualizar Pull Request com achados e manifesto
+        id: cpr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(research): ingest external studies and validate offline queue (${{ steps.date.outputs.date }})"
+          branch: chore/research-intake-${{ steps.date.outputs.date }}
+          title: "chore(research): ingest external studies and offline gate report (${{ steps.date.outputs.date }})"
+          body: |
+            ### Ingestão Automatizada de Estudos e Gate Offline (${{ steps.date.outputs.date }})
+
+            - **Modo:** Feeds públicos gratuitos (arXiv Atom API + GitHub Releases) sem custo de tokens de modelo.
+            - **Contratos:** v4 (`11b4d545...baef486`) e v5 (`5029e770...`) verificados e intocados.
+            - **Arquivos atualizados:**
+              - `experiments/external-queue/intake-${{ steps.date.outputs.date }}.json`
+              - `docs/research/EXTERNAL-FINDINGS-2026.md` (seção `<!-- BEGIN:AUTO-INGEST -->`)
+              - Manifestos imutáveis validados com `dataset_sha256`.
+
+            *Submetido automaticamente pelo pipeline semanal de ingestão e governança.*
+          delete-branch: true
+          labels: |
+            research
+            intake-pipeline
+            automated-pr
+
+  controlled-ablation-eval:
+    name: controlled-ablation-eval (fail-closed, bloqueado por padrão)
+    needs: ingest-and-offline-gate
+    if: github.event.inputs.run_live_eval == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validação fail-closed de parâmetros live
+        env:
+          MAX_TOKENS: ${{ github.event.inputs.max_tokens }}
+        run: |
+          if ! [[ "$MAX_TOKENS" =~ ^[1-9][0-9]*$ ]]; then
+            echo "ERRO FATAL: execução live exige max_tokens como inteiro positivo."
+            exit 1
+          fi
+          echo "Orçamento máximo de tokens aprovado: $MAX_TOKENS"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.19.0"
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Hidratar catálogo pi-ai e compilar runtime
+        run: |
+          npm run hydrate:pi-ai-data
+          npm run build:runtime
+
+      - name: Execução da ablação live sob controle de teto
+        env:
+          MAX_TOKENS: ${{ github.event.inputs.max_tokens }}
+        run: |
+          mkdir -p runs/live-intake-eval
+          echo "Executando ablação controlada com teto de tokens: $MAX_TOKENS"
+          node scripts/dv-bench.ts --policies ladder --auth-mode subscription --max-tokens "$MAX_TOKENS" --outdir runs/live-intake-eval
+
+      - name: Auditoria pós-run de integridade do oráculo (fail-closed)
+        run: |
+          echo "Auditando integridade do oráculo em todos os result.json gerados..."
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            const runsDir = 'runs/live-intake-eval';
+            if (!fs.existsSync(runsDir)) {
+              console.log('Nenhum diretório de runs encontrado para auditar.');
+              process.exit(0);
+            }
+            function checkDir(d) {
+              for (const f of fs.readdirSync(d, { withFileTypes: true })) {
+                const full = path.join(d, f.name);
+                if (f.isDirectory()) checkDir(full);
+                else if (f.name === 'result.json') {
+                  const data = JSON.parse(fs.readFileSync(full, 'utf8'));
+                  if (!data.oracle_integrity || data.oracle_integrity.intact !== true) {
+                    console.error('VIOLAÇÃO DETECTADA: oráculo corrompido em', full, data.oracle_integrity);
+                    process.exit(1);
+                  }
+                  console.log('OK: oráculo intacto em', full);
+                }
+              }
+            }
+            checkDir(runsDir);
+          "

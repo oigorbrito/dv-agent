@@ -1,0 +1,6 @@
+{"user": "ana", "amount": 12.5, "items": 2, "tags": ["red", "blue"]}
+{"user": "bruno", "amount": 7.25, "items": 1, "tags": ["blue"]}
+{"user": "ana", "amount": 3.1, "items": 1, "tags": ["green"]}
+{"user": "carla", "amount": 20.0, "items": 4, "tags": ["red"]}
+{"user": "bruno", "amount": 11.0, "items": 3, "tags": ["red", "green", "blue"]}
+{"user": "diego", "amount": 0.4, "items": 1, "tags": []}

@@ -31,6 +31,7 @@ function run(
 				rung: 0,
 				role: "executor",
 				model: "anthropic/test-model",
+				reasoning_effort: null,
 				verdict: solved ? "PASS" : "FAIL",
 				run_status: "completed",
 				ceiling_status: "within_verified",
@@ -171,7 +172,7 @@ test("dv-bench-metrics: opção de bootstrap funciona offline em faux", () => {
 	);
 	assert.equal(result.status, 0, result.stderr);
 	assert.match(result.stdout, /Bootstrap pareado por tarefa/);
-	assert.match(result.stdout, /pass rate/);
+	assert.match(result.stdout, /solve_rate/);
 	assert.match(result.stdout, /total tokens/);
 	assert.match(result.stdout, /custo USD/);
 	assert.match(result.stdout, /spent_lower_bound_usd/);

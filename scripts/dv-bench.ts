@@ -14,6 +14,7 @@
 //   --editor-max-turns N  --editor-max-output-tokens N (tetos do papel editor; padrão EDITOR_LIMITS)
 //   --repeats N (réplicas independentes por célula, em rep-0..rep-N-1; padrão 1)  --temperature T (>= 0; só vai a modelos que suportam)
 //   --outdir DIR (padrão runs/bench-<timestamp>)
+//   --external-slice MANIFEST.json (fatia externa congelada por scripts/dv-freeze-external-slice.ts; verifica a integridade antes; exclusiva com --corpus)
 // Códigos de saída: 0 ok (inclusive INCONCLUSIVE por teto não verificável); 1 erro de uso ou execução;
 // 2 violação estrutural de conformidade v4 (relatório gravado mesmo assim).
 import { resolve } from "node:path";
@@ -26,6 +27,7 @@ import {
 import { CORPUS_TIERS, type CorpusTier } from "../packages/dv-eval/src/bench/corpus.ts";
 import { formatTokenCount } from "../packages/dv-eval/src/bench/report.ts";
 import { parseArgs } from "../packages/dv-eval/src/cli/args.ts";
+import { loadVerifiedSlice } from "../packages/dv-eval/src/intake/index.ts";
 import { type AuthMode, EDITOR_LIMITS, type PolicyName } from "../packages/dv-eval/src/smoke/runner.ts";
 
 const POLICIES: readonly PolicyName[] = ["single", "ladder", "architect-editor", "predictive-harness-router"];
@@ -45,6 +47,7 @@ const ALLOWED_FLAGS = [
 	"model",
 	"escalation-model",
 	"ladder-models",
+	"scaffold-mode",
 	"routing-history",
 	"routing-history-partition",
 	"max-tokens",
@@ -55,6 +58,7 @@ const ALLOWED_FLAGS = [
 	"temperature",
 	"outdir",
 	"corpus",
+	"external-slice",
 ];
 function fail(message: string): never {
 	console.error(`erro: ${message}`);
@@ -108,12 +112,33 @@ if (temperature !== undefined && (!Number.isFinite(temperature) || temperature <
 	throw new Error(`--temperature deve ser um número >= 0: ${temperatureText}`);
 }
 
+const scaffoldModeText = text("scaffold-mode") ?? "uniform";
+if (scaffoldModeText !== "uniform" && scaffoldModeText !== "adaptive") {
+	throw new Error("--scaffold-mode deve ser uniform ou adaptive");
+}
+
+// --external-slice MANIFEST: fatia congelada pelo intake_gate; verificada (hashes) antes de rodar. Exclusiva com --corpus.
+if (text("external-slice") !== undefined && text("corpus") !== undefined) {
+	fail("--external-slice e --corpus são mutuamente exclusivos");
+}
+let corpusDirResolved: string;
+if (text("external-slice") === undefined) {
+	corpusDirResolved = resolve(text("corpus") ?? resolve(import.meta.dirname, "../packages/dv-eval/corpus"));
+} else {
+	try {
+		corpusDirResolved = loadVerifiedSlice(resolve(text("external-slice") as string)).tasksDir;
+	} catch (error) {
+		fail(error instanceof Error ? error.message : String(error));
+	}
+}
+
 const options: BenchOptions = {
-	corpusDir: resolve(text("corpus") ?? resolve(import.meta.dirname, "../packages/dv-eval/corpus")),
+	corpusDir: corpusDirResolved,
 	tier: tier as CorpusTier | "all",
 	...(text("task") === undefined ? {} : { task: text("task") }),
 	...(tasks === undefined ? {} : { tasks }),
 	policies: policyList as PolicyName[],
+	scaffoldMode: scaffoldModeText as "uniform" | "adaptive",
 	authMode,
 	...(text("model") === undefined ? {} : { model: text("model") }),
 	...(text("escalation-model") === undefined ? {} : { escalationModel: text("escalation-model") }),

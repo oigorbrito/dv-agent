@@ -1,9 +1,9 @@
 // Agregação e renderização do benchmark: tabela por política e por tier (solve_rate, escalação, tokens, custo,
 // teto e conformidade v4). Linha "all" só existe quando todos os tiers do corpus foram executados.
-import type { ConformanceStatus } from "@dv-agent/core";
+import type { ConformanceStatus, ScaffoldMode } from "@dv-agent/core";
 import type { LedgerMetrics } from "../smoke/ledger_metrics.ts";
 import type { PolicyName, RoleLimits } from "../smoke/runner.ts";
-import { CORPUS_TIERS, type CorpusTier, TIERS } from "./corpus.ts";
+import { CORPUS_TIERS, type CorpusTier, NEGATIVE_TIER, TIERS } from "./corpus.ts";
 
 export const BENCH_SCHEMA = "dv-bench-summary-v2";
 
@@ -13,6 +13,9 @@ export interface RunStep {
 	rung: number;
 	role: string;
 	model: string;
+	reasoning_effort: string | null;
+	/** Modelo real do degrau; ausente em resumos antigos (usar `model`). */
+	requested_model?: string;
 	verdict: string | null;
 	run_status: string;
 	ceiling_status: CeilingStatus;
@@ -84,7 +87,8 @@ export const ESCALATING_POLICIES: readonly PolicyName[] = ["ladder", "predictive
 const CEILING_RANK: Record<CeilingStatus, number> = { within_verified: 1, unverifiable: 2, exceeded: 3 };
 
 /**
- * Agrega por política. Linhas por tier executado; linha "all" somente quando os três tiers foram executados.
+ * Agrega por política. Linhas por tier executado; linha "all" quando mais de um tier positivo foi executado
+ * (inclui fatias externas com easy/medium/hard) ou quando os quatro tiers do corpus foram executados.
  * `tiers` são os tiers efetivamente executados (não o filtro pedido).
  */
 export function aggregate(
@@ -93,7 +97,8 @@ export function aggregate(
 	tiers: readonly CorpusTier[],
 ): GroupRow[] {
 	const rows: GroupRow[] = [];
-	const allExecuted = TIERS.every((t) => tiers.includes(t));
+	const positiveExecuted = tiers.filter((t) => t !== NEGATIVE_TIER);
+	const allExecuted = positiveExecuted.length > 1 || TIERS.every((t) => tiers.includes(t));
 	for (const policy of policies) {
 		const byPolicy = runs.filter((r) => r.policy === policy);
 		if (allExecuted) rows.push(groupRow(policy, "all", byPolicy));
@@ -198,6 +203,8 @@ export interface BenchReport {
 	/** Lista de --tasks, na ordem pedida (null quando não foi usada). */
 	tasks: string[] | null;
 	policies: PolicyName[];
+	/** Modo de scaffold: uniform (padrão) ou adaptive. */
+	scaffold_mode?: ScaffoldMode;
 	/** Modelo primário (--model). Identifica o baseline single: Haiku (fraco) ou Sonnet (forte). */
 	model: string | null;
 	escalation_model: string | null;
@@ -242,7 +249,7 @@ export function renderMarkdown(report: BenchReport): string {
 		`- auth_mode: \`${report.auth_mode}\`; tier pedido: \`${report.tier}\`; tiers executados: \`${report.tiers.join(", ")}\`; tarefa: \`${report.task ?? "todas"}\``,
 	);
 	lines.push(
-		`- políticas: ${report.policies.join(", ")}; teto de custo: ${report.auth_mode === "subscription" ? "n/a (subscription)" : `${report.max_cost_usd} USD`}; teto de tokens: ${report.max_tokens ?? "n/a"}`,
+		`- políticas: ${report.policies.join(", ")}; scaffold_mode: \`${report.scaffold_mode ?? "uniform"}\`; teto de custo: ${report.auth_mode === "subscription" ? "n/a (subscription)" : `${report.max_cost_usd} USD`}; teto de tokens: ${report.max_tokens ?? "n/a"}`,
 	);
 	lines.push(
 		`- tetos do editor: ${report.editor_limits.maxTurns} turnos, ${report.editor_limits.maxOutputTokens} tokens de saída`,

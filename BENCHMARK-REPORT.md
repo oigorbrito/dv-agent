@@ -268,3 +268,52 @@ node scripts/dv-bench-metrics.ts --paired-policy-a predictive-harness-router --p
 3. A aprovação do agy não foi concedida sob v4.
 
 **Limites:** dois turnos, uma sessão, um modelo. A troca de modelo ainda não foi validada por turno. O v5 proposto (`contracts/run-accounting-contract-v5.json`, status `PROPOSED_UNRATIFIED`) trata o caso com cache zero como `MEASURED` e o caso com cache como `UNVERIFIABLE`. A tabela de proveniência está em `contracts/PROVENANCE-v5.json`.
+
+## 11. Roadmap de fechamento v0.0.2: Marco 1 (fatia externa) e estado do Marco 2
+
+Versão do pacote raiz: `0.0.1` → `0.0.2` (`package.json` e entradas da raiz em `package-lock.json`). Os pacotes de workspace (`dv-core`, `dv-eval`) permanecem em `0.1.0`; a divergência é conhecida e não foi alterada aqui.
+
+### 11.1 Marco 1: fatia externa `external-terminal-bench-slice-v1` (live, subscription, `--max-tokens 1000000`)
+
+Fatia congelada pelo gate fail-closed, `dataset_sha256` `4678226546db5368292114d104854e8cfcb9781fe7bfa7dc79f9a13aa64297e6`. Resultados em `runs/roadmap-m1-ext-slice/` (não versionados). Reprodução: `node scripts/dv-bench.ts --external-slice experiments/p1/external-terminal-bench-slice-v1.json --policies single --model anthropic/claude-haiku-5-5 --auth-mode subscription --max-tokens 1000000 --outdir <dir>` (e análogos para Sonnet e `--policies ladder --ladder-models anthropic/claude-haiku-5-5,anthropic/claude-sonnet-4-6`).
+
+**Reexecução válida (após o defeito de agregação corrigido em `1d9e4b2`):**
+
+| Tarefa | Tier | A Haiku single | B Sonnet single | C Escada Haiku→Sonnet |
+|---|---|---|---|---|
+| tb-log-summary | easy | resolvida (10.337 tok) | resolvida (15.596 tok) | resolvida no degrau 0 (7.342 tok) |
+| tb-jsonl-top-aggregates | medium | **não resolvida** (14.680 tok) | **não resolvida** (22.305 tok) | **não resolvida**, escalou: 17.782 + 40.677 tok |
+| tb-confparse-equals-bug | hard | resolvida (13.086 tok) | resolvida (21.121 tok) | resolvida no degrau 0 (12.820 tok) |
+| **Total** | | **2/3, 38.103 tok** | **2/3, 59.022 tok** | **2/3, 78.621 tok** |
+
+- **Bootstrap pareado** (`ladder − single`, seed `20261124`, 10.000 reamostragens, n = 3): Δ solve_rate 0; Δ tokens **+6.533 [−8.301; +36.154]** (IC cruza zero). Custo USD: n/a.
+- **Métricas de roteamento:** Haiku, Sonnet e escada empatam em 0,667; a fronteira de Pareto contém só o Haiku. Escalonamento: 1 de 3 (escada).
+- **Critério de telemetria:** `MEASURED` em 9/9 execuções.
+- **Critério de infraestrutura:** nenhum `timed_out`, nenhum `NO_VERDICT`, nenhuma adulteração do oráculo. Em todos os 9 ledgers, `run_finished` com `calls_started == calls_finished`, nenhuma chamada em voo, zero bloqueios de doom loop e zero bloqueios de orçamento.
+- **Critério de economia:** **não sustentado** nesta reexecução. A escada igualou o Sonnet em resolução, mas gastou 33% mais tokens.
+
+**Primeira tentativa, preservada em `runs/roadmap-m1-ext-slice-attempt1-no-all-row/`.** Com o mesmo código de origem, ela não tinha a linha agregada `tier: "all"` (a regra só gerava `all` com os quatro tiers do corpus), então `routing-metrics` falhava. A resolução foi idêntica (Haiku 1/3, Sonnet 2/3, escada 2/3), mas os tokens se inverteram: Sonnet 171.494, escada 55.756 (−68%). **Os números de custo oscilam muito entre execuções idênticas (Sonnet: 171k vs 59k), e com n = 3 tarefas nenhuma conclusão de economia se sustenta.**
+
+**Anomalia: `tb-jsonl-top-aggregates` falhou nos três braços nas duas tentativas (6 de 6).** O oráculo exige contêiner em forma de dicionário (`{"carla": {...}}`), mas o enunciado não especifica o formato; todos os braços produziram lista de objetos (`[{"user": "carla", ...}]`). Isso é defeito de especificação da tarefa, e não falha de modelo. O braço C ainda errou a contagem de `red`/`blue` na reexecução. **A fatia congelada não foi alterada no meio da validação** (mudaria `dataset_sha256` e invalidaria a comparação). Proposta: uma `v2` da fatia com o formato explícito do enunciado.
+
+**Defeito corrigido em `1d9e4b2`:** `aggregate()` só gerava a linha `all` com os quatro tiers do corpus. Agora ela é gerada com mais de um tier positivo. Teste de regressão em `bench.test.ts`.
+
+### 11.2 Marco 2: holdout `N = 3` com histórico de calibração (estado)
+
+**Histórico de calibração registrado e validado.** Rodadas novas, só com as 10 tarefas da partição de calibração (índices pares do corpus ordenado): `runs/roadmap-m2-calibration/haiku/summary.json` e `runs/roadmap-m2-calibration/sonnet/summary.json`, ambas `single`, `uniform`, subscription, teto de 1,2 M. O carregador `loadRoutingHistory(…, partition: "calibration")` aceita os dois arquivos: **18 observações em 9 tarefas, sem holdout**. `negative-01` é excluído das observações por design (tier negativo). Os resumos antigos de 2026-11-23 não foram usados: misturam tarefas do holdout, e o carregador recusa o arquivo inteiro nesse caso.
+
+**Braços do holdout: não executados por mim.** Durante a calibração, descobri um fluxo paralelo no mesmo diretório e na mesma assinatura: `runs/roadmap-m2-calibration/run-holdout-n3.sh` (pid 2044), com controle Sonnet em `runs/roadmap-m2-holdout-n3/` (pid 2049), alimentado por um histórico reconstruído por `build-history.mjs` a partir de resumos antigos. Rodar os dois fluxos ao mesmo tempo dobraria o consumo da assinatura e aumentaria o risco de rate limit, que violaria o critério de infraestrutura. Por isso **pausei o meu driver** (pid 1959) antes do braço de controle do holdout. Os braços pendentes são controle Sonnet adaptativo, escada uniform e roteador com histórico. **Decisão pendente do operador:** qual fluxo prossegue.
+
+### 11.3 Limites
+
+- A seção 9 (holdout N=3) continua válida como registro **sem histórico** (partida fria, limiar `null`). Não substitui o Marco 2.
+- Os critérios de conformidade v4 ficam `INCONCLUSIVE` em assinatura, pela regra (c) já documentada.
+
+### 11.4 Consolidação final offline (N=3)
+
+- **Marco 1 — v1:** `tb-jsonl-top-aggregates` falhou em Haiku e Sonnet por formato de saída, não por valores: ambos produziram listas de objetos, enquanto o oráculo exige um dicionário indexado por usuário. O Sonnet usou 4 chamadas concluídas com telemetria MEASURED.
+- **Fatia v2 offline:** `experiments/p1/external-terminal-bench-slice-v2.json`, validada por `scripts/dv-freeze-external-slice.ts` e pelo `intake_gate` faux; dataset SHA-256 `86d1d082fa2ebbf010440bed9a0f4aa7d786884e2d094a8a395ad8ce5dc0df5a`. O enunciado de `tb-jsonl-top-aggregates` agora exige `{ \"<user>\": { ... } }`. A v1 permanece intacta.
+- **Marco 2 — Sonnet controle:** 27/27 resolvidas, 7.282.572 tokens, telemetria MEASURED.
+- **Marco 2 — escada:** 26/27 resolvidas; bootstrap pareado por tarefa, tratamento menos controle: Δ = −151.293 tokens/tarefa, IC 95% [−263.982; −62.760], seed 20261124 e 10.000 reamostragens. Diferença de solve rate −0,037, IC 95% [−0,111; 0].
+- **Braços Haiku single e Preditivo live:** não produziram medição válida. O Haiku registrou 27 runs, 0 resolvidas e telemetria INCONCLUSIVE; o Preditivo registrou 27 runs, 0 resolvidas e telemetria INCONCLUSIVE. O ledger identifica HTTP 429 `rate_limit_error` da assinatura OAuth sem consumo de tokens. APGR, AIQ e a fronteira de Pareto ficam pendentes de nova janela de cota; esses resultados não são tratados como qualidade do modelo/política.
+- A validação offline faux do roteador com histórico de calibração passou: 1/1, MEASURED, v4 PASS; o ledger registrou `route_decided` com partição calibration.

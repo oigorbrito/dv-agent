@@ -1,0 +1,13 @@
+{
+  "schema": "dv-eval-task-v1",
+  "id": "tb-log-summary",
+  "tier": "easy",
+  "title": "Contagem de severidades em logs de serviços",
+  "prompt": "Em logs/ há arquivos .log de vários serviços. Conte quantas linhas contêm ERROR, WARNING e INFO somando todos os arquivos. Grave o resultado em summary.csv (raiz do workspace) com exatamente 4 linhas: o cabeçalho severity,count e uma linha por severidade na ordem ERROR, WARNING, INFO. Não altere os arquivos de log.",
+  "workspace_dir": "workspace",
+  "oracle": {
+    "dir": "oracle",
+    "command": ["python", "check.py"],
+    "timeout_ms": 30000
+  }
+}

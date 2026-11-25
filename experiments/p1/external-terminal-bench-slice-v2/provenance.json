@@ -1,0 +1,21 @@
+{
+  "source_repo": "laude-institute/terminal-bench",
+  "source_url": "https://github.com/laude-institute/terminal-bench",
+  "source_tree_sha": "d28711d0da2675d0bb1d56de45ae5df6082438a3",
+  "source_license": "Apache-2.0 (LICENSE verificado em raw.githubusercontent.com/laude-institute/terminal-bench/main/LICENSE)",
+  "retrieved_on": "2026-11-25",
+  "tasks": {
+    "tb-log-summary": {
+      "source": "original-tasks/log-summary (instrução e objetivo de contagem de severidades)",
+      "adaptation": "Caminhos /app trocados por workspace relativo; logs reescritos do zero (sem dependências de Docker); saída em summary.csv na raiz; oráculo Python sem Docker. Nenhum arquivo de solução ou log original copiado."
+    },
+    "tb-jsonl-top-aggregates": {
+      "source": "Inspirada no conceito de original-tasks/jsonl-aggregator (agregação de registros JSONL em aggregates.json)",
+      "adaptation": "Dados pequenos escritos do zero (não há cópia de task-deps/generate_records.py); top-2 usuários e top-3 tags; oráculo com valores fixos calculados a partir dos registros entregues."
+    },
+    "tb-confparse-equals-bug": {
+      "source": "Autoral, no estilo de tarefas de depuração do terminal-bench",
+      "adaptation": "Módulo confparse.py com defeito deliberado (split sem limite); oráculo importa o módulo do workspace e verifica casos de borda."
+    }
+  }
+}

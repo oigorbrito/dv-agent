@@ -1,0 +1,23 @@
+{
+  "top_2_users_by_amount": {
+    "carla": {
+      "total_amount": 25.33,
+      "total_items": 6
+    },
+    "ana": {
+      "total_amount": 23.6,
+      "total_items": 5
+    }
+  },
+  "top_3_tags_by_count": {
+    "red": {
+      "count": 7
+    },
+    "blue": {
+      "count": 6
+    },
+    "green": {
+      "count": 4
+    }
+  }
+}

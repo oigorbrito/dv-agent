@@ -7,3 +7,6 @@ dist/
 packages/runtime-pi/pi-ai/src/providers/data/
 .artifacts/
 runs/
+
+# Logs da fatia externa congelada são dados de entrada versionados (não artefatos de execução).
+!experiments/p1/external-terminal-bench-slice-v1/**/*.log

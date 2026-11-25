@@ -1,0 +1,13 @@
+{
+  "schema": "dv-eval-task-v1",
+  "id": "tb-jsonl-top-aggregates",
+  "tier": "medium",
+  "title": "Agregação de registros JSONL com top-N e arredondamento",
+  "prompt": "Os arquivos records_1.jsonl e records_2.jsonl (raiz do workspace) têm registros com user, amount, items e tags. Crie aggregates.json na raiz com: top_2_users_by_amount (os 2 usuários com maior soma de amount; cada um com total_amount arredondado a 2 casas decimais e total_items inteiro) e top_3_tags_by_count (as 3 tags com maior contagem de ocorrências em tags; cada uma com count inteiro). Em caso de empate, ordene pelo nome. Não altere os arquivos de entrada.",
+  "workspace_dir": "workspace",
+  "oracle": {
+    "dir": "oracle",
+    "command": ["python", "check.py"],
+    "timeout_ms": 30000
+  }
+}

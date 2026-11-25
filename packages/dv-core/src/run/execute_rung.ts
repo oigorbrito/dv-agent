@@ -28,6 +28,7 @@ import { sanitizeProviderErrorMessage } from "../ledger/redact.ts";
 import { buildCallTelemetry } from "../ledger/telemetry.ts";
 import { ToolOutcomeTracker } from "../ledger/tool_outcomes.ts";
 import { ledgerSha256, RunLedger } from "../ledger/writer.ts";
+import type { ReasoningEffort } from "../router/policy.ts";
 import { sha256Hex } from "../util/canonical.ts";
 
 export interface RungRunOptions {
@@ -52,6 +53,8 @@ export interface RungRunOptions {
 	maxOutputTokens?: number;
 	doomLoopMaxIdenticalConsecutive: number;
 	approvedProbes?: ReadonlySet<string>;
+	/** Nível de esforço de raciocínio (reasoning effort). */
+	reasoningEffort?: ReasoningEffort;
 	/** Versão do contrato do run. Padrão v4. Provedor agy exige v5. */
 	contractId?: string;
 	/** Decisão de roteamento que originou este degrau. Gravada como `route_decided` logo após `run_started`. */
@@ -97,6 +100,8 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 	// Parada após guard (budget, limite de turno/output ou doom loop encerrado). Depois de fixada, nenhuma chamada
 	// nova chega ao provedor e as ferramentas pendentes da resposta são bloqueadas como not_executed.
 	let haltReason = undefined as string | undefined;
+	// Chamada vetada pelo gate pré-chamada: a run termina por orçamento, sem que o teto tenha sido excedido.
+	let preCallBlocked = false;
 
 	ledger.appendRunStarted({
 		run_id: options.runId,
@@ -114,10 +119,19 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 	// Registra call_started antes de qualquer tentativa do provedor (I1: chamada iniciada sem fim fica em voo).
 	const streamFn: StreamFn = (model, context, streamOptions) => {
 		if (haltReason !== undefined) return haltedStream(model, haltReason);
+		// Gate pré-chamada: o custo máximo desta chamada não pode passar do saldo do teto (fail-closed).
+		const allowance = budget.preCallAllowance(model, context, streamOptions?.maxTokens);
+		if (!allowance.ok) {
+			preCallBlocked = true;
+			haltReason ??= "budget_exceeded";
+			return haltedStream(model, `pré-chamada: ${allowance.reason}`);
+		}
 		callCount += 1;
+		budget.beginRequest(context);
 		ledger.appendCallStarted({ call_index: callCount, provider: model.provider, model_id: model.id, api: model.api });
 		pendingCalls.push(callCount);
-		return options.streamFn(model, context, streamOptions);
+		// maxRetries 0: retries internos do SDK são cobrança invisível ao ledger; falhas viram erro registrado.
+		return options.streamFn(model, context, { ...streamOptions, maxTokens: allowance.maxTokens, maxRetries: 0 });
 	};
 
 	const beforeToolCall = composeBeforeToolCall([budget.beforeToolCall.bind(budget), doom.beforeToolCall.bind(doom)]);
@@ -140,7 +154,12 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 	const agent = new Agent({
 		streamFn,
 		beforeToolCall: recordingHook,
-		initialState: { model: options.model, systemPrompt: options.systemPrompt ?? "", tools: options.tools },
+		initialState: {
+			model: options.model,
+			systemPrompt: options.systemPrompt ?? "",
+			tools: options.tools,
+			...(options.reasoningEffort !== undefined ? { thinkingLevel: options.reasoningEffort } : {}),
+		},
 	});
 
 	agent.subscribe((event) => {
@@ -240,7 +259,7 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 		.reverse()
 		.find((m): m is AssistantMessage => m.role === "assistant" && !m.errorMessage?.startsWith("parada por guard:"));
 	const status = finalStatus(
-		budget.tripped || budget.tokensTripped,
+		budget.tripped || budget.tokensTripped || preCallBlocked,
 		limitReason !== undefined,
 		thrown !== undefined,
 		lastAssistant,

@@ -68,14 +68,18 @@ test("ACP fs: bloqueia traversal absoluto, '..' e junction que sai do workspace"
 	mkdirSync(root);
 	mkdirSync(outside);
 	writeFileSync(join(outside, "secret.txt"), "secret", "utf8");
+	let hasJunction = false;
 	try {
 		symlinkSync(outside, join(root, "escape"), "junction");
+		hasJunction = true;
+	} catch {
+		// symlink/junction indisponível neste sistema (ex.: Windows sem privilégio elevado)
+	}
+	try {
 		const client = harness(root);
-		for (const path of [
-			join(parent, "outside", "secret.txt"),
-			join(root, "..", "outside", "secret.txt"),
-			join(root, "escape", "secret.txt"),
-		]) {
+		const testPaths = [join(parent, "outside", "secret.txt"), join(root, "..", "outside", "secret.txt")];
+		if (hasJunction) testPaths.push(join(root, "escape", "secret.txt"));
+		for (const path of testPaths) {
 			const reply = await client.request("fs/read_text_file", { path });
 			assert.equal(typeof reply.error, "object", `path recusado: ${path}`);
 		}

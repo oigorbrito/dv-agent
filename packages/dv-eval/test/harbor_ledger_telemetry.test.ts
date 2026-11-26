@@ -21,12 +21,18 @@ function finished(overrides: Record<string, unknown> = {}): Record<string, unkno
 test("aggregates measured input, output, cache-read and verified cost", () => {
 	const result = aggregateHarborLedgerTelemetry([
 		call({
-			prompt_tokens: 100, completion_tokens: 20, cache_read_tokens: 30,
-			telemetry_complete: true, missing_buckets: [],
+			prompt_tokens: 100,
+			completion_tokens: 20,
+			cache_read_tokens: 30,
+			telemetry_complete: true,
+			missing_buckets: [],
 		}),
 		call({
-			prompt_tokens: 50, completion_tokens: 10, cache_read_tokens: 5,
-			telemetry_complete: true, missing_buckets: [],
+			prompt_tokens: 50,
+			completion_tokens: 10,
+			cache_read_tokens: 5,
+			telemetry_complete: true,
+			missing_buckets: [],
 		}),
 		finished(),
 	]);
@@ -43,8 +49,11 @@ test("aggregates measured input, output, cache-read and verified cost", () => {
 test("missing provider usage stays null instead of becoming zero", () => {
 	const result = aggregateHarborLedgerTelemetry([
 		call({
-			prompt_tokens: 0, completion_tokens: 0, cache_read_tokens: 0,
-			telemetry_complete: false, missing_buckets: ["usage_not_reported"],
+			prompt_tokens: 0,
+			completion_tokens: 0,
+			cache_read_tokens: 0,
+			telemetry_complete: false,
+			missing_buckets: ["usage_not_reported"],
 		}),
 		finished({
 			status: "provider_error",
@@ -66,8 +75,11 @@ test("missing provider usage stays null instead of becoming zero", () => {
 test("cache-read usage remains null if any transport does not expose it", () => {
 	const result = aggregateHarborLedgerTelemetry([
 		call({
-			prompt_tokens: 10, completion_tokens: 2, cache_read_tokens: null,
-			telemetry_complete: false, missing_buckets: ["cache_read_tokens"],
+			prompt_tokens: 10,
+			completion_tokens: 2,
+			cache_read_tokens: null,
+			telemetry_complete: false,
+			missing_buckets: ["cache_read_tokens"],
 		}),
 		finished(),
 	]);

@@ -149,8 +149,7 @@ export async function runDVTask(input: {
 	// Harbor's n_cache_tokens follows its native Pi/Codex accounting: cached reads only.
 	// Null means at least one call's transport did not expose cache-read usage.
 	const cacheReported =
-		callTelemetry.length > 0 &&
-		callTelemetry.every((item) => typeof item.cache_read_tokens === "number");
+		callTelemetry.length > 0 && callTelemetry.every((item) => typeof item.cache_read_tokens === "number");
 	const cacheTokens = cacheReported
 		? callTelemetry.reduce((sum, item) => sum + Number(item.cache_read_tokens), 0)
 		: undefined;

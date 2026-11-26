@@ -98,11 +98,7 @@ function startProtocolReader(): void {
 			waiter.resolve(result(String(frame.error ?? "remote tool failed"), true));
 			return;
 		}
-		if (
-			typeof frame.stdout !== "string" ||
-			typeof frame.stderr !== "string" ||
-			!Number.isInteger(frame.exit_code)
-		) {
+		if (typeof frame.stdout !== "string" || typeof frame.stderr !== "string" || !Number.isInteger(frame.exit_code)) {
 			waiter.reject(new Error("malformed tool_result: stdout, stderr and integer exit_code are required"));
 			return;
 		}

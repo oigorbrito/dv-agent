@@ -31,7 +31,7 @@ async function main(): Promise<void> {
     tools: createHarborRemoteWorkspaceTools(),
     emitTelemetry: emitHarborTelemetry,
   });
-  process.stdout.write(JSON.stringify({ type: "bridge_done" }) + "\\n");
+  process.stdout.write(JSON.stringify({ type: "bridge_done" }) + "\n");
 }
 
 main().catch((error: unknown) => {

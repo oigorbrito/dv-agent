@@ -134,9 +134,7 @@ export async function runDVTask(input: {
     inputTokens,
     outputTokens,
     cacheTokens,
-    costUsd: result.ceilingStatus === "within_verified" || result.spentLowerBoundUsd > 0
-      ? result.spentLowerBoundUsd
-      : null,
+    costUsd: result.ceilingStatus === "within_verified" ? result.spentLowerBoundUsd : null,
     complete: result.status === "completed",
   });
 }

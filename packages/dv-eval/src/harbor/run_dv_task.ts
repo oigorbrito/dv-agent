@@ -122,7 +122,7 @@ export async function runDVTask(input: {
   });
 
   const assistant = result.messages.filter((message) => message.role === "assistant");
-  const inputTokens = assistant.reduce((sum, message) => sum + message.usage.input, 0);
+  const inputTokens = assistant.reduce((sum, message) => sum + message.usage.input + message.usage.cacheRead + message.usage.cacheWrite, 0);
   const outputTokens = assistant.reduce((sum, message) => sum + message.usage.output, 0);
   const cacheTokens = assistant.reduce((sum, message) => sum + message.usage.cacheRead + message.usage.cacheWrite, 0);
   input.emitTelemetry({

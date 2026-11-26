@@ -4,7 +4,7 @@ on:
   push:
     branches: [dv-harbor-adapter-isolation]
   pull_request:
-    branches: [main]
+    branches: [feat/harness-router]
   workflow_dispatch:
 
 permissions:

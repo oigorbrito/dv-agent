@@ -39,9 +39,7 @@ export function aggregateHarborLedgerTelemetry(events: readonly LedgerEvent[]): 
 				isFiniteNumber(call.completion_tokens)
 			);
 		});
-	const inputTokens = usageReported
-		? calls.reduce((sum, call) => sum + (call.prompt_tokens as number), 0)
-		: undefined;
+	const inputTokens = usageReported ? calls.reduce((sum, call) => sum + (call.prompt_tokens as number), 0) : undefined;
 	const outputTokens = usageReported
 		? calls.reduce((sum, call) => sum + (call.completion_tokens as number), 0)
 		: undefined;

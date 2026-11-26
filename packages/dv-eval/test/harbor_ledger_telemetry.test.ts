@@ -101,10 +101,16 @@ test("a trial with no model calls does not report zero usage or cost", () => {
 
 test("rejects a ledger without terminal run_finished status", () => {
 	assert.throws(
-		() => aggregateHarborLedgerTelemetry([call({
-			prompt_tokens: 1, completion_tokens: 1, cache_read_tokens: 0,
-			telemetry_complete: true, missing_buckets: [],
-		})]),
+		() =>
+			aggregateHarborLedgerTelemetry([
+				call({
+					prompt_tokens: 1,
+					completion_tokens: 1,
+					cache_read_tokens: 0,
+					telemetry_complete: true,
+					missing_buckets: [],
+				}),
+			]),
 		/DV ledger has no final run_finished status/,
 	);
 });

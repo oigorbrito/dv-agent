@@ -317,3 +317,47 @@ Fatia congelada pelo gate fail-closed, `dataset_sha256` `4678226546db5368292114d
 - **Marco 2 — escada:** 26/27 resolvidas; bootstrap pareado por tarefa, tratamento menos controle: Δ = −151.293 tokens/tarefa, IC 95% [−263.982; −62.760], seed 20261124 e 10.000 reamostragens. Diferença de solve rate −0,037, IC 95% [−0,111; 0].
 - **Braços Haiku single e Preditivo live:** não produziram medição válida. O Haiku registrou 27 runs, 0 resolvidas e telemetria INCONCLUSIVE; o Preditivo registrou 27 runs, 0 resolvidas e telemetria INCONCLUSIVE. O ledger identifica HTTP 429 `rate_limit_error` da assinatura OAuth sem consumo de tokens. APGR, AIQ e a fronteira de Pareto ficam pendentes de nova janela de cota; esses resultados não são tratados como qualidade do modelo/política.
 - A validação offline faux do roteador com histórico de calibração passou: 1/1, MEASURED, v4 PASS; o ledger registrou `route_decided` com partição calibration.
+
+## 12. Fatia externa v2, N = 3 (live, subscription)
+
+**Escopo.** Manifesto `experiments/p1/external-terminal-bench-slice-v2.json` (`dataset_sha256` `86d1d082fa2ebbf010440bed9a0f4aa7d786884e2d094a8a395ad8ce5dc0df5a`). Tarefas: `tb-log-summary` (easy), `tb-jsonl-top-aggregates` (medium) e `tb-confparse-equals-bug` (hard), 3 réplicas cada: 9 execuções por braço. Um braço por vez, `--auth-mode subscription`, `--max-tokens` explícito (2.500.000 no braço A; 4.000.000 em B e C). Contrato `p1-run-accounting-v4` (`11b4d545…`). Artefatos em `runs/` (não em `experiments/p1/`).
+
+| Braço | Diretório (`runs/`) | Política · modelo | Resolvidas | Tokens easy / medium / hard | Total |
+| :--- | :--- | :--- | :---: | :---: | ---: |
+| A | `ext-v2-n3-A-haiku-20261125T221052Z` | `single` · `anthropic/claude-haiku-5-5` | 8/9 | 24.639 / 34.402 / 23.651 | 82.692 |
+| B1 | `ext-v2-n3-B-sonnet-20261125T221222Z` | `single` · `anthropic/claude-sonnet-4-6` | 8/9 | 28.067 / 93.738 / 49.556 | 171.361 |
+| B2 | `ext-v2-n3-B-sonnet-20261125T221705Z` | `single` · `anthropic/claude-sonnet-4-6` | 8/9 | 28.905 / 38.185 / 49.550 | 116.640 |
+| C | `ext-v2-n3-C-predictive-20261125T222316Z` | `predictive-harness-router` (haiku-5-5 → sonnet-4-6) | 9/9 | 24.586 / 65.271 / 23.852 | 113.709 |
+
+- B1 e B2 são dois runs distintos do mesmo braço (mesmo rótulo `B-sonnet`, timestamps diferentes). Ambos são tratados como baseline `single` separados.
+- Falhas: A em `tb-jsonl-top-aggregates` rep 0; B1 em `tb-jsonl-top-aggregates` rep 1 (55.656 tokens); B2 em `tb-jsonl-top-aggregates` rep 1 (10.337 tokens). C resolveu 9/9 e escalou em 2 execuções de `tb-jsonl-top-aggregates` (reps 1 e 2): Haiku FAIL → Sonnet PASS.
+- Tokens = `total_tokens` do `summary.json` (prompt + completion, incluindo leitura e escrita de cache).
+- Telemetria: 38 passos (A 9, B1 9, B2 9, C 11), todos com `telemetry_complete: true`. Nos ledgers verificados, `cost_basis: subscription_session` e `cost_usd: null`. `conformance_status` é `INCONCLUSIVE` em todos os passos (regra (c) de assinatura, §11.3).
+
+### 12.1 Bootstrap pareado: a escolha do baseline muda a conclusão
+
+Comando (somente leitura, sem chamadas live): `node scripts/dv-bench-metrics.ts --baseline single --treatment predictive-harness-router --seed 20261124 --resamples 10000 <baseline> runs/ext-v2-n3-C-predictive-20261125T222316Z`. Unidade: tarefas (n = 3); diferenças = tratamento − baseline.
+
+| Baseline `single` | Δ `solve_rate` [IC 95%] | Δ total tokens por tarefa [IC 95%] | IC de tokens exclui zero |
+| :--- | ---: | ---: | :---: |
+| A (haiku, `221052Z`) | +0,111 [0; 0,333] | +3.446,33 [−17,67; 10.289,67] | não |
+| B1 (sonnet, `221222Z`) | +0,111 [0; 0,333] | −6.405,78 [−9.489,00; −1.160,33] | **sim** |
+| B2 (sonnet, `221705Z`) | +0,111 [0; 0,333] | −325,67 [−8.566,00; 9.028,67] | não |
+
+Leitura:
+- A redução de tokens com IC excluindo zero aparece **somente** contra B1. Contra B2 o IC cruza zero, e contra A o sinal inverte. Em B1, a média de `tb-jsonl-top-aggregates` é inflada por uma única falha (55.656 tokens). O resultado não é robusto ao baseline e não deve ser lido como redução geral de custo.
+- Média dos dois braços B (por tarefa): Δ = −3.365,72 tokens. Este valor foi calculado manualmente a partir dos summaries; o script não o gera, porque rejeita dois braços `single` na mesma chamada (`duplicate paired run for single`). Não há IC para essa comparação.
+- `solve_rate` é igual nas três comparações (9/9 contra 8/9), e o IC cruza zero em todas.
+- `spent_lower_bound_usd` é 0 em todas (cobrança por assinatura).
+
+### 12.2 Leitura estatística com n = 3 tarefas
+
+Com 3 tarefas, o bootstrap reamostra apenas 3 unidades. O IC de tokens é dominado pela variância entre tarefas e pela escolha do baseline. A diferença de `solve_rate` equivale a uma única execução. Conclusão: sinal de custo sugestivo, não conclusivo. Esta fatia não distingue qualidade entre os braços.
+
+### 12.3 Estado dos provedores e issues vinculadas
+
+- **Anthropic (`--auth-mode subscription`):** telemetria completa sob contrato v4 (`11b4d545…`). Exige um braço por vez e `--max-tokens` explícito, para evitar `HTTP 429` (`rate_limit_error`).
+- **AGY (`acp --stdio`, contrato v5 `5029e770…`):** `UNVERIFIABLE` sem probe live aprovado (`model_switch_unconfirmed`, `uncached_input_tokens`, `agy_cache_semantics_unverified`).
+  - Windows/PowerShell, `agy.exe` 1.5.18: turnos concluem (`run_status: completed`), mas sem `tool_calls` no smoke testado (`tool_calls: []`).
+  - WSL, `agy.exe` 1.5.16: `Authentication required` (`provider_error`). Bloqueio fail-closed.
+- Issues de acompanhamento em `oigorbrito/dv-agent`: **#5** (concluir braços pendentes do holdout em N = 3), **#6** (probe live v5 e tool-calling ACP) e **#7** (router k-NN com histórico calibrado).

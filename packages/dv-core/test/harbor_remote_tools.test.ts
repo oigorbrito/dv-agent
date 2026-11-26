@@ -22,6 +22,7 @@ test("Harbor telemetry emits one JSONL frame with ledger provenance", () => {
 			cacheTokens: null,
 			costUsd: null,
 			complete: false,
+			runStatus: "provider_error",
 		});
 	} finally {
 		process.stdout.write = originalWrite;
@@ -42,6 +43,7 @@ test("Harbor telemetry emits one JSONL frame with ledger provenance", () => {
 		cache_tokens: null,
 		cost_usd: null,
 		complete: false,
+		run_status: "provider_error",
 	});
 });
 
@@ -61,6 +63,7 @@ test("Harbor telemetry preserves missing usage and cost as null, never zero", ()
 			provider: "provider",
 			model: "model",
 			complete: false,
+			runStatus: "aborted",
 		});
 	} finally {
 		process.stdout.write = originalWrite;

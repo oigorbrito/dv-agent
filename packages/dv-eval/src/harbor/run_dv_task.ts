@@ -2,6 +2,7 @@
  * Concrete Harbor bootstrap for DV. Configuration is explicit in controller environment variables;
  * credentials are read by openLiveSession and never copied into the manifest or telemetry.
  */
+import { readFileSync } from "node:fs";
 import { DEFAULT_SYSTEM_PROMPT, executeRung } from "@dv-agent/core";
 import { type LiveAuthMode, openLiveSession } from "../auth/live_session.ts";
 import { resolveAuthPath } from "../auth/subscription.ts";
@@ -19,6 +20,7 @@ type EmitTelemetry = (data: {
 	cacheTokens?: number | null;
 	costUsd?: number | null;
 	complete: boolean;
+	runStatus: string;
 }) => void;
 
 function required(name: string): string {
@@ -124,15 +126,31 @@ export async function runDVTask(input: {
 			: { reasoningEffort: reasoningEffort as "low" | "medium" | "high" | "xhigh" }),
 	});
 
-	const assistant = result.messages.filter((message) => message.role === "assistant");
-	const inputTokens = assistant.reduce(
-		(sum, message) => sum + message.usage.input + message.usage.cacheRead + message.usage.cacheWrite,
-		0,
-	);
-	const outputTokens = assistant.reduce((sum, message) => sum + message.usage.output, 0);
+	// The ledger is the source of truth. Do not turn usage omitted by a provider into measured zero.
+	const events = readFileSync(result.ledgerPath, "utf8")
+		.split("\\n")
+		.filter(Boolean)
+		.map((line) => JSON.parse(line) as Record<string, unknown>);
+	const callTelemetry = events
+		.filter((event) => event.event === "call_finished")
+		.map((event) => ((event.record as Record<string, unknown>).telemetry ?? {}) as Record<string, unknown>);
+	const usageReported = callTelemetry.every((item) => {
+		const missing = Array.isArray(item.missing_buckets) ? item.missing_buckets : [];
+		return !missing.includes("usage_not_reported") && !missing.includes("usage_incomplete");
+	});
+	const inputTokens = usageReported
+		? callTelemetry.reduce((sum, item) => sum + Number(item.prompt_tokens ?? 0), 0)
+		: undefined;
+	const outputTokens = usageReported
+		? callTelemetry.reduce((sum, item) => sum + Number(item.completion_tokens ?? 0), 0)
+		: undefined;
 	// Harbor's n_cache_tokens follows its native Pi/Codex accounting: cached reads only.
-	// Cache writes remain included in n_input_tokens, but are not counted as cached reads.
-	const cacheTokens = assistant.reduce((sum, message) => sum + message.usage.cacheRead, 0);
+	// Null means at least one call's transport did not expose cache-read usage.
+	const cacheReported = callTelemetry.every((item) => typeof item.cache_read_tokens === "number");
+	const cacheTokens = cacheReported
+		? callTelemetry.reduce((sum, item) => sum + Number(item.cache_read_tokens), 0)
+		: undefined;
+	const telemetryComplete = callTelemetry.every((item) => item.telemetry_complete === true);
 	input.emitTelemetry({
 		runId,
 		ledgerPath: result.ledgerPath,
@@ -143,6 +161,7 @@ export async function runDVTask(input: {
 		outputTokens,
 		cacheTokens,
 		costUsd: result.ceilingStatus === "within_verified" ? result.spentLowerBoundUsd : null,
-		complete: result.status === "completed",
+		complete: telemetryComplete,
+		runStatus: result.status,
 	});
 }

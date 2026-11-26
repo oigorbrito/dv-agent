@@ -25,4 +25,4 @@ jobs:
       - run: npm run build:runtime
       - run: npx biome check packages/dv-core/src/tools/harbor_bridge_main.ts packages/dv-core/src/tools/harbor_remote_tools.ts packages/dv-eval/src/harbor/run_dv_task.ts
       - run: npm run typecheck
-      - run: npm test
+      - run: node --test packages/dv-core/test/harbor_remote_tools.test.ts

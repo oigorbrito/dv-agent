@@ -6,6 +6,7 @@
 // idêntica (testada em contract_v5.test.ts), então misturar v4 e v5 entre resumos de arms distintos não é divergência.
 import { CONTRACT_ID, CONTRACT_V5_ID } from "@dv-agent/core";
 import type { BenchReport } from "./report.ts";
+import { isTelemetryStatus } from "./telemetry_status.ts";
 
 export const CONTRACT_V4_SHA256 = "11b4d5453e0964a7eb88decb5cbf7d1c5f5eebf4fbbdd458fb4e38686baef486";
 /** SHA-256 do v5 ratificado (contracts/run-accounting-contract-v5.json, status RATIFIED, 2026-11-24). */
@@ -15,6 +16,29 @@ export const CONTRACT_SHA_BY_ID: Readonly<Record<string, string>> = {
 	[CONTRACT_ID]: CONTRACT_V4_SHA256,
 	[CONTRACT_V5_ID]: CONTRACT_V5_SHA256,
 };
+
+/**
+ * Rótulo UNVERIFIABLE só existe sob v5 (agy com cache não verificado). Sob v4 é erro de rotulagem, na mesma regra que
+ * o conformance aplica ao ledger. Linhas de resumo e métricas de passo são verificadas.
+ */
+export function telemetryLabelProblems(report: BenchReport, label: string): string[] {
+	if (report.contract_id === CONTRACT_V5_ID) return [];
+	const problems: string[] = [];
+	for (const row of report.rows ?? []) {
+		if (row.telemetry_status === "UNVERIFIABLE")
+			problems.push(`${label}: linha ${row.policy}/${row.tier} com telemetria UNVERIFIABLE exige contrato v5`);
+	}
+	for (const run of report.runs ?? []) {
+		for (const step of run.steps ?? []) {
+			const status = (step.metrics as { telemetry_status?: unknown }).telemetry_status;
+			if (status !== undefined && !isTelemetryStatus(status))
+				problems.push(`${label}: ${run.task_id}/${run.policy} com telemetry_status inválido: ${String(status)}`);
+			if (status === "UNVERIFIABLE")
+				problems.push(`${label}: ${run.task_id}/${run.policy} com telemetria UNVERIFIABLE exige contrato v5`);
+		}
+	}
+	return problems;
+}
 
 /** Um modelo referencia o agy quando o namespace é `agy/`. */
 export function isAgyModelRef(text: string | undefined): boolean {
@@ -42,6 +66,7 @@ export function checkReportContracts(reports: readonly BenchReport[]): ContractC
 	const notes: string[] = [];
 	reports.forEach((report, i) => {
 		const label = `resumo ${i + 1}`;
+		problems.push(...telemetryLabelProblems(report, label));
 		const expectedSha = CONTRACT_SHA_BY_ID[report.contract_id];
 		if (expectedSha === undefined) {
 			problems.push(`${label}: contract_id ${report.contract_id} desconhecido`);

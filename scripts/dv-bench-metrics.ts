@@ -21,6 +21,7 @@ const FLAGS = new Set([
 	"paired-policy-b",
 	"seed",
 	"resamples",
+	"baseline-aggregate",
 ]);
 const args = new Map<string, string>();
 const files: string[] = [];
@@ -45,6 +46,11 @@ const policyA = args.get("baseline") ?? args.get("paired-policy-a");
 const policyB = args.get("treatment") ?? args.get("paired-policy-b");
 const seedText = args.get("seed");
 const resamplesText = args.get("resamples");
+const aggregateText = args.get("baseline-aggregate");
+if (aggregateText !== undefined && aggregateText !== "single" && aggregateText !== "mean") {
+	console.error("erro: --baseline-aggregate deve ser single ou mean");
+	process.exit(1);
+}
 const routingRequested = weakModel !== undefined || strongModel !== undefined;
 const pairedRequested = policyA !== undefined || policyB !== undefined;
 
@@ -53,7 +59,7 @@ if (
 	(routingRequested && (weakModel === undefined || strongModel === undefined)) ||
 	(pairedRequested && (policyA === undefined || policyB === undefined)) ||
 	(!routingRequested && !pairedRequested) ||
-	(!pairedRequested && (seedText !== undefined || resamplesText !== undefined))
+	(!pairedRequested && (seedText !== undefined || resamplesText !== undefined || aggregateText !== undefined))
 ) {
 	console.error(
 		"uso: dv-bench-metrics.ts (--weak model --strong model | --baseline policy --treatment policy) [--seed N --resamples N] <outdir|summary.json> [... ]",
@@ -86,6 +92,7 @@ try {
 			policyB: policyB as string,
 			...(seed === undefined ? {} : { seed }),
 			...(resamples === undefined ? {} : { resamples }),
+			...(aggregateText === undefined ? {} : { baselineAggregation: aggregateText as "single" | "mean" }),
 		});
 		process.stdout.write(renderPairedBootstrap(result));
 	}

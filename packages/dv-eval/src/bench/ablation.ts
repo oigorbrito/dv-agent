@@ -42,6 +42,8 @@ export interface BenchOptions {
 	policies: readonly PolicyName[];
 	/** Modo de scaffold: uniform (padrão) ou adaptive. */
 	scaffoldMode?: ScaffoldMode;
+	/** Compactação intra-degrau (opt-in; padrão off). Repassada a cada degrau; o modo aparece em harness_variant. */
+	compaction?: "off" | "by_model";
 	authMode: AuthMode;
 	model?: string;
 	escalationModel?: string;
@@ -200,6 +202,7 @@ async function runOne(
 		policy,
 		contractId,
 		scaffoldMode: options.scaffoldMode,
+		compaction: options.compaction,
 		authMode: options.authMode,
 		model: options.model,
 		escalationModel: options.escalationModel,

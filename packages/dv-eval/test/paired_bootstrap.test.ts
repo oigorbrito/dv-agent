@@ -41,6 +41,7 @@ function run(
 				metrics: {
 					calls: 1,
 					telemetry_complete: cost !== null,
+					telemetry_status: cost !== null ? "MEASURED" : "INCONCLUSIVE",
 					prompt_tokens: tokens,
 					completion_tokens: 0,
 					total_tokens: tokens,

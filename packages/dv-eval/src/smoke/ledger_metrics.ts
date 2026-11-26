@@ -1,10 +1,13 @@
 // Baldes de tokens somados a partir do ledger.jsonl (telemetria por chamada, contract v4 regra a).
 // Campos nulos (declarados não expostos pelo transporte) não entram na soma; telemetry_complete=false se qualquer chamada for INCONCLUSIVE.
 import { readFileSync } from "node:fs";
+import { callTelemetryStatus, type TelemetryStatus, worstTelemetryStatus } from "../bench/telemetry_status.ts";
 
 export interface LedgerMetrics {
 	calls: number;
 	telemetry_complete: boolean;
+	/** Pior etiqueta das chamadas (MEASURED < UNVERIFIABLE < INCONCLUSIVE). Sem chamadas: INCONCLUSIVE. */
+	telemetry_status: TelemetryStatus;
 	prompt_tokens: number;
 	completion_tokens: number;
 	total_tokens: number;
@@ -22,6 +25,7 @@ export function readLedgerMetrics(path: string): LedgerMetrics {
 	const metrics: LedgerMetrics = {
 		calls: 0,
 		telemetry_complete: true,
+		telemetry_status: "INCONCLUSIVE",
 		prompt_tokens: 0,
 		completion_tokens: 0,
 		total_tokens: 0,
@@ -30,6 +34,7 @@ export function readLedgerMetrics(path: string): LedgerMetrics {
 		cache_write_tokens: 0,
 		cost_usd: 0,
 	};
+	const statuses: TelemetryStatus[] = [];
 	for (const line of readFileSync(path, "utf8").split("\n")) {
 		if (line.length === 0) continue;
 		const event = JSON.parse(line) as Json;
@@ -37,6 +42,7 @@ export function readLedgerMetrics(path: string): LedgerMetrics {
 		const telemetry = ((event.record as Json).telemetry ?? {}) as Json;
 		metrics.calls += 1;
 		if (telemetry.telemetry_complete !== true) metrics.telemetry_complete = false;
+		statuses.push(callTelemetryStatus(telemetry));
 		metrics.prompt_tokens += num(telemetry.prompt_tokens);
 		metrics.completion_tokens += num(telemetry.completion_tokens);
 		metrics.total_tokens += num(telemetry.total_tokens);
@@ -46,6 +52,7 @@ export function readLedgerMetrics(path: string): LedgerMetrics {
 		if (typeof telemetry.cost_usd === "number" && metrics.cost_usd !== null) metrics.cost_usd += telemetry.cost_usd;
 		else metrics.cost_usd = null;
 	}
+	metrics.telemetry_status = worstTelemetryStatus(statuses);
 	return metrics;
 }
 

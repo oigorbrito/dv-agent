@@ -136,7 +136,7 @@ export function registerAcpWorkspaceHandlers(
 			env,
 			windowsHide: true,
 			stdio: ["ignore", "pipe", "pipe"],
-			detached: process.platform !== "win32",
+			detached: terminalDetached(process.platform),
 		});
 		const id = `dv-terminal-${nextId++}`;
 		let resolveExit!: () => void;
@@ -212,18 +212,33 @@ export function registerAcpWorkspaceHandlers(
 	};
 }
 
+/** Grupo de processos próprio só fora do Windows (no Windows não há kill de grupo por pid negativo). */
+export function terminalDetached(platform: NodeJS.Platform): boolean {
+	return platform !== "win32";
+}
+
+/** Plano de encerramento de um terminal, decidido por plataforma (função pura, testável em qualquer SO). */
+export type TerminationPlan =
+	| { kind: "taskkill"; args: readonly string[] }
+	| { kind: "process_group"; pid: number }
+	| { kind: "child_kill" };
+
+export function terminationPlan(platform: NodeJS.Platform, pid: number | undefined): TerminationPlan {
+	if (pid === undefined) return { kind: "child_kill" };
+	if (platform === "win32") return { kind: "taskkill", args: ["/pid", String(pid), "/T", "/F"] };
+	return { kind: "process_group", pid };
+}
+
 function killTerminal(terminal: TerminalRecord): void {
 	if (terminal.exitCode !== null || terminal.signal !== null) return;
-	const pid = terminal.child.pid;
-	if (pid === undefined) {
+	const plan = terminationPlan(process.platform, terminal.child.pid);
+	if (plan.kind === "child_kill") {
 		terminal.child.kill("SIGKILL");
-		return;
-	}
-	if (process.platform === "win32") {
-		spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true });
+	} else if (plan.kind === "taskkill") {
+		spawnSync("taskkill", [...plan.args], { windowsHide: true });
 	} else {
 		try {
-			process.kill(-pid, "SIGKILL");
+			process.kill(-plan.pid, "SIGKILL");
 		} catch {
 			terminal.child.kill("SIGKILL");
 		}

@@ -13,6 +13,7 @@
 //   --max-tokens N (teto de tokens por execução, somado entre degraus; obrigatório em subscription)  --max-cost USD (padrão 0.05)
 //   --editor-max-turns N  --editor-max-output-tokens N (tetos do papel editor; padrão EDITOR_LIMITS)
 //   --repeats N (réplicas independentes por célula, em rep-0..rep-N-1; padrão 1)  --temperature T (>= 0; só vai a modelos que suportam)
+//   --compaction off|by_model (compactação intra-degrau por porte de modelo; padrão off)
 //   --outdir DIR (padrão runs/bench-<timestamp>)
 //   --external-slice MANIFEST.json (fatia externa congelada por scripts/dv-freeze-external-slice.ts; verifica a integridade antes; exclusiva com --corpus)
 // Códigos de saída: 0 ok (inclusive INCONCLUSIVE por teto não verificável); 1 erro de uso ou execução;
@@ -48,6 +49,7 @@ const ALLOWED_FLAGS = [
 	"escalation-model",
 	"ladder-models",
 	"scaffold-mode",
+	"compaction",
 	"routing-history",
 	"routing-history-partition",
 	"max-tokens",
@@ -98,6 +100,21 @@ for (const policy of policyList) {
 		throw new Error(`política desconhecida em --policies: ${policy} (use ${POLICIES.join(", ")})`);
 	}
 }
+// Histórico do roteador: só calibração (holdout é recusado pelo loader e pelo k-NN) e só com a política preditiva.
+const historyText = text("routing-history");
+const partitionText = text("routing-history-partition");
+if (historyText !== undefined) {
+	if (partitionText !== "calibration") {
+		fail(
+			"--routing-history exige --routing-history-partition calibration (o histórico do roteador é só de calibração)",
+		);
+	}
+	if (policyList.some((policy) => policy !== "predictive-harness-router")) {
+		fail("--routing-history só se aplica a --policies predictive-harness-router");
+	}
+} else if (partitionText !== undefined) {
+	fail("--routing-history-partition exige --routing-history");
+}
 const authFlag = text("auth-mode") ?? "faux";
 const authMode = AUTH_FLAG_TO_MODE[authFlag];
 if (authMode === undefined) throw new Error("--auth-mode deve ser faux, subscription ou api-key");
@@ -110,6 +127,11 @@ const temperatureText = text("temperature");
 const temperature = temperatureText === undefined ? undefined : Number(temperatureText);
 if (temperature !== undefined && (!Number.isFinite(temperature) || temperature < 0)) {
 	throw new Error(`--temperature deve ser um número >= 0: ${temperatureText}`);
+}
+
+const compactionText = text("compaction") ?? "off";
+if (compactionText !== "off" && compactionText !== "by_model") {
+	throw new Error("--compaction deve ser off ou by_model");
 }
 
 const scaffoldModeText = text("scaffold-mode") ?? "uniform";
@@ -139,6 +161,7 @@ const options: BenchOptions = {
 	...(tasks === undefined ? {} : { tasks }),
 	policies: policyList as PolicyName[],
 	scaffoldMode: scaffoldModeText as "uniform" | "adaptive",
+	compaction: compactionText as "off" | "by_model",
 	authMode,
 	...(text("model") === undefined ? {} : { model: text("model") }),
 	...(text("escalation-model") === undefined ? {} : { escalationModel: text("escalation-model") }),

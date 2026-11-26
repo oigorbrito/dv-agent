@@ -99,6 +99,8 @@ export interface SmokeOptions {
 	probesDir: string;
 	/** Modo de scaffold: uniform (padrão) ou adaptive. */
 	scaffoldMode?: ScaffoldMode;
+	/** Compactação intra-degrau por porte de modelo (opt-in; padrão off). Ver guards/compaction.ts. */
+	compaction?: "off" | "by_model";
 	/** Contrato do run. Padrão: v5 para provedor agy, v4 para os demais (executeRung). */
 	contractId?: string;
 }
@@ -405,6 +407,7 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 					ledgerPath: join(stepDir, "ledger.jsonl"),
 					runId: `smoke-${task.id}-${step}`,
 					harnessVariant: `dv-smoke:${options.policy}:${options.authMode}`,
+					compaction: options.compaction,
 					referenceProvenance: provenance,
 					datasetSha256: datasetSha,
 					taskDefinitionSha256: taskSha,

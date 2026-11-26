@@ -130,7 +130,9 @@ export async function runDVTask(input: {
 		0,
 	);
 	const outputTokens = assistant.reduce((sum, message) => sum + message.usage.output, 0);
-	const cacheTokens = assistant.reduce((sum, message) => sum + message.usage.cacheRead + message.usage.cacheWrite, 0);
+	// Harbor's n_cache_tokens follows its native Pi/Codex accounting: cached reads only.
+	// Cache writes remain included in n_input_tokens, but are not counted as cached reads.
+	const cacheTokens = assistant.reduce((sum, message) => sum + message.usage.cacheRead, 0);
 	input.emitTelemetry({
 		runId,
 		ledgerPath: result.ledgerPath,

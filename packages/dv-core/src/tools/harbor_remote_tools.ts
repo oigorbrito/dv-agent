@@ -98,9 +98,13 @@ function startProtocolReader(): void {
 			waiter.resolve(result(String(frame.error ?? "remote tool failed"), true));
 			return;
 		}
-		const stdout = typeof frame.stdout === "string" ? frame.stdout : "";
-		const stderr = typeof frame.stderr === "string" ? frame.stderr : "";
-		const exitCode = typeof frame.exit_code === "number" ? frame.exit_code : 0;
+		if (typeof frame.stdout !== "string" || typeof frame.stderr !== "string" || !Number.isInteger(frame.exit_code)) {
+			waiter.reject(new Error("malformed tool_result: stdout, stderr and integer exit_code are required"));
+			return;
+		}
+		const stdout = frame.stdout;
+		const stderr = frame.stderr;
+		const exitCode = frame.exit_code as number;
 		waiter.resolve(
 			result(
 				[stdout, stderr ? "stderr:\n" + stderr : "", exitCode !== 0 ? "exit_code: " + exitCode : ""]
@@ -171,6 +175,7 @@ export function emitHarborTelemetry(data: {
 	cacheTokens?: number | null;
 	costUsd?: number | null;
 	complete: boolean;
+	runStatus: string;
 }): void {
 	process.stdout.write(
 		JSON.stringify({
@@ -185,6 +190,7 @@ export function emitHarborTelemetry(data: {
 			cache_tokens: data.cacheTokens ?? null,
 			cost_usd: data.costUsd ?? null,
 			complete: data.complete,
+			run_status: data.runStatus,
 		}) + "\n",
 	);
 }

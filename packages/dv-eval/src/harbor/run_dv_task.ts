@@ -2,10 +2,12 @@
  * Concrete Harbor bootstrap for DV. Configuration is explicit in controller environment variables;
  * credentials are read by openLiveSession and never copied into the manifest or telemetry.
  */
+import { readFileSync } from "node:fs";
 import { DEFAULT_SYSTEM_PROMPT, executeRung } from "@dv-agent/core";
 import { type LiveAuthMode, openLiveSession } from "../auth/live_session.ts";
 import { resolveAuthPath } from "../auth/subscription.ts";
 import { loadApprovedProbes } from "../probe/provider_probe.ts";
+import { aggregateHarborLedgerTelemetry } from "./ledger_telemetry.ts";
 
 type RemoteTools = Parameters<typeof executeRung>[0]["tools"];
 type EmitTelemetry = (data: {
@@ -19,6 +21,7 @@ type EmitTelemetry = (data: {
 	cacheTokens?: number | null;
 	costUsd?: number | null;
 	complete: boolean;
+	runStatus: string;
 }) => void;
 
 function required(name: string): string {
@@ -124,25 +127,23 @@ export async function runDVTask(input: {
 			: { reasoningEffort: reasoningEffort as "low" | "medium" | "high" | "xhigh" }),
 	});
 
-	const assistant = result.messages.filter((message) => message.role === "assistant");
-	const inputTokens = assistant.reduce(
-		(sum, message) => sum + message.usage.input + message.usage.cacheRead + message.usage.cacheWrite,
-		0,
-	);
-	const outputTokens = assistant.reduce((sum, message) => sum + message.usage.output, 0);
-	// Harbor's n_cache_tokens follows its native Pi/Codex accounting: cached reads only.
-	// Cache writes remain included in n_input_tokens, but are not counted as cached reads.
-	const cacheTokens = assistant.reduce((sum, message) => sum + message.usage.cacheRead, 0);
+	// The closed ledger is the source of truth; missing provider usage is never imputed as zero.
+	const events = readFileSync(result.ledgerPath, "utf8")
+		.split("\n")
+		.filter(Boolean)
+		.map((line) => JSON.parse(line) as Record<string, unknown>);
+	const telemetry = aggregateHarborLedgerTelemetry(events);
 	input.emitTelemetry({
 		runId,
 		ledgerPath: result.ledgerPath,
 		ledgerSha256: result.ledgerSha256,
-		provider,
-		model: modelId,
-		inputTokens,
-		outputTokens,
-		cacheTokens,
-		costUsd: result.ceilingStatus === "within_verified" ? result.spentLowerBoundUsd : null,
-		complete: result.status === "completed",
+		provider: session.model.provider,
+		model: session.model.id,
+		inputTokens: telemetry.inputTokens,
+		outputTokens: telemetry.outputTokens,
+		cacheTokens: telemetry.cacheTokens,
+		costUsd: telemetry.costUsd,
+		complete: telemetry.complete,
+		runStatus: telemetry.runStatus,
 	});
 }

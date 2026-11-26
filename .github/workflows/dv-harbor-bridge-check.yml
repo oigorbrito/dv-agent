@@ -21,5 +21,7 @@ jobs:
           node-version: 22.19.0
           cache: npm
       - run: npm ci
+      - run: npm run hydrate:pi-ai-data
+      - run: npm run build:runtime
       - run: npm run typecheck
       - run: npm test

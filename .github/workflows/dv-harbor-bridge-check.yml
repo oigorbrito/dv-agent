@@ -23,6 +23,6 @@ jobs:
       - run: npm ci
       - run: npm run hydrate:pi-ai-data
       - run: npm run build:runtime
-      - run: npx biome check packages/dv-core/src/tools/harbor_bridge_main.ts packages/dv-core/src/tools/harbor_remote_tools.ts packages/dv-eval/src/harbor/run_dv_task.ts
+      - run: npx biome check packages/dv-core/src/tools/harbor_bridge_main.ts packages/dv-core/src/tools/harbor_remote_tools.ts packages/dv-eval/src/harbor/run_dv_task.ts packages/dv-eval/src/harbor/ledger_telemetry.ts
       - run: npm run typecheck
-      - run: node --test packages/dv-core/test/harbor_remote_tools.test.ts
+      - run: node --test packages/dv-core/test/harbor_remote_tools.test.ts packages/dv-eval/test/harbor_ledger_telemetry.test.ts

@@ -10,6 +10,22 @@ Workspace DV sobre o runtime Pi (`badlogic/pi-mono`) fixado em commit. Pacotes:
 
 Dados de referência (`dv-baseline`, commit `e067dc7`) não foram alterados.
 
+## Instalação
+
+Requisitos: Git e Node.js **22.19.0 ou superior**, com npm.
+
+**Linux/macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/oigorbrito/dv-agent/feat/harness-router/scripts/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/oigorbrito/dv-agent/feat/harness-router/scripts/install.ps1 | iex
+```
+
+Os instaladores clonam/atualizam o projeto, instalam dependências, hidratam o catálogo de modelos, compilam o runtime, verificam tipos e executam os testes offline. Não instalam Node/Git automaticamente e não solicitam credenciais. Opções e instalação manual: [docs/INSTALL.md](docs/INSTALL.md).
+
 ## Comandos
 
 ### Effort laddering e scaffold adaptativo

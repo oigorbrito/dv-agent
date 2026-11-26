@@ -2,7 +2,7 @@ name: DV Harbor bridge checks
 
 on:
   push:
-    branches: [feat/harness-router]
+    branches: [dv-harbor-adapter-isolation]
   pull_request:
     branches: [main]
   workflow_dispatch:

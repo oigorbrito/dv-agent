@@ -56,7 +56,7 @@ test("missing provider usage stays null instead of becoming zero", () => {
 	assert.deepEqual(result, {
 		inputTokens: undefined,
 		outputTokens: undefined,
-		cacheTokens: 0,
+		cacheTokens: undefined,
 		costUsd: null,
 		complete: false,
 		runStatus: "provider_error",

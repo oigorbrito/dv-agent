@@ -248,3 +248,19 @@ Os dados desta execução sugerem:
 - **Escada:** 26/27 resolvidas; Δ = −151.293 tokens/tarefa, IC 95% [−263.982; −62.760], seed 20261124 e 10.000 reamostragens. Solve rate −0,037, IC 95% [−0,111; 0].
 - **Haiku single e Preditivo live:** 0/27 e INCONCLUSIVE em ambos; ledger aponta HTTP 429 `rate_limit_error` da assinatura OAuth, sem tokens consumidos. APGR, AIQ e fronteira de Pareto ficam pendentes de nova janela de cota.
 - O roteador offline faux com histórico de calibração passou 1/1, MEASURED e v4 PASS, registrando `route_decided` com a partição calibration.
+
+### 8.9 Fatia externa v2, N = 3 (live, subscription)
+
+Detalhes completos em `BENCHMARK-REPORT.md` §12. Resumo:
+
+| Braço | Política · modelo | Resolvidas | Total de tokens |
+| :--- | :--- | :---: | ---: |
+| A | `single` · haiku-5-5 | 8/9 | 82.692 |
+| B1 | `single` · sonnet-4-6 (`221222Z`) | 8/9 | 171.361 |
+| B2 | `single` · sonnet-4-6 (`221705Z`) | 8/9 | 116.640 |
+| C | `predictive-harness-router` (haiku → sonnet) | 9/9 | 113.709 |
+
+- **O IC de tokens que exclui zero depende do baseline.** Tratamento C contra B1: −6.405,78 tokens/tarefa, IC 95% [−9.489,00; −1.160,33]. Contra B2: −325,67, IC [−8.566,00; 9.028,67]. Contra A: +3.446,33, IC [−17,67; 10.289,67]. Não há redução de custo robusta nesta fatia.
+- `solve_rate` +0,111 (9/9 contra 8/9), IC [0; 0,333] em todas as comparações. Com n = 3 tarefas, não é conclusivo.
+- Conformidade v4 `INCONCLUSIVE` em todos os passos (assinatura). Custo em USD não medido (`cost_usd: null`).
+- Artefatos em `runs/ext-v2-n3-*`. Issues de acompanhamento: #5, #6 e #7.

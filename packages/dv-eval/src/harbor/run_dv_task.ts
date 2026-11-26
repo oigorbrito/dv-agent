@@ -7,6 +7,7 @@ import { DEFAULT_SYSTEM_PROMPT, executeRung } from "@dv-agent/core";
 import { type LiveAuthMode, openLiveSession } from "../auth/live_session.ts";
 import { resolveAuthPath } from "../auth/subscription.ts";
 import { loadApprovedProbes } from "../probe/provider_probe.ts";
+import { aggregateHarborLedgerTelemetry } from "./ledger_telemetry.ts";
 
 type RemoteTools = Parameters<typeof executeRung>[0]["tools"];
 type EmitTelemetry = (data: {
@@ -126,45 +127,23 @@ export async function runDVTask(input: {
 			: { reasoningEffort: reasoningEffort as "low" | "medium" | "high" | "xhigh" }),
 	});
 
-	// The ledger is the source of truth. Do not turn usage omitted by a provider into measured zero.
+	// The closed ledger is the source of truth; missing provider usage is never imputed as zero.
 	const events = readFileSync(result.ledgerPath, "utf8")
 		.split("\\n")
 		.filter(Boolean)
 		.map((line) => JSON.parse(line) as Record<string, unknown>);
-	const callTelemetry = events
-		.filter((event) => event.event === "call_finished")
-		.map((event) => ((event.record as Record<string, unknown>).telemetry ?? {}) as Record<string, unknown>);
-	const usageReported =
-		callTelemetry.length > 0 &&
-		callTelemetry.every((item) => {
-			const missing = Array.isArray(item.missing_buckets) ? item.missing_buckets : [];
-			return !missing.includes("usage_not_reported") && !missing.includes("usage_incomplete");
-		});
-	const inputTokens = usageReported
-		? callTelemetry.reduce((sum, item) => sum + Number(item.prompt_tokens ?? 0), 0)
-		: undefined;
-	const outputTokens = usageReported
-		? callTelemetry.reduce((sum, item) => sum + Number(item.completion_tokens ?? 0), 0)
-		: undefined;
-	// Harbor's n_cache_tokens follows its native Pi/Codex accounting: cached reads only.
-	// Null means at least one call's transport did not expose cache-read usage.
-	const cacheReported =
-		callTelemetry.length > 0 && callTelemetry.every((item) => typeof item.cache_read_tokens === "number");
-	const cacheTokens = cacheReported
-		? callTelemetry.reduce((sum, item) => sum + Number(item.cache_read_tokens), 0)
-		: undefined;
-	const telemetryComplete = callTelemetry.length > 0 && callTelemetry.every((item) => item.telemetry_complete === true);
+	const telemetry = aggregateHarborLedgerTelemetry(events);
 	input.emitTelemetry({
 		runId,
 		ledgerPath: result.ledgerPath,
 		ledgerSha256: result.ledgerSha256,
 		provider,
 		model: modelId,
-		inputTokens,
-		outputTokens,
-		cacheTokens,
-		costUsd: result.ceilingStatus === "within_verified" ? result.spentLowerBoundUsd : null,
-		complete: telemetryComplete,
-		runStatus: result.status,
+		inputTokens: telemetry.inputTokens,
+		outputTokens: telemetry.outputTokens,
+		cacheTokens: telemetry.cacheTokens,
+		costUsd: telemetry.costUsd,
+		complete: telemetry.complete,
+		runStatus: telemetry.runStatus,
 	});
 }

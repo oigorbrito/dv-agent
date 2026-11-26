@@ -171,6 +171,7 @@ export function emitHarborTelemetry(data: {
 	cacheTokens?: number | null;
 	costUsd?: number | null;
 	complete: boolean;
+	runStatus: string;
 }): void {
 	process.stdout.write(
 		JSON.stringify({
@@ -185,6 +186,7 @@ export function emitHarborTelemetry(data: {
 			cache_tokens: data.cacheTokens ?? null,
 			cost_usd: data.costUsd ?? null,
 			complete: data.complete,
+			run_status: data.runStatus,
 		}) + "\n",
 	);
 }

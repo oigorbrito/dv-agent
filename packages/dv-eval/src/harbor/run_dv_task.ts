@@ -134,10 +134,12 @@ export async function runDVTask(input: {
 	const callTelemetry = events
 		.filter((event) => event.event === "call_finished")
 		.map((event) => ((event.record as Record<string, unknown>).telemetry ?? {}) as Record<string, unknown>);
-	const usageReported = callTelemetry.length > 0 && callTelemetry.every((item) => {
-		const missing = Array.isArray(item.missing_buckets) ? item.missing_buckets : [];
-		return !missing.includes("usage_not_reported") && !missing.includes("usage_incomplete");
-	});
+	const usageReported =
+		callTelemetry.length > 0 &&
+		callTelemetry.every((item) => {
+			const missing = Array.isArray(item.missing_buckets) ? item.missing_buckets : [];
+			return !missing.includes("usage_not_reported") && !missing.includes("usage_incomplete");
+		});
 	const inputTokens = usageReported
 		? callTelemetry.reduce((sum, item) => sum + Number(item.prompt_tokens ?? 0), 0)
 		: undefined;
@@ -146,7 +148,9 @@ export async function runDVTask(input: {
 		: undefined;
 	// Harbor's n_cache_tokens follows its native Pi/Codex accounting: cached reads only.
 	// Null means at least one call's transport did not expose cache-read usage.
-	const cacheReported = callTelemetry.length > 0 && callTelemetry.every((item) => typeof item.cache_read_tokens === "number");
+	const cacheReported =
+		callTelemetry.length > 0 &&
+		callTelemetry.every((item) => typeof item.cache_read_tokens === "number");
 	const cacheTokens = cacheReported
 		? callTelemetry.reduce((sum, item) => sum + Number(item.cache_read_tokens), 0)
 		: undefined;

@@ -46,7 +46,15 @@ export function aggregateHarborLedgerTelemetry(events: readonly LedgerEvent[]): 
 		? calls.reduce((sum, call) => sum + (call.completion_tokens as number), 0)
 		: undefined;
 	const cacheReported =
-		calls.length > 0 && calls.every((call) => isFiniteNumber(call.cache_read_tokens));
+		calls.length > 0 &&
+		calls.every((call) => {
+			const missing = Array.isArray(call.missing_buckets) ? call.missing_buckets : [];
+			return (
+				!missing.includes("usage_not_reported") &&
+				!missing.includes("usage_incomplete") &&
+				isFiniteNumber(call.cache_read_tokens)
+			);
+		});
 	const cacheTokens = cacheReported
 		? calls.reduce((sum, call) => sum + (call.cache_read_tokens as number), 0)
 		: undefined;

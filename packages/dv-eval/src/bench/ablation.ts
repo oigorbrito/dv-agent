@@ -239,6 +239,8 @@ async function runOne(
 			model: step.model,
 			reasoning_effort: step.reasoning_effort,
 			requested_model: step.requested_model,
+			system_prompt_sha256: step.system_prompt_sha256,
+			tools_sha256: step.tools_sha256,
 			verdict: step.oracle?.verdict ?? null,
 			run_status: step.run_status,
 			ceiling_status: step.ceiling_status,

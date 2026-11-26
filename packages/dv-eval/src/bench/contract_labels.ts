@@ -6,6 +6,7 @@
 // idêntica (testada em contract_v5.test.ts), então misturar v4 e v5 entre resumos de arms distintos não é divergência.
 import { CONTRACT_ID, CONTRACT_V5_ID } from "@dv-agent/core";
 import type { BenchReport } from "./report.ts";
+import { frozenScaffoldProblems } from "./scaffold_freeze.ts";
 import { isTelemetryStatus } from "./telemetry_status.ts";
 
 export const CONTRACT_V4_SHA256 = "11b4d5453e0964a7eb88decb5cbf7d1c5f5eebf4fbbdd458fb4e38686baef486";
@@ -83,6 +84,9 @@ export function checkReportContracts(reports: readonly BenchReport[]): ContractC
 			}
 		}
 	});
+	const frozen = frozenScaffoldProblems(reports);
+	problems.push(...frozen.problems);
+	notes.push(...frozen.notes);
 	const ids = [...new Set(reports.map((r) => r.contract_id))].sort();
 	if (ids.length > 1)
 		notes.push(`contratos mistos entre arms (${ids.join(", ")}): comparação permitida (v5 só altera o agy)`);

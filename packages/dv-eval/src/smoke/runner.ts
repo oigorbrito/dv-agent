@@ -40,6 +40,7 @@ import {
 	type ScaffoldMode,
 	SingleModelPolicy,
 	type SourceFile,
+	scaffoldFingerprint,
 } from "@dv-agent/core";
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Model } from "@earendil-works/pi-ai";
@@ -109,6 +110,10 @@ export interface StepRecord {
 	step: number;
 	rung: number;
 	role: string;
+	/** Impressão digital do system prompt enviado neste degrau. */
+	system_prompt_sha256: string;
+	/** Impressão digital das ferramentas enviadas neste degrau (vazio no architect). */
+	tools_sha256: string;
 	model: string;
 	reasoning_effort: string | null;
 	/** Modelo real do degrau (provider/modelId pedido). Em offline, `model` é o roteiro faux. */
@@ -384,6 +389,7 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 		const step = attempts.length;
 		const stepDir = join(options.outdir, `step-${step}-${decision.role}`);
 		const workspace = mkdtempSync(join(tmpdir(), "dv-smoke-ws-"));
+		let scaffoldFp: { system_prompt_sha256: string; tools_sha256: string } | undefined;
 		// Workspace temporário é removido ao fim do degrau, inclusive em erro (sem órfãos em %TEMP%).
 		try {
 			cpSync(workspaceSrc, workspace, { recursive: true });
@@ -403,12 +409,14 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 					modelId: decision.model.tierModelId ?? decision.model.modelId,
 					scaffoldMode: options.scaffoldMode,
 				});
+				// Impressão digital do que é enviado de fato: o architect recebe tools vazias.
+				scaffoldFp = scaffoldFingerprint(scaffold.systemPrompt, isArchitect ? [] : scaffold.tools);
 				run = await executeRung({
 					ledgerPath: join(stepDir, "ledger.jsonl"),
 					runId: `smoke-${task.id}-${step}`,
 					harnessVariant: `dv-smoke:${options.policy}:${options.authMode}`,
 					compaction: options.compaction,
-					referenceProvenance: provenance,
+					referenceProvenance: { ...provenance, ...scaffoldFp },
 					datasetSha256: datasetSha,
 					taskDefinitionSha256: taskSha,
 					model: engine.model,
@@ -484,6 +492,8 @@ export async function runSmoke(options: SmokeOptions): Promise<SmokeSummary> {
 				step,
 				rung: decision.rung,
 				role: decision.role,
+				system_prompt_sha256: scaffoldFp?.system_prompt_sha256 ?? "",
+				tools_sha256: scaffoldFp?.tools_sha256 ?? "",
 				model: `${decision.model.provider}/${decision.model.modelId}`,
 				reasoning_effort: decision.model.reasoningEffort ?? null,
 				requested_model: decision.model.tierModelId

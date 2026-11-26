@@ -25,6 +25,9 @@ export interface RunStep {
 	ledger_sha256: string;
 	metrics: LedgerMetrics;
 	conformance_status: ConformanceStatus;
+	/** Impressão digital do scaffold enviado (ausente em resumos antigos). */
+	system_prompt_sha256?: string;
+	tools_sha256?: string;
 }
 
 /** Uma combinação (tarefa x política). `escalated` é null em políticas sem degrau de escalonamento. */

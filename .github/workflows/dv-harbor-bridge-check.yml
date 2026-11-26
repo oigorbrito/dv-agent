@@ -23,13 +23,6 @@ jobs:
       - run: npm ci
       - run: npm run hydrate:pi-ai-data
       - run: npm run build:runtime
-      - name: Format bridge files and export formatter output
-        run: |
-          npx biome check --write packages/dv-core/src/tools/harbor_bridge_main.ts packages/dv-core/src/tools/harbor_remote_tools.ts packages/dv-eval/src/harbor/run_dv_task.ts
-          for file in packages/dv-core/src/tools/harbor_bridge_main.ts packages/dv-core/src/tools/harbor_remote_tools.ts packages/dv-eval/src/harbor/run_dv_task.ts; do
-            echo "FORMAT_FILE:$file"
-            base64 -w0 "$file"
-            echo
-          done
+      - run: npx biome check packages/dv-core/src/tools/harbor_bridge_main.ts packages/dv-core/src/tools/harbor_remote_tools.ts packages/dv-eval/src/harbor/run_dv_task.ts
       - run: npm run typecheck
       - run: npm test

@@ -129,7 +129,7 @@ export async function runDVTask(input: {
 
 	// The closed ledger is the source of truth; missing provider usage is never imputed as zero.
 	const events = readFileSync(result.ledgerPath, "utf8")
-		.split("\\n")
+		.split("\n")
 		.filter(Boolean)
 		.map((line) => JSON.parse(line) as Record<string, unknown>);
 	const telemetry = aggregateHarborLedgerTelemetry(events);

@@ -30,12 +30,14 @@ import { findSlashCommand, formatHelp, matchSlashCommands, SLASH_COMMANDS } from
 import { createPlainIo } from "../../../src/tui/io.ts";
 import { applyKey, createEditorState, type EditorState, popupItems } from "../../../src/tui/line_editor.ts";
 import {
+	abbreviatePath,
 	formatCostMode,
 	formatCount,
 	type HeaderInfo,
 	renderHeader,
 	renderPromptBlock,
 	renderStatusLine,
+	type StatusInfo,
 } from "../../../src/tui/render.ts";
 import { TerminalUI } from "../../../src/tui/terminal.ts";
 import { detectWorkspaceProfile, formatWorkspaceProfile } from "../../../src/tui/workspace_profile.ts";
@@ -350,42 +352,77 @@ test("editor: histórico com ↑/↓ e prefixo '!' como texto comum (shell não 
 	assert.equal(down.buffer, "primeira tarefa");
 });
 
-test("cabeçalho e barra de status: versão, workspace, modelo, esforço, política, tokens e atalhos", () => {
-	const info: HeaderInfo = {
-		version: "0.0.2",
-		cwd: "D:/projetos/dv-agent",
-		auth: "assinatura · anthropic · paid",
-		model: "anthropic/claude-haiku-5-5",
-		effort: "medium",
-		policy: "ladder",
-		budget: 200000,
-		updateNotice: "0.0.3",
-	};
-	const header = renderHeader(info, 100, NO_STYLE).join("\n");
-	assert.ok(header.includes("dv-agent v0.0.2"));
-	assert.ok(header.includes("D:/projetos/dv-agent"));
-	assert.ok(header.includes("anthropic/claude-haiku-5-5 · medium"));
-	assert.ok(header.includes("ladder"));
-	assert.ok(header.includes("Atualização disponível: 0.0.3"), "aviso de atualização ausente");
+const STATUS_BASE: StatusInfo = {
+	cwd: "D:/projetos/dv-agent",
+	branch: "feat/x",
+	model: "anthropic/claude-haiku-5-5",
+	effort: "medium",
+	usage: { input: 1234, output: 56, total: 1290 },
+	cost: "sub",
+};
 
-	const status = renderStatusLine(
-		{
-			cwd: "D:/projetos/dv-agent",
-			branch: "feat/x",
-			model: "anthropic/claude-haiku-5-5",
-			effort: "medium",
-			policy: "ladder",
-			usage: { input: 1234, output: 56, total: 1290 },
-			cost: "sub",
-		},
-		200,
-	);
-	assert.ok(status.includes("⎇ feat/x"));
-	assert.ok(status.includes("tok 1.2k in · 56 out · 1.3k total"), status);
-	assert.ok(status.includes("sub"), "modo de assinatura ausente");
-	for (const shortcut of ["/ comandos", "! shell", "Esc cancelar", "Ctrl+C sair"]) {
-		assert.ok(status.includes(shortcut), `atalho ausente: ${shortcut}`);
+test("abertura compacta: 2 linhas (versão e diretório) + aviso opcional, sem listagem longa", () => {
+	const base: HeaderInfo = { version: "0.0.2", cwd: "D:/projetos/dv-agent", notice: null };
+	const plain = renderHeader(base, 100, NO_STYLE);
+	assert.equal(plain.length, 2);
+	assert.equal(plain[0], " dv-agent v0.0.2");
+	assert.equal(plain[1], " D:/projetos/dv-agent");
+
+	const withNotice = renderHeader({ ...base, notice: "Atualização disponível: 0.0.3 — /update" }, 100, NO_STYLE);
+	assert.equal(withNotice.length, 3, "no máximo 3 linhas");
+	assert.ok(withNotice[2]?.includes("Atualização disponível: 0.0.3 — /update"));
+
+	const noModel = renderHeader({ ...base, notice: "Sem modelo ativo — use /login" }, 100, NO_STYLE).join("\n");
+	assert.ok(noModel.includes("Sem modelo ativo"));
+	for (const removed of ["workspace", "modelo", "auth", "política", "Dica"]) {
+		assert.ok(!plain.join("\n").includes(removed), `item removido ainda aparece: ${removed}`);
 	}
+});
+
+test("abertura: diretório dentro do home aparece abreviado com ~ (só quando é prefixo de pasta)", () => {
+	const home = "C:\\Users\\igorb";
+	assert.equal(abbreviatePath("C:\\Users\\igorb\\projetos\\dv-agent", home), "~\\projetos\\dv-agent");
+	assert.equal(abbreviatePath("C:\\Users\\igorb", home), "~");
+	assert.equal(
+		abbreviatePath("C:\\Users\\igorbx\\app", home),
+		"C:\\Users\\igorbx\\app",
+		"prefixo parcial de nome não conta",
+	);
+	assert.equal(abbreviatePath("/srv/app", "/home/ana"), "/srv/app");
+	const header = renderHeader(
+		{ version: "1", cwd: "/home/ana/code", homeDir: "/home/ana", notice: null },
+		80,
+		NO_STYLE,
+	);
+	assert.equal(header[1], " ~/code");
+});
+
+test("barra de status: pasta e tokens/modo à esquerda, modelo e esforço à direita, sem atalhos", () => {
+	const wide = renderStatusLine(STATUS_BASE, 120);
+	assert.ok(wide.startsWith("dv-agent · ⎇ feat/x · tok 1.2k in · 56 out · 1.3k total · sub"), wide);
+	assert.ok(wide.endsWith("anthropic/claude-haiku-5-5 · medium"), wide);
+	assert.equal(wide.length, 119, "ocupa a largura disponível (sem quebrar)");
+	assert.ok(!wide.includes("Esc cancelar"), "atalhos saem da barra (ficam em /help)");
+});
+
+test("barra de status: em 80 colunas degrada o lado esquerdo e preserva modelo e esforço sem corte", () => {
+	const narrow = renderStatusLine(STATUS_BASE, 80);
+	assert.ok(narrow.length <= 79, `estourou a largura: ${narrow.length}`);
+	assert.ok(narrow.endsWith("anthropic/claude-haiku-5-5 · medium"), narrow);
+	assert.ok(!narrow.includes("…"), "não deve cortar com reticências");
+	assert.ok(narrow.includes("tok 1.3k · sub"), narrow);
+
+	const tiny = renderStatusLine(STATUS_BASE, 45);
+	assert.ok(tiny.length <= 44, tiny);
+	assert.ok(tiny.endsWith("medium") || tiny.includes("…"), tiny);
+});
+
+test("barra de status sem modelo ativo mostra o caminho de login e sem branch fica sem ⎇", () => {
+	const noModel = renderStatusLine({ ...STATUS_BASE, model: "", branch: null, cost: "n/d" }, 100);
+	assert.ok(noModel.endsWith("sem modelo · /login"), noModel);
+	assert.ok(noModel.startsWith("dv-agent · tok 1.2k in"), noModel);
+	assert.ok(!noModel.includes("⎇"));
+	assert.ok(noModel.includes("n/d"));
 });
 
 test("bloco do prompt: popup aparece abaixo da entrada e o cursor acompanha o texto", () => {

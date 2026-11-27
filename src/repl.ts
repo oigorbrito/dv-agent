@@ -411,17 +411,13 @@ function viewStyle(): RenderStyle {
 }
 
 function headerInfo(state: ReplState): HeaderInfo {
-	const ref = state.modelRef;
-	return {
-		version: state.version,
-		cwd: state.cwd,
-		auth: ref === undefined ? "não autenticado" : describeAuth(ref.provider, state.authMode),
-		model: ref === undefined ? "" : `${ref.provider}/${ref.modelId}`,
-		effort: ref?.reasoningEffort ?? "padrão",
-		policy: state.policy,
-		budget: state.maxTokens,
-		updateNotice: state.updateNotice,
-	};
+	const notice =
+		state.updateNotice !== null
+			? `Atualização disponível: ${state.updateNotice} — /update`
+			: state.modelRef === undefined
+				? "Sem modelo ativo — use /login"
+				: null;
+	return { version: state.version, cwd: state.cwd, homeDir: state.homeDir, notice };
 }
 
 function statusText(state: ReplState): string {
@@ -432,7 +428,6 @@ function statusText(state: ReplState): string {
 		branch: state.branch,
 		model: ref === undefined ? "" : `${ref.provider}/${ref.modelId}`,
 		effort: ref?.reasoningEffort ?? "padrão",
-		policy: state.policy,
 		usage: { input: t.prompt_tokens, output: t.completion_tokens, total: t.total_tokens },
 		cost: formatCostMode(t.cost_usd, state.authMode === "subscription"),
 	};
@@ -1184,7 +1179,6 @@ export async function runInteractiveMode(options: {
 		if (options.forceLogin === true || (state.modelRef === undefined && io.tty)) {
 			await runLoginFlow(state, io);
 		}
-		say(io, "Digite uma tarefa, / para comandos ou !<comando> para o shell.");
 
 		void updatePromise.then((latest) => {
 			if (latest === null) return;

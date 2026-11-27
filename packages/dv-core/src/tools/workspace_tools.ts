@@ -29,7 +29,7 @@ export interface WorkspaceToolsOptions {
 
 const DEFAULT_BASH_TIMEOUT_MS = 60_000;
 const MAX_BASH_TIMEOUT_MS = 600_000;
-const DEFAULT_MAX_OUTPUT_BYTES = 64 * 1024;
+const DEFAULT_MAX_OUTPUT_BYTES = 24 * 1024;
 const MAX_READ_FILE_BYTES = 8 * 1024 * 1024;
 const DEFAULT_READ_LINES = 2000;
 /** Captura máxima em memória por fluxo de run_bash, antes do truncamento. */
@@ -236,12 +236,36 @@ export function runBashTool(
 			assertCommandAllowed(command, rootReal);
 			const timeoutMs = Math.min(timeout_ms ?? defaultTimeout, MAX_BASH_TIMEOUT_MS);
 			const run = await runProcess(command, rootReal, timeoutMs, signal);
-			const output = truncateHeadTail(run.output, maxOutput);
+			const totalLines = run.output === "" ? 0 : run.output.split("\n").length;
+			const isTruncated = Buffer.byteLength(run.output, "utf8") > maxOutput;
+			let fullOutputPath: string | undefined;
+			let output: string;
+			if (isTruncated) {
+				fullOutputPath = saveFullBashOutput(rootReal, run.output);
+				const truncatedBody = truncateHeadTail(run.output, maxOutput);
+				output = `[saída truncada: ${totalLines} linhas; completa em ${fullOutputPath} — use read_file ou rg]\n${truncatedBody}`;
+			} else {
+				output = run.output;
+			}
 			if (run.timedOut) throw new Error(`timeout após ${timeoutMs} ms\n${output}`);
 			if (run.exitCode !== 0) throw new Error(`saída ${run.exitCode}\n${output}`);
-			return textResult(output === "" ? "(sem saída)" : output, { exit_code: 0, timed_out: false });
+			return textResult(output === "" ? "(sem saída)" : output, {
+				exit_code: 0,
+				timed_out: false,
+				truncated: isTruncated,
+				total_lines: totalLines,
+				...(fullOutputPath === undefined ? {} : { full_output_path: fullOutputPath }),
+			});
 		},
 	};
+}
+
+/** Grava a saída bruta de run_bash em `.dv/tmp/` (confinado ao workspace) para inspeção seletiva via read_file/rg. */
+function saveFullBashOutput(rootReal: string, output: string): string {
+	const relPath = `.dv/tmp/bash-${randomBytes(6).toString("hex")}.log`;
+	const target = resolveInWorkspace(rootReal, relPath);
+	atomicWriteFile(target, output);
+	return relPath;
 }
 
 interface ProcessRun {

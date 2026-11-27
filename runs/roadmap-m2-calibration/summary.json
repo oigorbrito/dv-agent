@@ -1,0 +1,1822 @@
+{
+  "schema": "dv-bench-summary-v2",
+  "auth_mode": "subscription",
+  "policies": [
+    "single"
+  ],
+  "runs": [
+    {
+      "task_id": "hard-01-mini-ini-ast",
+      "tier": "hard",
+      "policy": "single",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-n5-20261123T125602Z\\hard-01-mini-ini-ast\\single\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "0e2d4a3cbea6a95430ff2f026b6c193cd304945f9fda751a4dbd9f7fcdd54371",
+          "metrics": {
+            "calls": 7,
+            "telemetry_complete": true,
+            "prompt_tokens": 45023,
+            "completion_tokens": 5127,
+            "total_tokens": 50150,
+            "uncached_input_tokens": 16,
+            "cache_read_tokens": 36362,
+            "cache_write_tokens": 8645,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "hard-01-mini-ini-ast",
+      "tier": "hard",
+      "policy": "ladder",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": false,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "rung_0",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-n5-20261123T125602Z\\hard-01-mini-ini-ast\\ladder\\step-0-rung_0\\ledger.jsonl",
+          "ledger_sha256": "11f2b736a13976757b4da0f272829fddc3eabe9bec7674711a7d3f495507d9e1",
+          "metrics": {
+            "calls": 7,
+            "telemetry_complete": true,
+            "prompt_tokens": 43142,
+            "completion_tokens": 5383,
+            "total_tokens": 48525,
+            "uncached_input_tokens": 16,
+            "cache_read_tokens": 37990,
+            "cache_write_tokens": 5136,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "hard-01-mini-ini-ast",
+      "tier": "hard",
+      "policy": "architect-editor",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "architect",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": null,
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-n5-20261123T125602Z\\hard-01-mini-ini-ast\\architect-editor\\step-0-architect\\ledger.jsonl",
+          "ledger_sha256": "91c8e6b26b556c7a4eea86bbc0480e7550041fb303802a10731dc2fd4117e03a",
+          "metrics": {
+            "calls": 1,
+            "telemetry_complete": true,
+            "prompt_tokens": 92,
+            "completion_tokens": 167,
+            "total_tokens": 259,
+            "uncached_input_tokens": 92,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        },
+        {
+          "rung": 1,
+          "role": "editor",
+          "model": "anthropic/claude-sonnet-4-6",
+          "verdict": "PASS",
+          "run_status": "limit_exceeded",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-n5-20261123T125602Z\\hard-01-mini-ini-ast\\architect-editor\\step-1-editor\\ledger.jsonl",
+          "ledger_sha256": "e419aa6c44aff91bd4b7657bdee66c84b95ff6e29212ed859c6b839534cb93eb",
+          "metrics": {
+            "calls": 9,
+            "telemetry_complete": false,
+            "prompt_tokens": 50117,
+            "completion_tokens": 7359,
+            "total_tokens": 57476,
+            "uncached_input_tokens": 10,
+            "cache_read_tokens": 39582,
+            "cache_write_tokens": 10525,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "hard-03-mini-sql-engine",
+      "tier": "hard",
+      "policy": "single",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-n5-20261123T125602Z\\hard-03-mini-sql-engine\\single\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "604d6deb7c2d249c9574ca08b88e5b1153fa346e9939e21f2d80d1aa220ce9fa",
+          "metrics": {
+            "calls": 16,
+            "telemetry_complete": true,
+            "prompt_tokens": 255585,
+            "completion_tokens": 19454,
+            "total_tokens": 275039,
+            "uncached_input_tokens": 34,
+            "cache_read_tokens": 230524,
+            "cache_write_tokens": 25027,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "hard-03-mini-sql-engine",
+      "tier": "hard",
+      "policy": "ladder",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": false,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "rung_0",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-n5-20261123T125602Z\\hard-03-mini-sql-engine\\ladder\\step-0-rung_0\\ledger.jsonl",
+          "ledger_sha256": "f2dc18d056121bb5f2bfa7a3ab826d769e1bfc78f51309124ec2bf48021dd794",
+          "metrics": {
+            "calls": 16,
+            "telemetry_complete": true,
+            "prompt_tokens": 272552,
+            "completion_tokens": 19347,
+            "total_tokens": 291899,
+            "uncached_input_tokens": 34,
+            "cache_read_tokens": 244070,
+            "cache_write_tokens": 28448,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "hard-03-mini-sql-engine",
+      "tier": "hard",
+      "policy": "architect-editor",
+      "final_outcome": "unsolved",
+      "solved": false,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "architect",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": null,
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-n5-20261123T125602Z\\hard-03-mini-sql-engine\\architect-editor\\step-0-architect\\ledger.jsonl",
+          "ledger_sha256": "0ae6ae244f037491b445062079369542bfe6da12e9e90edd57a1344b71d91402",
+          "metrics": {
+            "calls": 1,
+            "telemetry_complete": true,
+            "prompt_tokens": 92,
+            "completion_tokens": 321,
+            "total_tokens": 413,
+            "uncached_input_tokens": 92,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        },
+        {
+          "rung": 1,
+          "role": "editor",
+          "model": "anthropic/claude-sonnet-4-6",
+          "verdict": "FAIL",
+          "run_status": "limit_exceeded",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-n5-20261123T125602Z\\hard-03-mini-sql-engine\\architect-editor\\step-1-editor\\ledger.jsonl",
+          "ledger_sha256": "40b8fd7292ce3e09c0765aceb98efefa5c003d5db70778ff347dd08ad964bc27",
+          "metrics": {
+            "calls": 8,
+            "telemetry_complete": false,
+            "prompt_tokens": 34925,
+            "completion_tokens": 11110,
+            "total_tokens": 46035,
+            "uncached_input_tokens": 9,
+            "cache_read_tokens": 25573,
+            "cache_write_tokens": 9343,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        },
+        {
+          "rung": 1,
+          "role": "editor",
+          "model": "anthropic/claude-sonnet-4-6",
+          "verdict": "FAIL",
+          "run_status": "limit_exceeded",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-n5-20261123T125602Z\\hard-03-mini-sql-engine\\architect-editor\\step-2-editor\\ledger.jsonl",
+          "ledger_sha256": "33b7b75ab91e1f036b016c00ea28025ddeb176c46b907b457829067ce00b3417",
+          "metrics": {
+            "calls": 8,
+            "telemetry_complete": false,
+            "prompt_tokens": 34362,
+            "completion_tokens": 11869,
+            "total_tokens": 46231,
+            "uncached_input_tokens": 9,
+            "cache_read_tokens": 25980,
+            "cache_write_tokens": 8373,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "hard-05-bytecode-vm-gc",
+      "tier": "hard",
+      "policy": "single",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "budget_exceeded",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-n5-20261123T125602Z\\hard-05-bytecode-vm-gc\\single\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "26b0166e878c11a9b0dd28c52a27be704a6cc3913eadf09b074b20971bbca09f",
+          "metrics": {
+            "calls": 29,
+            "telemetry_complete": false,
+            "prompt_tokens": 601577,
+            "completion_tokens": 20110,
+            "total_tokens": 621687,
+            "uncached_input_tokens": 58,
+            "cache_read_tokens": 571418,
+            "cache_write_tokens": 30101,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "hard-05-bytecode-vm-gc",
+      "tier": "hard",
+      "policy": "ladder",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": false,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "rung_0",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-n5-20261123T125602Z\\hard-05-bytecode-vm-gc\\ladder\\step-0-rung_0\\ledger.jsonl",
+          "ledger_sha256": "97aa735883d7835905896c505527f3115e0691ffa9a445b16e95fe870f95c6a6",
+          "metrics": {
+            "calls": 17,
+            "telemetry_complete": true,
+            "prompt_tokens": 297958,
+            "completion_tokens": 20281,
+            "total_tokens": 318239,
+            "uncached_input_tokens": 36,
+            "cache_read_tokens": 271715,
+            "cache_write_tokens": 26207,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "hard-05-bytecode-vm-gc",
+      "tier": "hard",
+      "policy": "architect-editor",
+      "final_outcome": "unsolved",
+      "solved": false,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "architect",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": null,
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-n5-20261123T125602Z\\hard-05-bytecode-vm-gc\\architect-editor\\step-0-architect\\ledger.jsonl",
+          "ledger_sha256": "5a8973b5c194adbb63e69dd2caede1debdef90c3f618da1b38a36ead78582014",
+          "metrics": {
+            "calls": 1,
+            "telemetry_complete": true,
+            "prompt_tokens": 92,
+            "completion_tokens": 150,
+            "total_tokens": 242,
+            "uncached_input_tokens": 92,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        },
+        {
+          "rung": 1,
+          "role": "editor",
+          "model": "anthropic/claude-sonnet-4-6",
+          "verdict": "FAIL",
+          "run_status": "limit_exceeded",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-n5-20261123T125602Z\\hard-05-bytecode-vm-gc\\architect-editor\\step-1-editor\\ledger.jsonl",
+          "ledger_sha256": "2b048933180e5a0544b119a8a0ff9c8157aeb026563420cc063ef754d28f70e9",
+          "metrics": {
+            "calls": 7,
+            "telemetry_complete": false,
+            "prompt_tokens": 28502,
+            "completion_tokens": 12471,
+            "total_tokens": 40973,
+            "uncached_input_tokens": 8,
+            "cache_read_tokens": 17377,
+            "cache_write_tokens": 11117,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        },
+        {
+          "rung": 1,
+          "role": "editor",
+          "model": "anthropic/claude-sonnet-4-6",
+          "verdict": "FAIL",
+          "run_status": "limit_exceeded",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-n5-20261123T125602Z\\hard-05-bytecode-vm-gc\\architect-editor\\step-2-editor\\ledger.jsonl",
+          "ledger_sha256": "979112341f3fc8890b615f878fb65a7cb207dab8703c05eabda146e91611fac1",
+          "metrics": {
+            "calls": 6,
+            "telemetry_complete": false,
+            "prompt_tokens": 17335,
+            "completion_tokens": 8955,
+            "total_tokens": 26290,
+            "uncached_input_tokens": 7,
+            "cache_read_tokens": 15438,
+            "cache_write_tokens": 1890,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "hard-01-mini-ini-ast",
+      "tier": "hard",
+      "policy": "architect-editor",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "architect",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": null,
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-ae-fixed-20261123T164953Z\\hard-01-mini-ini-ast\\architect-editor\\step-0-architect\\ledger.jsonl",
+          "ledger_sha256": "f8638ff96e82e8b9f45d49865f9b1247a50cdb69b8fe3fa9f5c76734f6b7d63a",
+          "metrics": {
+            "calls": 1,
+            "telemetry_complete": true,
+            "prompt_tokens": 92,
+            "completion_tokens": 114,
+            "total_tokens": 206,
+            "uncached_input_tokens": 92,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        },
+        {
+          "rung": 1,
+          "role": "editor",
+          "model": "anthropic/claude-sonnet-4-6",
+          "verdict": "PASS",
+          "run_status": "limit_exceeded",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-ae-fixed-20261123T164953Z\\hard-01-mini-ini-ast\\architect-editor\\step-1-editor\\ledger.jsonl",
+          "ledger_sha256": "73965c828fbb6196c86e6641c20d96a3aaf43cd871b377734b24f053ef0ecb6c",
+          "metrics": {
+            "calls": 16,
+            "telemetry_complete": true,
+            "prompt_tokens": 125487,
+            "completion_tokens": 10976,
+            "total_tokens": 136463,
+            "uncached_input_tokens": 18,
+            "cache_read_tokens": 109578,
+            "cache_write_tokens": 15891,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "hard-03-mini-sql-engine",
+      "tier": "hard",
+      "policy": "architect-editor",
+      "final_outcome": "unsolved",
+      "solved": false,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "architect",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": null,
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-ae-fixed-20261123T164953Z\\hard-03-mini-sql-engine\\architect-editor\\step-0-architect\\ledger.jsonl",
+          "ledger_sha256": "f5d9a20e973430371c94dc4c5035747d068a8e2028b3ab642cb05c8ea06d073d",
+          "metrics": {
+            "calls": 1,
+            "telemetry_complete": true,
+            "prompt_tokens": 92,
+            "completion_tokens": 176,
+            "total_tokens": 268,
+            "uncached_input_tokens": 92,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        },
+        {
+          "rung": 1,
+          "role": "editor",
+          "model": "anthropic/claude-sonnet-4-6",
+          "verdict": "FAIL",
+          "run_status": "limit_exceeded",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-ae-fixed-20261123T164953Z\\hard-03-mini-sql-engine\\architect-editor\\step-1-editor\\ledger.jsonl",
+          "ledger_sha256": "dd7303919847b3795ebd24209be14203e72c1fd8a4e305fbbe38a34e26a13dc3",
+          "metrics": {
+            "calls": 16,
+            "telemetry_complete": true,
+            "prompt_tokens": 104012,
+            "completion_tokens": 7247,
+            "total_tokens": 111259,
+            "uncached_input_tokens": 18,
+            "cache_read_tokens": 92359,
+            "cache_write_tokens": 11635,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        },
+        {
+          "rung": 1,
+          "role": "editor",
+          "model": "anthropic/claude-sonnet-4-6",
+          "verdict": "FAIL",
+          "run_status": "limit_exceeded",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-ae-fixed-20261123T164953Z\\hard-03-mini-sql-engine\\architect-editor\\step-2-editor\\ledger.jsonl",
+          "ledger_sha256": "a45384320175e780058b4eaa107aafa7ec7839650c3732972ee18181041e1576",
+          "metrics": {
+            "calls": 16,
+            "telemetry_complete": true,
+            "prompt_tokens": 217159,
+            "completion_tokens": 18686,
+            "total_tokens": 235845,
+            "uncached_input_tokens": 18,
+            "cache_read_tokens": 194164,
+            "cache_write_tokens": 22977,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "hard-05-bytecode-vm-gc",
+      "tier": "hard",
+      "policy": "architect-editor",
+      "final_outcome": "unsolved",
+      "solved": false,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "architect",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": null,
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-ae-fixed-20261123T164953Z\\hard-05-bytecode-vm-gc\\architect-editor\\step-0-architect\\ledger.jsonl",
+          "ledger_sha256": "d24b7ff20c895d2cf9df09c7af158a0a80daa19728c1b035c8d0350c48a501a7",
+          "metrics": {
+            "calls": 1,
+            "telemetry_complete": true,
+            "prompt_tokens": 92,
+            "completion_tokens": 249,
+            "total_tokens": 341,
+            "uncached_input_tokens": 92,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        },
+        {
+          "rung": 1,
+          "role": "editor",
+          "model": "anthropic/claude-sonnet-4-6",
+          "verdict": "FAIL",
+          "run_status": "limit_exceeded",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-ae-fixed-20261123T164953Z\\hard-05-bytecode-vm-gc\\architect-editor\\step-1-editor\\ledger.jsonl",
+          "ledger_sha256": "14843f5fe562f9a72c95f48b14650ca55812afc09ef4628c4ff22d79212a77cd",
+          "metrics": {
+            "calls": 16,
+            "telemetry_complete": true,
+            "prompt_tokens": 216249,
+            "completion_tokens": 17626,
+            "total_tokens": 233875,
+            "uncached_input_tokens": 18,
+            "cache_read_tokens": 194168,
+            "cache_write_tokens": 22063,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        },
+        {
+          "rung": 1,
+          "role": "editor",
+          "model": "anthropic/claude-sonnet-4-6",
+          "verdict": "FAIL",
+          "run_status": "limit_exceeded",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-hard-ae-fixed-20261123T164953Z\\hard-05-bytecode-vm-gc\\architect-editor\\step-2-editor\\ledger.jsonl",
+          "ledger_sha256": "1ad730561afd27ba610f30db5c66053e1059040b9e7a18f16ec5e8cc3fbdcb10",
+          "metrics": {
+            "calls": 16,
+            "telemetry_complete": true,
+            "prompt_tokens": 209721,
+            "completion_tokens": 20840,
+            "total_tokens": 230561,
+            "uncached_input_tokens": 18,
+            "cache_read_tokens": 190454,
+            "cache_write_tokens": 19249,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "frontier-02-raft-consensus-sim",
+      "tier": "frontier",
+      "policy": "single",
+      "repeat": 0,
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-frontier-rep3-20261123T180816Z\\frontier-02-raft-consensus-sim\\single\\rep-0\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "67dc4de95993fbba6760048725b67e7e2593310e1001675fd957fc7913b3c270",
+          "metrics": {
+            "calls": 12,
+            "telemetry_complete": true,
+            "prompt_tokens": 75016,
+            "completion_tokens": 5542,
+            "total_tokens": 80558,
+            "uncached_input_tokens": 26,
+            "cache_read_tokens": 65457,
+            "cache_write_tokens": 9533,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "frontier-02-raft-consensus-sim",
+      "tier": "frontier",
+      "policy": "single",
+      "repeat": 1,
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-frontier-rep3-20261123T180816Z\\frontier-02-raft-consensus-sim\\single\\rep-1\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "05683406267e52da36df339d09ca13c69f08dfbe2b4741f7f571bb55873f6d31",
+          "metrics": {
+            "calls": 12,
+            "telemetry_complete": true,
+            "prompt_tokens": 68782,
+            "completion_tokens": 5825,
+            "total_tokens": 74607,
+            "uncached_input_tokens": 26,
+            "cache_read_tokens": 62657,
+            "cache_write_tokens": 6099,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "frontier-02-raft-consensus-sim",
+      "tier": "frontier",
+      "policy": "single",
+      "repeat": 2,
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-frontier-rep3-20261123T180816Z\\frontier-02-raft-consensus-sim\\single\\rep-2\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "209bef20a32fdf8180773d44236be69a6cebe2adfdb57028e1c0726d93b7ec1e",
+          "metrics": {
+            "calls": 14,
+            "telemetry_complete": true,
+            "prompt_tokens": 92729,
+            "completion_tokens": 6702,
+            "total_tokens": 99431,
+            "uncached_input_tokens": 30,
+            "cache_read_tokens": 85856,
+            "cache_write_tokens": 6843,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "frontier-02-raft-consensus-sim",
+      "tier": "frontier",
+      "policy": "ladder",
+      "repeat": 0,
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": false,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "rung_0",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-frontier-rep3-20261123T180816Z\\frontier-02-raft-consensus-sim\\ladder\\rep-0\\step-0-rung_0\\ledger.jsonl",
+          "ledger_sha256": "9faa36b1bda0c36b0ecc5816d40cbb5c2f4ace7f00de23805a73d40505ed1ae3",
+          "metrics": {
+            "calls": 15,
+            "telemetry_complete": true,
+            "prompt_tokens": 119698,
+            "completion_tokens": 8194,
+            "total_tokens": 127892,
+            "uncached_input_tokens": 32,
+            "cache_read_tokens": 110381,
+            "cache_write_tokens": 9285,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "frontier-02-raft-consensus-sim",
+      "tier": "frontier",
+      "policy": "ladder",
+      "repeat": 1,
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": false,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "rung_0",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-frontier-rep3-20261123T180816Z\\frontier-02-raft-consensus-sim\\ladder\\rep-1\\step-0-rung_0\\ledger.jsonl",
+          "ledger_sha256": "824ffd10f74f2aa44c591d94f0075541d885890674c9db08b9ffac8663afb38d",
+          "metrics": {
+            "calls": 13,
+            "telemetry_complete": true,
+            "prompt_tokens": 89577,
+            "completion_tokens": 6379,
+            "total_tokens": 95956,
+            "uncached_input_tokens": 28,
+            "cache_read_tokens": 82676,
+            "cache_write_tokens": 6873,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "frontier-02-raft-consensus-sim",
+      "tier": "frontier",
+      "policy": "ladder",
+      "repeat": 2,
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": false,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "rung_0",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-frontier-rep3-20261123T180816Z\\frontier-02-raft-consensus-sim\\ladder\\rep-2\\step-0-rung_0\\ledger.jsonl",
+          "ledger_sha256": "4a85224838e77030589756b73d8410bba60a15c8e8313e3df15ede2f4c4f5b6a",
+          "metrics": {
+            "calls": 14,
+            "telemetry_complete": true,
+            "prompt_tokens": 87723,
+            "completion_tokens": 5427,
+            "total_tokens": 93150,
+            "uncached_input_tokens": 30,
+            "cache_read_tokens": 82104,
+            "cache_write_tokens": 5589,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "frontier-02-raft-consensus-sim",
+      "tier": "frontier",
+      "policy": "architect-editor",
+      "repeat": 0,
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "architect",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": null,
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-frontier-rep3-20261123T180816Z\\frontier-02-raft-consensus-sim\\architect-editor\\rep-0\\step-0-architect\\ledger.jsonl",
+          "ledger_sha256": "be6f83da4a027f096e241a5fb65345bc135d3c411e21c1f16eda2676b13b3c4d",
+          "metrics": {
+            "calls": 1,
+            "telemetry_complete": true,
+            "prompt_tokens": 92,
+            "completion_tokens": 137,
+            "total_tokens": 229,
+            "uncached_input_tokens": 92,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        },
+        {
+          "rung": 1,
+          "role": "editor",
+          "model": "anthropic/claude-sonnet-4-6",
+          "verdict": "FAIL",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-frontier-rep3-20261123T180816Z\\frontier-02-raft-consensus-sim\\architect-editor\\rep-0\\step-1-editor\\ledger.jsonl",
+          "ledger_sha256": "5f59a9304ee87b635b9aad7343f6d39c83467af909d02aa4d4146b17c2ab0bd3",
+          "metrics": {
+            "calls": 25,
+            "telemetry_complete": true,
+            "prompt_tokens": 388265,
+            "completion_tokens": 18094,
+            "total_tokens": 406359,
+            "uncached_input_tokens": 27,
+            "cache_read_tokens": 359846,
+            "cache_write_tokens": 28392,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        },
+        {
+          "rung": 1,
+          "role": "editor",
+          "model": "anthropic/claude-sonnet-4-6",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-frontier-rep3-20261123T180816Z\\frontier-02-raft-consensus-sim\\architect-editor\\rep-0\\step-2-editor\\ledger.jsonl",
+          "ledger_sha256": "e03626c098f22180324362c77f7102e9963fb5940a10c1b9d9ee12e5a9ced042",
+          "metrics": {
+            "calls": 11,
+            "telemetry_complete": true,
+            "prompt_tokens": 84601,
+            "completion_tokens": 9691,
+            "total_tokens": 94292,
+            "uncached_input_tokens": 13,
+            "cache_read_tokens": 72816,
+            "cache_write_tokens": 11772,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "frontier-02-raft-consensus-sim",
+      "tier": "frontier",
+      "policy": "architect-editor",
+      "repeat": 1,
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "architect",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": null,
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-frontier-rep3-20261123T180816Z\\frontier-02-raft-consensus-sim\\architect-editor\\rep-1\\step-0-architect\\ledger.jsonl",
+          "ledger_sha256": "04d2674fc1942ff6a289267ec1543099b1360b827980ef0d456a7aace2cac02e",
+          "metrics": {
+            "calls": 1,
+            "telemetry_complete": true,
+            "prompt_tokens": 92,
+            "completion_tokens": 257,
+            "total_tokens": 349,
+            "uncached_input_tokens": 92,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        },
+        {
+          "rung": 1,
+          "role": "editor",
+          "model": "anthropic/claude-sonnet-4-6",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-frontier-rep3-20261123T180816Z\\frontier-02-raft-consensus-sim\\architect-editor\\rep-1\\step-1-editor\\ledger.jsonl",
+          "ledger_sha256": "f8580a64c49de9879e1e1b808b691cb27deba5f0f6298361e6a1f4d66a0d9001",
+          "metrics": {
+            "calls": 26,
+            "telemetry_complete": true,
+            "prompt_tokens": 446304,
+            "completion_tokens": 21416,
+            "total_tokens": 467720,
+            "uncached_input_tokens": 28,
+            "cache_read_tokens": 417524,
+            "cache_write_tokens": 28752,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "frontier-02-raft-consensus-sim",
+      "tier": "frontier",
+      "policy": "architect-editor",
+      "repeat": 2,
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "architect",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": null,
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-frontier-rep3-20261123T180816Z\\frontier-02-raft-consensus-sim\\architect-editor\\rep-2\\step-0-architect\\ledger.jsonl",
+          "ledger_sha256": "93e69262a1232969e3eedf3e841525426585bb2074a951ccd9e8294ee766f109",
+          "metrics": {
+            "calls": 1,
+            "telemetry_complete": true,
+            "prompt_tokens": 92,
+            "completion_tokens": 290,
+            "total_tokens": 382,
+            "uncached_input_tokens": 92,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        },
+        {
+          "rung": 1,
+          "role": "editor",
+          "model": "anthropic/claude-sonnet-4-6",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-frontier-rep3-20261123T180816Z\\frontier-02-raft-consensus-sim\\architect-editor\\rep-2\\step-1-editor\\ledger.jsonl",
+          "ledger_sha256": "e32cf6f0c1d460eef1501e5a8be0ba5020612286ba6deb6372cc4cfd0139fefc",
+          "metrics": {
+            "calls": 17,
+            "telemetry_complete": true,
+            "prompt_tokens": 226342,
+            "completion_tokens": 18227,
+            "total_tokens": 244569,
+            "uncached_input_tokens": 19,
+            "cache_read_tokens": 202735,
+            "cache_write_tokens": 23588,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "medium-02-interval-scheduler",
+      "tier": "medium",
+      "policy": "single",
+      "final_outcome": "unsolved",
+      "solved": false,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": "FAIL",
+          "run_status": "completed",
+          "ledger_path": "/mnt/d/projetos/dv-agent/runs/bench-2026-11-23T11-55-54-579Z/medium-02-interval-scheduler/single/step-0-executor/ledger.jsonl",
+          "ledger_sha256": "387290bcfabf1cb4bb78a87ced5d5676b5281c53a0a0c7a1fc8f82301ce03396",
+          "metrics": {
+            "calls": 6,
+            "telemetry_complete": true,
+            "prompt_tokens": 25710,
+            "completion_tokens": 4582,
+            "total_tokens": 30292,
+            "uncached_input_tokens": 14,
+            "cache_read_tokens": 19555,
+            "cache_write_tokens": 6141
+          }
+        }
+      ],
+      "conformance_violations": []
+    },
+    {
+      "task_id": "medium-02-interval-scheduler",
+      "tier": "medium",
+      "policy": "ladder",
+      "final_outcome": "unsolved",
+      "solved": false,
+      "escalated": true,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "rung_0",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": "FAIL",
+          "run_status": "completed",
+          "ledger_path": "/mnt/d/projetos/dv-agent/runs/bench-2026-11-23T11-55-54-579Z/medium-02-interval-scheduler/ladder/step-0-rung_0/ledger.jsonl",
+          "ledger_sha256": "85ca667af5d558b88dd94293c6220c17101a78b0a68621b5c9abd44ddc547342",
+          "metrics": {
+            "calls": 3,
+            "telemetry_complete": true,
+            "prompt_tokens": 8425,
+            "completion_tokens": 2985,
+            "total_tokens": 11410,
+            "uncached_input_tokens": 8,
+            "cache_read_tokens": 5662,
+            "cache_write_tokens": 2755
+          }
+        },
+        {
+          "rung": 1,
+          "role": "rung_1",
+          "model": "anthropic/claude-sonnet-4-6",
+          "verdict": "FAIL",
+          "run_status": "completed",
+          "ledger_path": "/mnt/d/projetos/dv-agent/runs/bench-2026-11-23T11-55-54-579Z/medium-02-interval-scheduler/ladder/step-1-rung_1/ledger.jsonl",
+          "ledger_sha256": "625edb525de7f5b13f295be51f889aa25a7dabff7c600c473c3f35277e0a7f3a",
+          "metrics": {
+            "calls": 6,
+            "telemetry_complete": true,
+            "prompt_tokens": 42190,
+            "completion_tokens": 9931,
+            "total_tokens": 52121,
+            "uncached_input_tokens": 8,
+            "cache_read_tokens": 27614,
+            "cache_write_tokens": 14568
+          }
+        }
+      ],
+      "conformance_violations": []
+    },
+    {
+      "task_id": "negative-01-contradictory-spec",
+      "tier": "negative",
+      "policy": "single",
+      "final_outcome": "unsolved",
+      "solved": false,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": "FAIL",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-negative-20261123T164953Z\\negative-01-contradictory-spec\\single\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "fe5ef1fe0379e951cada5229ebc8445d70a0f2af8da21607904656bc1ddcdb19",
+          "metrics": {
+            "calls": 7,
+            "telemetry_complete": true,
+            "prompt_tokens": 13551,
+            "completion_tokens": 1301,
+            "total_tokens": 14852,
+            "uncached_input_tokens": 16,
+            "cache_read_tokens": 10742,
+            "cache_write_tokens": 2793,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "negative-01-contradictory-spec",
+      "tier": "negative",
+      "policy": "ladder",
+      "final_outcome": "unsolved",
+      "solved": false,
+      "escalated": true,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "rung_0",
+          "model": "anthropic/claude-haiku-5-5",
+          "verdict": "FAIL",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-negative-20261123T164953Z\\negative-01-contradictory-spec\\ladder\\step-0-rung_0\\ledger.jsonl",
+          "ledger_sha256": "9e3b5f6fb0a3b55e58e103f0d33434b6ae0b01a09196e72b60181d428ecaf1c4",
+          "metrics": {
+            "calls": 7,
+            "telemetry_complete": true,
+            "prompt_tokens": 15842,
+            "completion_tokens": 1894,
+            "total_tokens": 17736,
+            "uncached_input_tokens": 16,
+            "cache_read_tokens": 13760,
+            "cache_write_tokens": 2066,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        },
+        {
+          "rung": 1,
+          "role": "rung_1",
+          "model": "anthropic/claude-sonnet-4-6",
+          "verdict": "FAIL",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\bench-negative-20261123T164953Z\\negative-01-contradictory-spec\\ladder\\step-1-rung_1\\ledger.jsonl",
+          "ledger_sha256": "c37261c7664c868791b0013b9bb097745940f6ad4f194f82b9871e362450dc30",
+          "metrics": {
+            "calls": 8,
+            "telemetry_complete": true,
+            "prompt_tokens": 28486,
+            "completion_tokens": 3969,
+            "total_tokens": 32455,
+            "uncached_input_tokens": 10,
+            "cache_read_tokens": 22376,
+            "cache_write_tokens": 6100,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "hard-03-mini-sql-engine",
+      "tier": "hard",
+      "policy": "single",
+      "repeat": 0,
+      "contract_id": "p1-run-accounting-v4",
+      "final_outcome": "unsolved",
+      "solved": false,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/faux-cheap",
+          "reasoning_effort": null,
+          "requested_model": "anthropic/faux-cheap",
+          "verdict": "FAIL",
+          "run_status": "completed",
+          "ceiling_status": "within_verified",
+          "spent_lower_bound_usd": 0.007,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\dbg-hard03\\hard-03-mini-sql-engine\\single\\rep-0\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "15d0762b2dc277a3c6cbf2d96a8a059b0cb80b5f041d6f35059dec39fde7af25",
+          "metrics": {
+            "calls": 5,
+            "telemetry_complete": true,
+            "prompt_tokens": 5000,
+            "completion_tokens": 500,
+            "total_tokens": 5500,
+            "uncached_input_tokens": 5000,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "cost_usd": 0.007
+          },
+          "conformance_status": "PASS"
+        }
+      ],
+      "conformance_status": "PASS",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "easy-01-calc",
+      "tier": "easy",
+      "policy": "single",
+      "repeat": 0,
+      "contract_id": "p1-run-accounting-v4",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "reasoning_effort": null,
+          "requested_model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\roadmap-m2-calibration\\fill-haiku\\easy-01-calc\\single\\rep-0\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "721704134b4e1f405b1613c87096bb72aebf5a7b7dd8b4bcb9e866e915cba24f",
+          "metrics": {
+            "calls": 5,
+            "telemetry_complete": true,
+            "prompt_tokens": 8994,
+            "completion_tokens": 932,
+            "total_tokens": 9926,
+            "uncached_input_tokens": 12,
+            "cache_read_tokens": 7668,
+            "cache_write_tokens": 1314,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "easy-01-calc",
+      "tier": "easy",
+      "policy": "single",
+      "repeat": 1,
+      "contract_id": "p1-run-accounting-v4",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "reasoning_effort": null,
+          "requested_model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\roadmap-m2-calibration\\fill-haiku\\easy-01-calc\\single\\rep-1\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "8a4ed0777e3b25e4f6d49ba05aa8e206e66de7cdc1256278d6f94b9590374d70",
+          "metrics": {
+            "calls": 4,
+            "telemetry_complete": true,
+            "prompt_tokens": 6663,
+            "completion_tokens": 829,
+            "total_tokens": 7492,
+            "uncached_input_tokens": 10,
+            "cache_read_tokens": 6101,
+            "cache_write_tokens": 552,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "easy-01-calc",
+      "tier": "easy",
+      "policy": "single",
+      "repeat": 2,
+      "contract_id": "p1-run-accounting-v4",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "reasoning_effort": null,
+          "requested_model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\roadmap-m2-calibration\\fill-haiku\\easy-01-calc\\single\\rep-2\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "b93ac298e1c3e42668e1da154905acc3d924219b8c1e8ac4ff90a484d1c6ab1c",
+          "metrics": {
+            "calls": 4,
+            "telemetry_complete": true,
+            "prompt_tokens": 6670,
+            "completion_tokens": 842,
+            "total_tokens": 7512,
+            "uncached_input_tokens": 10,
+            "cache_read_tokens": 6113,
+            "cache_write_tokens": 547,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "easy-03-csv-normalizer",
+      "tier": "easy",
+      "policy": "single",
+      "repeat": 0,
+      "contract_id": "p1-run-accounting-v4",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "reasoning_effort": null,
+          "requested_model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\roadmap-m2-calibration\\fill-haiku\\easy-03-csv-normalizer\\single\\rep-0\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "baa9d8f18c3d69daf5f53de625bad61bda1d030aa0de585a5fac7ecd8940f56f",
+          "metrics": {
+            "calls": 6,
+            "telemetry_complete": true,
+            "prompt_tokens": 22053,
+            "completion_tokens": 3352,
+            "total_tokens": 25405,
+            "uncached_input_tokens": 14,
+            "cache_read_tokens": 17829,
+            "cache_write_tokens": 4210,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "easy-03-csv-normalizer",
+      "tier": "easy",
+      "policy": "single",
+      "repeat": 1,
+      "contract_id": "p1-run-accounting-v4",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "reasoning_effort": null,
+          "requested_model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\roadmap-m2-calibration\\fill-haiku\\easy-03-csv-normalizer\\single\\rep-1\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "aca656cf8855d13e8a686d001de796bfe0cc354c20a2a905c141221092b31a47",
+          "metrics": {
+            "calls": 6,
+            "telemetry_complete": true,
+            "prompt_tokens": 22372,
+            "completion_tokens": 3443,
+            "total_tokens": 25815,
+            "uncached_input_tokens": 14,
+            "cache_read_tokens": 19163,
+            "cache_write_tokens": 3195,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "easy-03-csv-normalizer",
+      "tier": "easy",
+      "policy": "single",
+      "repeat": 2,
+      "contract_id": "p1-run-accounting-v4",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "reasoning_effort": null,
+          "requested_model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\roadmap-m2-calibration\\fill-haiku\\easy-03-csv-normalizer\\single\\rep-2\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "ce5607b6acdd1adc6e0222f36e8bf5761f1a5e3f6d41751c0dd4aea170d8475d",
+          "metrics": {
+            "calls": 8,
+            "telemetry_complete": true,
+            "prompt_tokens": 35729,
+            "completion_tokens": 4462,
+            "total_tokens": 40191,
+            "uncached_input_tokens": 18,
+            "cache_read_tokens": 31177,
+            "cache_write_tokens": 4534,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "easy-05-slug-dedup",
+      "tier": "easy",
+      "policy": "single",
+      "repeat": 0,
+      "contract_id": "p1-run-accounting-v4",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "reasoning_effort": null,
+          "requested_model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\roadmap-m2-calibration\\fill-haiku\\easy-05-slug-dedup\\single\\rep-0\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "f847ccb100ae86b85f1b7b1b88b6ee174fcfec02e847df86afa8b22bb71d99b3",
+          "metrics": {
+            "calls": 10,
+            "telemetry_complete": true,
+            "prompt_tokens": 40844,
+            "completion_tokens": 3856,
+            "total_tokens": 44700,
+            "uncached_input_tokens": 22,
+            "cache_read_tokens": 36080,
+            "cache_write_tokens": 4742,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "easy-05-slug-dedup",
+      "tier": "easy",
+      "policy": "single",
+      "repeat": 1,
+      "contract_id": "p1-run-accounting-v4",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "reasoning_effort": null,
+          "requested_model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\roadmap-m2-calibration\\fill-haiku\\easy-05-slug-dedup\\single\\rep-1\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "cef368088088eb9238dea4333650a71f0b6c0d88b2cd22e02647d7567b378c2e",
+          "metrics": {
+            "calls": 6,
+            "telemetry_complete": true,
+            "prompt_tokens": 20738,
+            "completion_tokens": 2927,
+            "total_tokens": 23665,
+            "uncached_input_tokens": 14,
+            "cache_read_tokens": 16429,
+            "cache_write_tokens": 4295,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "easy-05-slug-dedup",
+      "tier": "easy",
+      "policy": "single",
+      "repeat": 2,
+      "contract_id": "p1-run-accounting-v4",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "reasoning_effort": null,
+          "requested_model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\roadmap-m2-calibration\\fill-haiku\\easy-05-slug-dedup\\single\\rep-2\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "8d64e60e0f4613f5cdeae94e04e07d3b1202a095ff6e3033ce33c781e21c8791",
+          "metrics": {
+            "calls": 7,
+            "telemetry_complete": true,
+            "prompt_tokens": 29948,
+            "completion_tokens": 2959,
+            "total_tokens": 32907,
+            "uncached_input_tokens": 16,
+            "cache_read_tokens": 25097,
+            "cache_write_tokens": 4835,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "medium-04-lru-ttl-cache",
+      "tier": "medium",
+      "policy": "single",
+      "repeat": 0,
+      "contract_id": "p1-run-accounting-v4",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "reasoning_effort": null,
+          "requested_model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\roadmap-m2-calibration\\fill-haiku\\medium-04-lru-ttl-cache\\single\\rep-0\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "287100a8a9f3dabe931fd1a5295e35f8084cf9a9e05ccec0bae896b69978f2e5",
+          "metrics": {
+            "calls": 9,
+            "telemetry_complete": true,
+            "prompt_tokens": 38717,
+            "completion_tokens": 4175,
+            "total_tokens": 42892,
+            "uncached_input_tokens": 20,
+            "cache_read_tokens": 33700,
+            "cache_write_tokens": 4997,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "medium-04-lru-ttl-cache",
+      "tier": "medium",
+      "policy": "single",
+      "repeat": 1,
+      "contract_id": "p1-run-accounting-v4",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "reasoning_effort": null,
+          "requested_model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\roadmap-m2-calibration\\fill-haiku\\medium-04-lru-ttl-cache\\single\\rep-1\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "35bb3042bc1e2c7f54307e5e62d462e7f8715b2f9006ddd4e40631ef5d4d70d2",
+          "metrics": {
+            "calls": 8,
+            "telemetry_complete": true,
+            "prompt_tokens": 35600,
+            "completion_tokens": 4825,
+            "total_tokens": 40425,
+            "uncached_input_tokens": 18,
+            "cache_read_tokens": 30061,
+            "cache_write_tokens": 5521,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    },
+    {
+      "task_id": "medium-04-lru-ttl-cache",
+      "tier": "medium",
+      "policy": "single",
+      "repeat": 2,
+      "contract_id": "p1-run-accounting-v4",
+      "final_outcome": "solved",
+      "solved": true,
+      "escalated": null,
+      "steps": [
+        {
+          "rung": 0,
+          "role": "executor",
+          "model": "anthropic/claude-haiku-5-5",
+          "reasoning_effort": null,
+          "requested_model": "anthropic/claude-haiku-5-5",
+          "verdict": "PASS",
+          "run_status": "completed",
+          "ceiling_status": "unverifiable",
+          "spent_lower_bound_usd": 0,
+          "ledger_path": "D:\\projetos\\dv-agent\\runs\\roadmap-m2-calibration\\fill-haiku\\medium-04-lru-ttl-cache\\single\\rep-2\\step-0-executor\\ledger.jsonl",
+          "ledger_sha256": "eb0880a5402565c8ac198b6009b798fd1363dbfd7e7732807870596d56cddc2a",
+          "metrics": {
+            "calls": 9,
+            "telemetry_complete": true,
+            "prompt_tokens": 38999,
+            "completion_tokens": 4628,
+            "total_tokens": 43627,
+            "uncached_input_tokens": 20,
+            "cache_read_tokens": 34279,
+            "cache_write_tokens": 4700,
+            "cost_usd": null
+          },
+          "conformance_status": "INCONCLUSIVE"
+        }
+      ],
+      "conformance_status": "INCONCLUSIVE",
+      "conformance_violations": []
+    }
+  ],
+  "provenance": [
+    {
+      "path": "runs/bench-hard-n5-20261123T125602Z/summary.json",
+      "sha256": "8daf1839a20b210caaefd70d76d05d4e2dedf0c879b09c3b9c98b8469363d2c9",
+      "runs_kept": 9
+    },
+    {
+      "path": "runs/bench-hard-ae-fixed-20261123T164953Z/summary.json",
+      "sha256": "83a0ab48eda5bde5187fdf182dab338942bad7d39959a85e92493810af4a3489",
+      "runs_kept": 3
+    },
+    {
+      "path": "runs/bench-frontier-rep3-20261123T180816Z/summary.json",
+      "sha256": "4ba3f43ffd0c708b24e06e48e8ab3b0576ec159485f512ebde2dd644a6a786b6",
+      "runs_kept": 9
+    },
+    {
+      "path": "runs/bench-2026-11-23T11-55-54-579Z/summary.json",
+      "sha256": "a7be7b4b59d3d62d0050bfe213f2976ae9435bad58670d05a24f9942f15c1a1a",
+      "runs_kept": 2
+    },
+    {
+      "path": "runs/bench-negative-20261123T164953Z/summary.json",
+      "sha256": "472392b0552d2295804d66e8cb9410f7e1e54ef6479079c81c589db871474803",
+      "runs_kept": 2
+    },
+    {
+      "path": "runs/dbg-hard03/summary.json",
+      "sha256": "55186f2d67edb4c887d50cedcbd8eef487203a71b144868fb7bd3c187f890fb6",
+      "runs_kept": 1
+    },
+    {
+      "path": "runs/roadmap-m2-calibration/fill-haiku/summary.json",
+      "sha256": "512d22ec28055e08471cb83038a2885b1c4c601b132b99542de2b4a7624626fc",
+      "runs_kept": 12
+    }
+  ],
+  "dropped": {
+    "holdout_runs": 28
+  },
+  "calibration_partition": [
+    "easy-01-calc",
+    "easy-03-csv-normalizer",
+    "easy-05-slug-dedup",
+    "frontier-02-raft-consensus-sim",
+    "hard-01-mini-ini-ast",
+    "hard-03-mini-sql-engine",
+    "hard-05-bytecode-vm-gc",
+    "medium-02-interval-scheduler",
+    "medium-04-lru-ttl-cache",
+    "negative-01-contradictory-spec"
+  ],
+  "holdout_partition": [
+    "easy-02-log-parser",
+    "easy-04-rle-codec",
+    "frontier-01-ssa-dominator-opt",
+    "frontier-03-incremental-type-infer",
+    "hard-02-wal-ledger-replay",
+    "hard-04-crdt-lww-map",
+    "medium-01-semver-resolver",
+    "medium-03-topo-build-planner",
+    "medium-05-rate-limiter-sliding"
+  ],
+  "calibration_coverage": {
+    "covered": 10,
+    "total": 10,
+    "missing": []
+  }
+}

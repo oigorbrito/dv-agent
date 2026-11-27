@@ -19,6 +19,7 @@ import {
 	getBuiltinModel,
 	getBuiltinProviders,
 } from "@earendil-works/pi-ai/providers/all";
+import { resolveAgyAcpRuntime } from "./agy_auth.ts";
 import { FileCredentialStore } from "./file_credential_store.ts";
 import { requireSubscriptionSession } from "./subscription.ts";
 
@@ -47,13 +48,25 @@ export async function openLiveSession(options: {
 			throw new Error("agy usa o login local do agy: use --auth-mode subscription");
 		}
 		if (!isAgyModel(options.modelId)) throw new Error(`modelo agy desconhecido: ${options.modelId}`);
+		const runtime = resolveAgyAcpRuntime();
 		return {
 			model: agyModel(options.modelId),
-			streamFn: createAgyStreamFn({ cwd: options.workspaceRoot ?? process.cwd(), timeoutMs: AGY_TIMEOUT_MS }),
+			streamFn:
+				runtime !== null
+					? createAgyStreamFn({
+							cwd: options.workspaceRoot ?? process.cwd(),
+							timeoutMs: AGY_TIMEOUT_MS,
+							command: [runtime],
+						})
+					: () => {
+							throw new Error(
+								"runtime antigravity-acp standalone não encontrado; instale o runtime oficial e configure DV_AGY_ACP_BIN",
+							);
+						},
 			priceBook: {
 				kind: "subscription",
 				id: "agy-local-login",
-				source: "login local do agy (assinatura, sem tarifa por token)",
+				source: "sessão OAuth local do runtime antigravity-acp (sem tarifa por token)",
 			},
 		};
 	}

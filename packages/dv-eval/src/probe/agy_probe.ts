@@ -18,6 +18,7 @@ import {
 	type SpawnFn,
 	sanitizeTransportMessage,
 } from "@dv-agent/core";
+import { resolveAgyAcpRuntime } from "../auth/agy_auth.ts";
 import { PROBE_SCHEMA } from "./provider_probe.ts";
 
 /** Prompt do probe (mesmo texto do probe de 2026-11-24). Não usa ferramentas. */
@@ -87,7 +88,10 @@ export async function runAgyProbe(options: AgyProbeOptions): Promise<AgyProbeRes
 		throw new Error(`--turns deve ser inteiro entre 1 e ${AGY_PROBE_MAX_TURNS}`);
 	}
 	const modelId = options.modelId ?? AGY_PROBE_DEFAULT_MODEL;
-	const command = [...(options.command ?? AGY_DEFAULT_COMMAND)];
+	const needsRuntimeLookup = options.command === undefined && options.spawn === undefined;
+	const runtime = needsRuntimeLookup ? resolveAgyAcpRuntime() : null;
+	const command =
+		options.command !== undefined ? [...options.command] : runtime !== null ? [runtime] : [...AGY_DEFAULT_COMMAND];
 	const reasons: string[] = [];
 	const result: AgyProbeResult = {
 		schema: PROBE_SCHEMA,
@@ -108,6 +112,11 @@ export async function runAgyProbe(options: AgyProbeOptions): Promise<AgyProbeRes
 		semantics: null,
 		contract_v4_uncached_rule: "ausente_na_tabela_v4",
 	};
+
+	if (needsRuntimeLookup && runtime === null) {
+		reasons.push("runtime antigravity-acp standalone não encontrado; configure DV_AGY_ACP_BIN");
+		return result;
+	}
 
 	let client: AcpClient;
 	try {

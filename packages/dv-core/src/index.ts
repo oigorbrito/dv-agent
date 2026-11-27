@@ -73,6 +73,17 @@ export {
 } from "./providers/agy/stream.ts";
 export { AGY_USAGE_FIELDS, type AgyTurnUsage, mapAgyUsage } from "./providers/agy/usage.ts";
 export {
+	defaultPiRpcEntry,
+	PI_RPC_RELEASE_VERSION,
+	PiRpcClient,
+	type PiRpcTurnOptions,
+	type PiRpcTurnResult,
+	type PiRpcUsage,
+	resolvePiRpcCommand,
+	runPiRpcTurn,
+} from "./providers/pi-rpc/rpc_client.ts";
+export { createPiRpcStreamFn, type PiRpcStreamOptions } from "./providers/pi-rpc/stream.ts";
+export {
 	buildEmpiricalFailureIndex,
 	chooseEmpiricalStartRung,
 	type EmpiricalFailureIndex,

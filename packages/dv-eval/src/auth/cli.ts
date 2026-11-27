@@ -10,5 +10,7 @@ if (action === "--help" || action === "-h" || action === undefined) {
 		throw new Error("uso inválido; esperado: dv auth login agy");
 	}
 	const result = await loginAgy();
-	process.stdout.write(`${JSON.stringify({ provider: "agy", status: result.status, runtime: result.runtime, ...(result.agentName ? { agent: result.agentName } : {}) }, null, 2)}\n`);
+	process.stdout.write(
+		`${JSON.stringify({ provider: "agy", status: result.status, runtime: result.runtime, ...(result.agentName ? { agent: result.agentName } : {}) }, null, 2)}\n`,
+	);
 }

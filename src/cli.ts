@@ -18,52 +18,52 @@ Os subcomandos preservam as opções dos runners existentes. Probe sem --live é
 `;
 
 const COMMANDS: Readonly<Record<string, string>> = {
-  smoke: "../scripts/dv-smoke.js",
-  bench: "../scripts/dv-bench.js",
-  metrics: "../scripts/dv-bench-metrics.js",
-  probe: "../packages/dv-eval/src/probe/cli.js",
-  auth: "../packages/dv-eval/src/auth/cli.js",
+	smoke: "../scripts/dv-smoke.js",
+	bench: "../scripts/dv-bench.js",
+	metrics: "../scripts/dv-bench-metrics.js",
+	probe: "../packages/dv-eval/src/probe/cli.js",
+	auth: "../packages/dv-eval/src/auth/cli.js",
 };
 const COMMAND_HELP: Readonly<Record<string, string>> = {
-  smoke: "Uso: dv smoke --policy single|ladder|architect-editor|predictive-harness-router [opções do dv-smoke]",
-  bench: "Uso: dv bench --policies single,ladder [opções do dv-bench]",
-  metrics: "Uso: dv metrics (--weak M --strong M | --baseline P --treatment P) [--seed N --resamples N] <outdir|summary.json> [...]",
-  probe: "Uso: dv probe [--live --provider P --model M --auth-mode api-key|subscription]. Sem --live, o probe é offline.",
-  auth: "Uso: dv auth login agy — autenticação interativa pelo browser do runtime ACP oficial.",
+	smoke: "Uso: dv smoke --policy single|ladder|architect-editor|predictive-harness-router [opções do dv-smoke]",
+	bench: "Uso: dv bench --policies single,ladder [opções do dv-bench]",
+	metrics: "Uso: dv metrics (--weak M --strong M | --baseline P --treatment P) [--seed N --resamples N] <outdir|summary.json> [...]",
+	probe: "Uso: dv probe [--live --provider P --model M --auth-mode api-key|subscription]. Sem --live, o probe é offline.",
+	auth: "Uso: dv auth login agy — autenticação interativa pelo browser do runtime ACP oficial.",
 };
 
 function packageManifest(): Record<string, unknown> {
-  let directory = dirname(fileURLToPath(import.meta.url));
-  for (;;) {
-    const path = join(directory, "package.json");
-    if (existsSync(path)) {
-      try {
-        const value = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
-        if (value.name === "@engfinecode/dv-agent") return value;
-      } catch {
-        // Continua a busca em diretórios ascendentes.
-      }
-    }
-    const parent = dirname(directory);
-    if (parent === directory) break;
-    directory = parent;
-  }
-  return { version: "0.1.0" };
+	let directory = dirname(fileURLToPath(import.meta.url));
+	for (;;) {
+		const path = join(directory, "package.json");
+		if (existsSync(path)) {
+			try {
+				const value = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+				if (value.name === "@engfinecode/dv-agent") return value;
+			} catch {
+				// Continua a busca em diretórios ascendentes.
+			}
+		}
+		const parent = dirname(directory);
+		if (parent === directory) break;
+		directory = parent;
+	}
+	return { version: "0.1.0" };
 }
 
 const [command, ...args] = process.argv.slice(2);
 if (command === undefined || command === "--help" || command === "-h") {
-  process.stdout.write(HELP);
+	process.stdout.write(HELP);
 } else if (command === "--version" || command === "-v") {
-  const manifest = packageManifest();
-  process.stdout.write(`${String(manifest.version)}\n`);
+	const manifest = packageManifest();
+	process.stdout.write(`${String(manifest.version)}\n`);
 } else if (command in COMMANDS && (args[0] === "--help" || args[0] === "-h")) {
-  process.stdout.write(`${COMMAND_HELP[command]}\n`);
+	process.stdout.write(`${COMMAND_HELP[command]}\n`);
 } else if (!(command in COMMANDS)) {
-  console.error(`subcomando desconhecido: ${command}\n\n${HELP}`);
-  process.exitCode = 1;
+	console.error(`subcomando desconhecido: ${command}\n\n${HELP}`);
+	process.exitCode = 1;
 } else {
-  const entry = resolve(dirname(fileURLToPath(import.meta.url)), COMMANDS[command] ?? "");
-  process.argv = [process.execPath, entry, ...args];
-  await import(pathToFileURL(entry).href);
+	const entry = resolve(dirname(fileURLToPath(import.meta.url)), COMMANDS[command] ?? "");
+	process.argv = [process.execPath, entry, ...args];
+	await import(pathToFileURL(entry).href);
 }

@@ -7,7 +7,11 @@ dist/
 packages/runtime-pi/pi-ai/src/providers/data/
 .artifacts/
 .dv/
-runs/
+runs/*
+!runs/roadmap-m2-calibration/
+runs/roadmap-m2-calibration/*
+# Artefato congelado de calibração exigido por knn_routing_integration.test.ts (SHA-256 a5c94bc7...).
+!runs/roadmap-m2-calibration/summary.json
 
 # Logs da fatia externa congelada são dados de entrada versionados (não artefatos de execução).
 !experiments/p1/external-terminal-bench-slice-v1/**/*.log

@@ -42,5 +42,8 @@ jobs:
       - name: Lint (Biome)
         run: npm run lint
 
+      - name: Verificar integridade do artefato de calibração
+        run: echo "a5c94bc730523cd708139766cae4cb8cbb1e9d28e6846a4a629bfd06808432e0  runs/roadmap-m2-calibration/summary.json" | sha256sum -c -
+
       - name: Testes offline
         run: npm test

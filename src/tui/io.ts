@@ -22,6 +22,13 @@ export interface ReplIO {
 	suspend<T>(fn: () => T): T;
 	/** Recebe Esc/Ctrl+C enquanto um turno roda. Passe null para remover. */
 	watchInterrupt(handler: (() => void) | null): void;
+	/** Copia texto via OSC 52 (só acionado por `/copy`). `written` é false sem terminal interativo. */
+	copyToClipboard(text: string): ClipboardResult;
+}
+
+export interface ClipboardResult {
+	readonly written: boolean;
+	readonly truncated: boolean;
 }
 
 /**
@@ -91,5 +98,8 @@ export function createPlainIo(
 			return fn();
 		},
 		watchInterrupt() {},
+		copyToClipboard() {
+			return { written: false, truncated: false };
+		},
 	};
 }

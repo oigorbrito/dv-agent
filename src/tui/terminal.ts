@@ -1,6 +1,7 @@
 // Implementação TTY de ReplIO: raw mode próprio em Node, bloco de prompt redesenhável e seletor com setas.
 import { emitKeypressEvents } from "node:readline";
-import type { LineResult, ReplIO } from "./io.ts";
+import { osc52Sequence } from "./clipboard.ts";
+import type { ClipboardResult, LineResult, ReplIO } from "./io.ts";
 import { clip, type Frame, paint, type RenderStyle, renderPromptBlock } from "./render.ts";
 import { applyKey, createEditorState, type EditorState, type KeyEvent } from "./line_editor.ts";
 
@@ -127,6 +128,15 @@ export class TerminalUI implements ReplIO {
 			}
 			this.refresh();
 		}
+	}
+
+	/** Escreve a sequência OSC 52 sem tocar no modo mouse: a seleção nativa do terminal continua disponível. */
+	copyToClipboard(text: string): ClipboardResult {
+		const { sequence, truncated } = osc52Sequence(text);
+		this.eraseBlock();
+		this.output.write(sequence);
+		this.refresh();
+		return { written: true, truncated };
 	}
 
 	watchInterrupt(handler: (() => void) | null): void {

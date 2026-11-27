@@ -45,9 +45,22 @@ import {
 	type DvUserConfig,
 } from "./interactive.ts";
 import { findSlashCommand, formatHelp } from "./tui/commands.ts";
+import { OSC52_MAX_CHARS } from "./tui/clipboard.ts";
 import { createPlainIo, LineQueue, type ReplIO } from "./tui/io.ts";
-import { type HeaderInfo, renderHeader, renderStatusLine, type RenderStyle, type StatusInfo } from "./tui/render.ts";
+import {
+	type HeaderInfo,
+	formatCostMode,
+	renderHeader,
+	renderStatusLine,
+	type RenderStyle,
+	type StatusInfo,
+} from "./tui/render.ts";
 import { TerminalUI } from "./tui/terminal.ts";
+import {
+	type WorkspaceProfile,
+	detectWorkspaceProfile,
+	formatWorkspaceProfile,
+} from "./tui/workspace_profile.ts";
 
 export interface SessionTokens {
 	calls: number;
@@ -94,6 +107,10 @@ export interface ReplState {
 	busy: boolean;
 	cancelRequested: boolean;
 	updateNotice: string | null;
+	/** Limiar (estimativa de tokens do histórico) da compactação automática; 0 desativa. */
+	autoCompactTokens: number;
+	/** Tipo de projeto detectado localmente em `cwd` no início da sessão. */
+	workspace: WorkspaceProfile;
 }
 
 const SESSION_SCHEMA = "dv-cli-session-v1";
@@ -105,8 +122,10 @@ const POLICY_HINTS: Readonly<Record<InteractivePolicy, string>> = {
 	"architect-editor": "papéis arquiteto/editor",
 };
 const CONTEXT_TURNS = 4;
-const CONTEXT_CHARS = 6_000;
+const CONTEXT_CHARS = 24_000;
 const SUMMARY_CHARS = 3_000;
+const DEFAULT_AUTO_COMPACT_TOKENS = 6_000;
+const AUTO_COMPACT_ENV = "DV_AUTO_COMPACT_TOKENS";
 const SHELL_TIMEOUT_MS = 300_000;
 const MAX_LISTED_LINES = 60;
 
@@ -237,19 +256,51 @@ function listSessions(cwd: string): SessionListing[] {
 	return found.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-/** Monta o prompt enviado ao modelo: resumo compactado e turnos recentes antes da nova solicitação. */
-export function buildTurnPrompt(session: Pick<SessionState, "summary" | "turns">, prompt: string): string {
+/** Mantém as últimas linhas inteiras que caibam em `max` caracteres (nunca corta uma linha no meio). */
+function keepTail(text: string, max: number): string {
+	if (text.length <= max) return text;
+	const lines = text.split("\n");
+	const kept: string[] = [];
+	let size = 0;
+	for (let i = lines.length - 1; i >= 0; i -= 1) {
+		const line = lines[i] ?? "";
+		if (size + line.length + 1 > max) break;
+		kept.unshift(line);
+		size += line.length + 1;
+	}
+	return kept.length > 0 ? kept.join("\n") : text.slice(-max);
+}
+
+/**
+ * Monta o prompt enviado ao modelo: contexto do workspace (uma linha, detectada localmente), resumo compactado e
+ * turnos recentes antes da nova solicitação.
+ */
+export function buildTurnPrompt(
+	session: Pick<SessionState, "summary" | "turns">,
+	prompt: string,
+	workspaceLine = "",
+): string {
 	const recent = session.turns
 		.slice(-CONTEXT_TURNS)
 		.map((t) => `Usuário: ${clipText(t.prompt, 1_500)}\nAgente: ${clipText(t.reply, 2_000)}`)
 		.join("\n\n");
-	const parts = [
+	const history = [
 		session.summary === "" ? "" : `Resumo da conversa anterior:\n${session.summary}`,
 		recent === "" ? "" : `Turnos recentes:\n${recent}`,
-	].filter((part) => part !== "");
-	if (parts.length === 0) return prompt;
-	const context = parts.join("\n\n").slice(-CONTEXT_CHARS);
+	]
+		.filter((part) => part !== "")
+		.join("\n\n");
+	const head = workspaceLine === "" ? "" : `Contexto do workspace (detectado localmente): ${workspaceLine}`;
+	const context = [head, history === "" ? "" : keepTail(history, CONTEXT_CHARS)].filter((p) => p !== "").join("\n\n");
+	if (context === "") return prompt;
 	return `${context}\n\nNova solicitação:\n${prompt}`;
+}
+
+/** Estimativa barata (≈4 caracteres por token) do histórico guardado: resumo + turnos. Sem chamada ao modelo. */
+export function historyTokens(session: Pick<SessionState, "summary" | "turns">): number {
+	let chars = session.summary.length;
+	for (const t of session.turns) chars += t.prompt.length + t.reply.length;
+	return Math.ceil(chars / 4);
 }
 
 /** Resume os turnos antigos em texto (sem chamada ao modelo) e mantém só o último integralmente. Devolve quantos foram resumidos. */
@@ -257,9 +308,23 @@ export function compactSession(session: SessionState): number {
 	if (session.turns.length <= 1) return 0;
 	const old = session.turns.slice(0, -1);
 	const lines = old.map((t) => `- #${t.index} ${clipText(t.prompt, 160)} → ${clipText(t.reply || t.status, 240)}`);
-	session.summary = [session.summary, ...lines].filter((line) => line !== "").join("\n").slice(-SUMMARY_CHARS);
+	const merged = [session.summary, ...lines].filter((line) => line !== "").join("\n");
+	session.summary = keepTail(merged, SUMMARY_CHARS);
 	session.turns = session.turns.slice(-1);
 	return old.length;
+}
+
+/** Compacta sozinha quando o histórico estimado atinge `limitTokens` (0 desativa). Preserva o turno mais recente. */
+export function autoCompactSession(session: SessionState, limitTokens: number): number {
+	if (limitTokens <= 0 || session.turns.length <= 1) return 0;
+	if (historyTokens(session) < limitTokens) return 0;
+	return compactSession(session);
+}
+
+/** Lê `DV_AUTO_COMPACT_TOKENS` (inteiro ≥0; 0 desativa). Valor inválido cai no padrão. */
+export function readAutoCompactTokens(env: NodeJS.ProcessEnv): number {
+	const raw = env[AUTO_COMPACT_ENV]?.trim() ?? "";
+	return /^\d+$/.test(raw) ? Number(raw) : DEFAULT_AUTO_COMPACT_TOKENS;
 }
 
 function git(cwd: string, args: readonly string[]): { ok: boolean; out: string } {
@@ -361,13 +426,15 @@ function headerInfo(state: ReplState): HeaderInfo {
 
 function statusText(state: ReplState): string {
 	const ref = state.modelRef;
+	const t = state.session.tokens;
 	const info: StatusInfo = {
 		cwd: state.cwd,
 		branch: state.branch,
 		model: ref === undefined ? "" : `${ref.provider}/${ref.modelId}`,
 		effort: ref?.reasoningEffort ?? "padrão",
 		policy: state.policy,
-		tokens: state.session.tokens.total_tokens,
+		usage: { input: t.prompt_tokens, output: t.completion_tokens, total: t.total_tokens },
+		cost: formatCostMode(t.cost_usd, state.authMode === "subscription"),
 	};
 	return renderStatusLine(info, viewWidth());
 }
@@ -410,7 +477,16 @@ async function runTurn(state: ReplState, io: ReplIO, prompt: string): Promise<nu
 	const session = state.session;
 	const index = session.nextIndex;
 	session.nextIndex += 1;
-	const modelPrompt = buildTurnPrompt(session, prompt);
+	const beforeTokens = historyTokens(session);
+	const autoCompacted = autoCompactSession(session, state.autoCompactTokens);
+	if (autoCompacted > 0) {
+		say(
+			io,
+			`[dv] compactação automática: ${autoCompacted} turno(s) resumidos (histórico ≈${beforeTokens} → ≈${historyTokens(session)} tokens).`,
+		);
+		safePersist(state, io);
+	}
+	const modelPrompt = buildTurnPrompt(session, prompt, formatWorkspaceProfile(state.workspace));
 	const dir = ensureSessionDir(state);
 	const ledgerPath = join(dir, `turn-${index}.ledger.jsonl`);
 
@@ -665,7 +741,8 @@ function budgetCommand(state: ReplState, io: ReplIO, args: string): void {
 
 function tokensCommand(state: ReplState, io: ReplIO): void {
 	const t = state.session.tokens;
-	const cost = t.cost_usd === null ? "n/d (assinatura ou modelo sem preço)" : `US$ ${t.cost_usd.toFixed(4)}`;
+	const cost = formatCostMode(t.cost_usd, state.authMode === "subscription");
+	const auto = state.autoCompactTokens === 0 ? "desativada" : `≥${state.autoCompactTokens} tokens de histórico`;
 	say(
 		io,
 		[
@@ -673,8 +750,9 @@ function tokensCommand(state: ReplState, io: ReplIO): void {
 			`  chamadas: ${t.calls}`,
 			`  entrada: ${t.prompt_tokens} · saída: ${t.completion_tokens} · total: ${t.total_tokens}`,
 			`  cache leitura: ${t.cache_read_tokens} · cache escrita: ${t.cache_write_tokens}`,
-			`  custo estimado: ${cost}`,
+			`  custo: ${cost}`,
 			`  orçamento: ${state.maxTokens} tokens`,
+			`  histórico atual: ≈${historyTokens(state.session)} tokens · compactação automática: ${auto}`,
 		].join("\n"),
 	);
 }
@@ -695,6 +773,7 @@ function statusCommand(state: ReplState, io: ReplIO): void {
 			`Modelo: ${ref === undefined ? "nenhum" : `${formatModelRef(ref)} · ${describeAuth(ref.provider, state.authMode)}`}`,
 			`Política: ${state.policy} · orçamento: ${state.maxTokens} tokens`,
 			`Sessão: ${state.session.id} (${state.session.turns.length} turno(s))`,
+			`Stack: ${formatWorkspaceProfile(state.workspace)}`,
 			`Ledger atual: ${ledger}`,
 		].join("\n"),
 	);
@@ -727,13 +806,35 @@ function diffCommand(state: ReplState, io: ReplIO): void {
 }
 
 function compactCommand(state: ReplState, io: ReplIO): void {
+	const before = historyTokens(state.session);
 	const compacted = compactSession(state.session);
 	if (compacted === 0) {
 		say(io, "Nada a compactar: a sessão tem no máximo um turno.");
 		return;
 	}
 	safePersist(state, io);
-	say(io, `Compactados ${compacted} turno(s) em resumo; o último turno foi mantido integralmente.`);
+	say(
+		io,
+		`Compactados ${compacted} turno(s) em resumo; o último turno foi mantido integralmente (histórico ≈${before} → ≈${historyTokens(state.session)} tokens).`,
+	);
+}
+
+/** Copia a última resposta do agente por OSC 52. Sem terminal interativo, não há o que copiar: aviso simples. */
+function copyCommand(state: ReplState, io: ReplIO): void {
+	const last = state.session.turns[state.session.turns.length - 1];
+	if (last === undefined || last.reply === "") {
+		say(io, "Nada para copiar: a sessão ainda não tem resposta do agente.");
+		return;
+	}
+	const result = io.copyToClipboard(last.reply);
+	if (!result.written) {
+		say(io, "Cópia indisponível sem terminal interativo; a resposta está em /history ou no ledger.");
+		return;
+	}
+	const note = result.truncated
+		? `(truncada em ${OSC52_MAX_CHARS} caracteres)`
+		: "(OSC 52; depende do terminal — use a seleção nativa se não colar)";
+	say(io, `Resposta #${last.index} enviada à área de transferência ${note}.`);
 }
 
 function clearCommand(state: ReplState, io: ReplIO): void {
@@ -937,6 +1038,9 @@ async function runCommand(state: ReplState, io: ReplIO, input: string): Promise<
 		case "compact":
 			compactCommand(state, io);
 			return true;
+		case "copy":
+			copyCommand(state, io);
+			return true;
 		case "clear":
 			clearCommand(state, io);
 			return true;
@@ -1023,6 +1127,8 @@ function createState(options: {
 		busy: false,
 		cancelRequested: false,
 		updateNotice: null,
+		autoCompactTokens: readAutoCompactTokens(options.env),
+		workspace: detectWorkspaceProfile(options.cwd),
 	};
 }
 

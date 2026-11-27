@@ -17,13 +17,21 @@ export interface HeaderInfo {
 	readonly updateNotice: string | null;
 }
 
+export interface SessionUsage {
+	readonly input: number;
+	readonly output: number;
+	readonly total: number;
+}
+
 export interface StatusInfo {
 	readonly cwd: string;
 	readonly branch: string | null;
 	readonly model: string;
 	readonly effort: string;
 	readonly policy: string;
-	readonly tokens: number;
+	readonly usage: SessionUsage;
+	/** Rótulo de custo/modo: `sub`, `US$ 0.0123` ou `n/d` (ver formatCostMode). */
+	readonly cost: string;
 }
 
 export interface Frame {
@@ -65,14 +73,34 @@ export function renderHeader(info: HeaderInfo, width: number, style: RenderStyle
 	return lines;
 }
 
+/** Contagem compacta de tokens: 999, 1.2k, 3.45M. */
+export function formatCount(n: number): string {
+	if (n < 1_000) return String(n);
+	if (n < 1_000_000) return `${(n / 1_000).toFixed(1)}k`;
+	return `${(n / 1_000_000).toFixed(2)}M`;
+}
+
+/**
+ * Custo/modo para a barra: assinatura sem custo em USD mostra `sub`; assinatura com custo estimado mostra o estimado;
+ * api-key mostra US$; `n/d` quando alguma chamada não tem preço.
+ */
+export function formatCostMode(costUsd: number | null, subscription: boolean): string {
+	if (subscription) {
+		return costUsd !== null && costUsd > 0 ? `sub · est. US$ ${costUsd.toFixed(4)}` : "sub";
+	}
+	return costUsd === null ? "n/d" : `US$ ${costUsd.toFixed(4)}`;
+}
+
 /** Texto da barra de status (sem cores; o bloco do prompt aplica o estilo). */
 export function renderStatusLine(info: StatusInfo, width: number): string {
+	const { input, output, total } = info.usage;
 	const parts = [
 		info.cwd,
 		info.branch === null ? "sem git" : `⎇ ${info.branch}`,
 		`${info.model === "" ? "sem modelo" : info.model} · ${info.effort}`,
 		info.policy,
-		`${info.tokens} tok`,
+		`tok ${formatCount(input)} in · ${formatCount(output)} out · ${formatCount(total)} total`,
+		info.cost,
 	];
 	const left = parts.join(" · ");
 	return clip(`${left}  │  ${SHORTCUTS}`, Math.max(20, width - 1));

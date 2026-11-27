@@ -17,11 +17,28 @@ import {
 	promptLoginMenu,
 	saveDvUserConfig,
 } from "../../../src/interactive.ts";
-import { buildTurnPrompt, compactSession, type SessionState } from "../../../src/repl.ts";
+import {
+	autoCompactSession,
+	buildTurnPrompt,
+	compactSession,
+	historyTokens,
+	readAutoCompactTokens,
+	type SessionState,
+} from "../../../src/repl.ts";
+import { OSC52_MAX_CHARS, osc52Sequence } from "../../../src/tui/clipboard.ts";
 import { findSlashCommand, formatHelp, matchSlashCommands, SLASH_COMMANDS } from "../../../src/tui/commands.ts";
+import { createPlainIo } from "../../../src/tui/io.ts";
 import { applyKey, createEditorState, type EditorState, popupItems } from "../../../src/tui/line_editor.ts";
-import { type HeaderInfo, renderHeader, renderPromptBlock, renderStatusLine } from "../../../src/tui/render.ts";
+import {
+	formatCostMode,
+	formatCount,
+	type HeaderInfo,
+	renderHeader,
+	renderPromptBlock,
+	renderStatusLine,
+} from "../../../src/tui/render.ts";
 import { TerminalUI } from "../../../src/tui/terminal.ts";
+import { detectWorkspaceProfile, formatWorkspaceProfile } from "../../../src/tui/workspace_profile.ts";
 
 const CLI_ENTRY = resolve(import.meta.dirname, "../../../src/cli.ts");
 const NO_STYLE = { color: false };
@@ -254,6 +271,7 @@ test("catálogo de comandos: 20+ comandos únicos, incluindo todos os exigidos p
 		"update",
 		"version",
 		"exit",
+		"copy",
 	];
 	for (const name of required) assert.ok(findSlashCommand(name), `faltando /${name}`);
 	assert.equal(findSlashCommand("quit")?.name, "exit", "/quit deve ser alias de /exit");
@@ -357,12 +375,14 @@ test("cabeçalho e barra de status: versão, workspace, modelo, esforço, polít
 			model: "anthropic/claude-haiku-5-5",
 			effort: "medium",
 			policy: "ladder",
-			tokens: 1234,
+			usage: { input: 1234, output: 56, total: 1290 },
+			cost: "sub",
 		},
 		200,
 	);
 	assert.ok(status.includes("⎇ feat/x"));
-	assert.ok(status.includes("1234 tok"));
+	assert.ok(status.includes("tok 1.2k in · 56 out · 1.3k total"), status);
+	assert.ok(status.includes("sub"), "modo de assinatura ausente");
 	for (const shortcut of ["/ comandos", "! shell", "Esc cancelar", "Ctrl+C sair"]) {
 		assert.ok(status.includes(shortcut), `atalho ausente: ${shortcut}`);
 	}
@@ -443,7 +463,7 @@ test("fallback non-TTY: REPL linha a linha roda comandos, '!' shell e /exit sem 
 	try {
 		const result = spawnSync(process.execPath, [CLI_ENTRY], {
 			cwd: dir,
-			input: "/version\n!echo dv-shell-ok\n/comando-inexistente\n/help\n/exit\n",
+			input: "/version\n!echo dv-shell-ok\n/comando-inexistente\n/help\n/copy\n/exit\n",
 			encoding: "utf8",
 			timeout: 60_000,
 			env: {
@@ -466,6 +486,7 @@ test("fallback non-TTY: REPL linha a linha roda comandos, '!' shell e /exit sem 
 		assert.ok(output.includes("dv-shell-ok"), "!comando não executou no shell");
 		assert.ok(output.includes("Comando desconhecido: /comando-inexistente"), "comando inválido não tratado");
 		assert.ok(output.includes("Comandos (digite / para o menu filtrável)"), "/help ausente");
+		assert.ok(output.includes("Nada para copiar"), "/copy sem resposta deve avisar");
 		assert.ok(!output.includes("\u001b[?25l"), "não deve emitir sequências de TTY em modo pipe");
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
@@ -539,4 +560,169 @@ test("TTY (terminal simulado): Esc cancela o seletor e Ctrl+C em turno dispara o
 	} finally {
 		ui.stop();
 	}
+});
+
+test("TTY: a sessão não ativa captura de mouse nem tela alternativa (seleção nativa preservada)", async () => {
+	const fake = new FakeTty();
+	const ui = new TerminalUI(fake as unknown as NodeJS.ReadStream, fake as unknown as NodeJS.WriteStream);
+	ui.start();
+	try {
+		const line = ui.readLine("status");
+		for (const ch of "oi") fake.char(ch);
+		fake.key("return");
+		await line;
+		ui.copyToClipboard("resposta");
+	} finally {
+		ui.stop();
+	}
+	const out = fake.written.join("");
+	for (const mode of ["?1000", "?1002", "?1003", "?1005", "?1006", "?1015", "?1049"]) {
+		assert.ok(!out.includes(`\u001b[${mode}h`), `sequência de modo ${mode} não deve ser emitida`);
+	}
+});
+
+test("TTY: /copy envia OSC 52 com o texto em base64 e não escreve nada sem terminal", () => {
+	const fake = new FakeTty();
+	const ui = new TerminalUI(fake as unknown as NodeJS.ReadStream, fake as unknown as NodeJS.WriteStream);
+	const result = ui.copyToClipboard("olá dv");
+	assert.deepEqual(result, { written: true, truncated: false });
+	assert.ok(fake.written.join("").includes(`\u001b]52;c;${Buffer.from("olá dv").toString("base64")}\u0007`));
+
+	const plain = createPlainIo(null, { write() {} });
+	assert.deepEqual(plain.copyToClipboard("x"), { written: false, truncated: false });
+});
+
+test("osc52Sequence: codifica em base64 e trunca acima de OSC52_MAX_CHARS", () => {
+	const small = osc52Sequence("olá");
+	assert.equal(small.truncated, false);
+	assert.equal(small.sequence, `\u001b]52;c;${Buffer.from("olá", "utf8").toString("base64")}\u0007`);
+
+	const big = osc52Sequence("x".repeat(OSC52_MAX_CHARS + 10));
+	assert.equal(big.truncated, true);
+	const payload = big.sequence.slice("\u001b]52;c;".length, -1);
+	assert.equal(Buffer.from(payload, "base64").length, OSC52_MAX_CHARS);
+});
+
+test("tokens na barra: contagem compacta e custo/modo (sub, US$, n/d)", () => {
+	assert.equal(formatCount(56), "56");
+	assert.equal(formatCount(1234), "1.2k");
+	assert.equal(formatCount(3_456_789), "3.46M");
+	assert.equal(formatCostMode(null, true), "sub", "assinatura sem custo USD");
+	assert.equal(formatCostMode(0, true), "sub", "assinatura com custo zero");
+	assert.equal(formatCostMode(0.0123, true), "sub · est. US$ 0.0123", "assinatura com custo estimado");
+	assert.equal(formatCostMode(0.5, false), "US$ 0.5000");
+	assert.equal(formatCostMode(null, false), "n/d", "api-key sem preço");
+});
+
+function sessionWith(turns: Array<{ prompt: string; reply: string }>): SessionState {
+	return {
+		id: "auto",
+		dir: null,
+		createdAt: new Date(0).toISOString(),
+		turns: turns.map((t, i) => ({ index: i + 1, prompt: t.prompt, reply: t.reply, status: "completed", at: "" })),
+		summary: "",
+		nextIndex: turns.length + 1,
+		tokens: {
+			calls: 0,
+			prompt_tokens: 0,
+			completion_tokens: 0,
+			total_tokens: 0,
+			cache_read_tokens: 0,
+			cache_write_tokens: 0,
+			cost_usd: 0,
+		},
+	};
+}
+
+test("compactação automática: dispara ao atingir o limiar, preserva o último turno e é determinística", () => {
+	const turns = [1, 2, 3, 4].map((n) => ({ prompt: `p${n}`.padEnd(400, "p"), reply: `r${n}`.padEnd(400, "r") }));
+	const session = sessionWith(turns);
+	assert.equal(historyTokens(session), 800, "4 turnos de 800 caracteres ≈ 800 tokens");
+
+	assert.equal(autoCompactSession(session, 1_000), 0, "abaixo do limiar não compacta");
+	assert.equal(autoCompactSession(session, 0), 0, "limiar 0 desativa");
+	assert.equal(session.turns.length, 4);
+
+	const twin = sessionWith(turns);
+	assert.equal(autoCompactSession(session, 800), 3);
+	assert.equal(autoCompactSession(twin, 800), 3);
+	assert.equal(session.turns.length, 1);
+	assert.equal(session.turns[0]?.index, 4, "o turno mais recente é preservado");
+	assert.equal(session.summary, twin.summary, "resumo determinístico");
+	assert.ok(session.summary.includes("#1 p1"));
+
+	// Sem repetir: já há um turno, nada mais a compactar.
+	assert.equal(autoCompactSession(session, 1), 0);
+});
+
+test("compactação: resumo cortado apenas em linhas inteiras e limiar lido de DV_AUTO_COMPACT_TOKENS", () => {
+	const turns = Array.from({ length: 80 }, (_, i) => ({ prompt: `tarefa ${i} ${"x".repeat(120)}`, reply: "ok" }));
+	const session = sessionWith(turns);
+	compactSession(session);
+	const lines = session.summary.split("\n");
+	assert.ok(session.summary.length <= 3_000, `resumo com ${session.summary.length} caracteres`);
+	assert.ok(
+		lines.every((line) => line.startsWith("- #")),
+		"nenhuma linha pode ser cortada no meio",
+	);
+
+	assert.equal(readAutoCompactTokens({}), 6_000, "padrão");
+	assert.equal(readAutoCompactTokens({ DV_AUTO_COMPACT_TOKENS: "0" }), 0, "0 desativa");
+	assert.equal(readAutoCompactTokens({ DV_AUTO_COMPACT_TOKENS: " 900 " }), 900);
+	assert.equal(readAutoCompactTokens({ DV_AUTO_COMPACT_TOKENS: "abc" }), 6_000, "inválido cai no padrão");
+});
+
+test("contexto do workspace: linha detectada entra no prompt do turno, antes da solicitação", () => {
+	const line = "Node.js · TypeScript (marcadores: package.json, tsconfig.json); topo (2): package.json, src/.";
+	const prompt = buildTurnPrompt({ summary: "", turns: [] }, "liste os arquivos", line);
+	assert.ok(prompt.startsWith("Contexto do workspace (detectado localmente): Node.js"));
+	assert.ok(prompt.endsWith("Nova solicitação:\nliste os arquivos"));
+});
+
+test("detecção de workspace: marcadores do topo, sem recursão, determinística e nunca vazia no texto", () => {
+	const root = mkdtempSync(join(tmpdir(), "dv-ws-"));
+	const node = join(root, "node-ts");
+	const py = join(root, "py");
+	const net = join(root, "net");
+	const empty = join(root, "empty");
+	const many = join(root, "many");
+	try {
+		for (const d of [node, py, net, empty, many]) mkdirSync(d, { recursive: true });
+		writeFileSync(join(node, "package.json"), JSON.stringify({ name: "x", workspaces: ["packages/*"] }));
+		writeFileSync(join(node, "tsconfig.json"), "{}");
+		writeFileSync(join(node, "pnpm-lock.yaml"), "");
+		mkdirSync(join(node, ".git"));
+		mkdirSync(join(node, "packages", "a"), { recursive: true });
+		writeFileSync(join(py, "pyproject.toml"), "[project]");
+		writeFileSync(join(net, "App.csproj"), "<Project/>");
+		for (let i = 0; i < 30; i += 1) writeFileSync(join(many, `f${String(i).padStart(2, "0")}.txt`), "");
+
+		const nodeProfile = detectWorkspaceProfile(node);
+		assert.deepEqual(nodeProfile.labels, ["Node.js", "TypeScript", "pnpm", "git", "monorepo (workspaces)"]);
+		const nodeLine = formatWorkspaceProfile(nodeProfile);
+		assert.ok(nodeLine.startsWith("Node.js · TypeScript · pnpm · git"), nodeLine);
+		assert.ok(nodeLine.includes("packages/"), "pastas do topo devem aparecer com /");
+		assert.equal(JSON.stringify(detectWorkspaceProfile(node)), JSON.stringify(nodeProfile), "determinístico");
+
+		assert.deepEqual(detectWorkspaceProfile(py).labels, ["Python"]);
+		assert.deepEqual(detectWorkspaceProfile(net).labels, [".NET"]);
+
+		const emptyLine = formatWorkspaceProfile(detectWorkspaceProfile(empty));
+		assert.ok(emptyLine.includes("diretório sem entradas no topo"), emptyLine);
+
+		const manyProfile = detectWorkspaceProfile(many);
+		assert.equal(manyProfile.entryCount, 30);
+		assert.equal(manyProfile.entries.length, 20, "lista limitada ao topo");
+		assert.ok(formatWorkspaceProfile(manyProfile).includes("… +10"));
+
+		assert.deepEqual(detectWorkspaceProfile(join(root, "inexistente")).labels, []);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("fallback non-TTY: copyToClipboard não escreve nada e não lança erro", () => {
+	const plain = createPlainIo(null, { write() {} });
+	assert.equal(plain.tty, false);
+	assert.deepEqual(plain.copyToClipboard("x"), { written: false, truncated: false });
 });

@@ -15,7 +15,7 @@ function buildCalibrationFixtureSummary(dir: string): string {
 	const calIds = new Set(partition.calibration);
 	const runs = tasks
 		.filter((t) => calIds.has(t.id))
-		.map((t) => ({
+		.map((t, idx) => ({
 			task_id: t.id,
 			tier: t.tier,
 			policy: "single",
@@ -25,7 +25,7 @@ function buildCalibrationFixtureSummary(dir: string): string {
 					rung: 0,
 					role: "executor",
 					model: "anthropic/claude-haiku-5-5",
-					ledger_sha256: "a".repeat(64),
+					ledger_sha256: idx.toString(16).padStart(64, "0"),
 					verdict: t.tier === "hard" || t.tier === "frontier" ? "FAIL" : "PASS",
 					verification: { status: t.tier === "hard" || t.tier === "frontier" ? "fail" : "pass" },
 				},

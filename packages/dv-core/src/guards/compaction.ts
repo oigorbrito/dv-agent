@@ -1,6 +1,6 @@
 // Compactação intra-degrau: encurta saídas antigas de ferramenta antes de cada chamada ao modelo.
 //
-// Opt-in (executeRung: compaction "by_model"). Padrão "off" preserva as execuções congeladas.
+// Padrão "by_model" no executeRung; "off" preserva as execuções congeladas de baseline.
 // Calibração por porte: a tabela abaixo é um PONTO DE PARTIDA, não um resultado. Modelos econômicos recebem regras
 // mais conservadoras (mantêm mais evidência). A calibração definitiva exige medir solve rate versus tokens no bench.
 

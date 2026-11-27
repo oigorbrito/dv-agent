@@ -37,7 +37,7 @@ export interface RungRunOptions {
 	ledgerPath: string;
 	runId: string;
 	harnessVariant: string;
-	/** Compactação intra-degrau (guards/compaction.ts). "off" (padrão) não altera o contexto enviado ao modelo. */
+	/** Compactação intra-degrau (guards/compaction.ts). "by_model" (padrão) encurta saídas antigas; "off" preserva o contexto. */
 	compaction?: "off" | "by_model";
 	referenceProvenance: Record<string, string>;
 	datasetSha256: string;
@@ -107,14 +107,15 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 	// Chamada vetada pelo gate pré-chamada: a run termina por orçamento, sem que o teto tenha sido excedido.
 	let preCallBlocked = false;
 
-	// Porte do modelo decide a compactação (opt-in). Declarado antes do run_started, que registra o modo no harness_variant.
+	// Porte do modelo decide a compactação (padrão "by_model"; "off" para baselines congeladas). Declarado antes do run_started.
+	const compactionMode = options.compaction ?? "by_model";
 	const modelClass = modelClassOf(options.model.id);
-	const compactionRule = options.compaction === "by_model" ? COMPACTION_RULES[modelClass] : undefined;
+	const compactionRule = compactionMode === "by_model" ? COMPACTION_RULES[modelClass] : undefined;
 	ledger.appendRunStarted({
 		run_id: options.runId,
 		contract_id: contractId,
 		harness_variant:
-			options.compaction === "by_model" ? `${options.harnessVariant}+compaction:${modelClass}` : options.harnessVariant,
+			compactionMode === "by_model" ? `${options.harnessVariant}+compaction:${modelClass}` : options.harnessVariant,
 		reference_provenance: options.referenceProvenance,
 		dataset_sha256: options.datasetSha256,
 		task_definition_sha256: options.taskDefinitionSha256,

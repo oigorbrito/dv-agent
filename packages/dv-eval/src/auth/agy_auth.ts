@@ -1,9 +1,9 @@
 // Integração isolada com o runtime ACP standalone oficial do Google.
 // Não usa "agy acp", auth.json, tokens exportados, proxy ou fallback alternativo.
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn } from "node:child_process";
 import { accessSync, constants } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 export type AgySessionStatus = "ready" | "not_ready";

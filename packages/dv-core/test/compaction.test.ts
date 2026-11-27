@@ -172,3 +172,27 @@ test("efeito no contexto real: fronteira com compaction by_model envia contexto 
 	assert.equal(off.report.status === "FAIL", false, off.report.violations.join("; "));
 	assert.equal(on.report.status === "FAIL", false, on.report.violations.join("; "));
 });
+
+test("executeRung: compaction omitida assume by_model por padrão", async () => {
+	const runtime = fauxRuntime("anthropic", ["dv-opus"]);
+	runtime.script([textTurn("ok", usage(10, 5, { reasoning: 0 }))]);
+	const ledgerPath = join(tempDir("compact-default"), "ledger.jsonl");
+	const result = await executeRung({
+		ledgerPath,
+		runId: "compact-default",
+		harnessVariant: "default_test",
+		referenceProvenance: {},
+		datasetSha256: "d".repeat(64),
+		taskDefinitionSha256: "t".repeat(64),
+		model: runtime.modelOf("dv-opus"),
+		tools: [],
+		prompt: "oi",
+		streamFn: runtime.streamFn,
+		priceBook: priceBookFor(["dv-opus"]),
+		maxCostUsd: 1,
+		doomLoopMaxIdenticalConsecutive: 3,
+	});
+	assert.equal(result.status, "completed");
+	const ledger = readFileSync(ledgerPath, "utf8");
+	assert.match(ledger, /"harness_variant":"default_test\+compaction:frontier"/);
+});

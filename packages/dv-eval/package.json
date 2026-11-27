@@ -6,7 +6,7 @@
 	"description": "DV eval: oráculo externo, probe de capacidade de provedor (GAP-6) e smoke runner end-to-end.",
 	"dependencies": {
 		"@dv-agent/core": "0.1.0",
-		"@earendil-works/pi-agent-core": "1.6.0",
-		"@earendil-works/pi-ai": "1.6.0"
+		"@earendil-works/pi-agent-core": "1.7.0",
+		"@earendil-works/pi-ai": "1.7.0"
 	}
 }

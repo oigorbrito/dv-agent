@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const PIN = "69a6993486acee850d14a4a1547daa4a167228ad";
+const PIN = "fb0fe823539f6d04850f6e34748c01f01f212e1f";
 const clone = process.argv[2];
 if (!clone) throw new Error("uso: node scripts/pin-upstream.mjs <clone-pi-mono>");
 
@@ -13,7 +13,6 @@ const git = (args) => execFileSync("git", ["-C", clone, ...args], { encoding: "u
 const roles = {
 	"pi-ai": "provider/stream runtime (EventStream, validateToolArguments, normalizeContext)",
 	"pi-agent-core": "agent loop com hooks beforeToolCall/afterToolCall e eventos message_end",
-	"pi-coding-agent": "vendorado como fonte solicitado; NAO importado pelo dv-core; nao compilado nesta fase",
 	"pi-schema": "dependencia de runtime transitiva de pi-ai (builders de schema)",
 	"pi-telemetry": "dependencia de runtime transitiva de pi-ai (TelemetrySpan)",
 };
@@ -21,7 +20,6 @@ const roles = {
 const pkgs = [
 	["ai", "pi-ai", "@earendil-works/pi-ai"],
 	["agent", "pi-agent-core", "@earendil-works/pi-agent-core"],
-	["coding-agent", "pi-coding-agent", "@earendil-works/pi-coding-agent"],
 	["schema", "pi-schema", "@earendil-works/pi-schema"],
 	["telemetry", "pi-telemetry", "@earendil-works/pi-telemetry"],
 ];
@@ -39,7 +37,7 @@ const packages = pkgs.map(([src, dst, npm]) => ({
 const out = {
 	schema: "dv-upstream-pin-v1",
 	upstream: {
-		repository: "https://github.com/badlogic/pi-mono",
+		repository: "https://github.com/earendil-works/pi",
 		commit: PIN,
 		commit_date: git(["log", "-1", "--format=%cI", PIN]),
 		license: "MIT",
@@ -49,7 +47,7 @@ const out = {
 		"git archive <commit>:packages/<name> (somente arquivos rastreados pelo git; artefatos gitignored e node_modules nao copiados). Sem modificacoes de conteudo.",
 	packages,
 	transitive_closure_note:
-		"pi-coding-agent depende de pi-tui, pi-mcp, pi-codemode (nao vendorados). Nao sao necessarios para pi-ai/pi-agent-core. Vendorar pi-coding-agent executavel exige o fechamento completo.",
+		"pi-coding-agent NAO vendorado nesta fase (depende de pi-tui, pi-mcp, pi-codemode, tambem nao vendorados). Vendorar pi-coding-agent executavel exige o fechamento completo, em PR propria.",
 	npm_registry_reference:
 		"@earendil-works/pi-agent-core@1.6.0 existe no registro npm (referencia de conferencia, nao fonte de codigo)",
 };

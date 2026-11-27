@@ -32,6 +32,7 @@
 		"scripts/dv-bench.ts",
 		"scripts/dv-bench-metrics.ts",
 		"packages/dv-eval/src/index.ts",
+		"packages/dv-eval/src/auth/cli.ts",
 		"packages/dv-eval/src/probe/cli.ts"
 	],
 	"exclude": ["node_modules", "dist", "runs", "packages/**/test", "packages/runtime-pi/**/test"]

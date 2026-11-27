@@ -1,5 +1,5 @@
 {
   "schema": "dv-runtime-build-v1",
-  "pi_ai_data_manifest_sha256": "9f80cc6dc089beadc4df3da6a10d7041b7e51590708844671ed3e5fac98e1224",
+  "pi_ai_data_manifest_sha256": "3d26b2aca9c738214077b2c830729618104e01342db6c8b2a2b4cfca19098aff",
   "note": "snapshot local de catálogo hidratado (gitignored upstream); não reproduzível sem a fonte de rede na mesma data"
 }

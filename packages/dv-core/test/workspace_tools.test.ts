@@ -139,14 +139,39 @@ test("run_bash: timeout explícito encerra o processo e erra com mensagem de tim
 	assert.ok(Date.now() - started < 15_000, "processo encerrado no timeout, não ao fim do sleep");
 });
 
-test("run_bash: saída longa é truncada com início e fim preservados", async () => {
-	const { tool } = setup();
-	const out = await call(tool("run_bash"), {
+test("run_bash: saída longa é truncada com início e fim preservados e salva em .dv/tmp/", async () => {
+	const { root, tool } = setup();
+	const result = await tool("run_bash").execute("test-trunc", {
 		command: `node -e "process.stdout.write('A'.repeat(50000) + 'FIM-DIAGNOSTICO')"`,
-	});
-	assert.ok(out.length < 2_200, `saída limitada (${out.length})`);
+	} as never);
+	const first = result.content[0];
+	const out = first?.type === "text" ? first.text : "";
+	assert.ok(out.length < 2_400, `saída limitada (${out.length})`);
 	assert.match(out, /caracteres omitidos/);
+	assert.match(out, /\.dv\/tmp\/bash-[0-9a-f]+\.log/);
 	assert.ok(out.endsWith("FIM-DIAGNOSTICO"), "diagnóstico final preservado");
+	const details = result.details as { truncated?: boolean; full_output_path?: string; total_lines?: number };
+	assert.equal(details.truncated, true);
+	assert.equal(details.total_lines, 1);
+	assert.ok(details.full_output_path?.startsWith(".dv/tmp/bash-"));
+	assert.ok(existsSync(join(root, details.full_output_path ?? "")), "arquivo completo salvo em .dv/tmp/");
+});
+
+test("run_bash: leitura seletiva via read_file após truncamento em multi-linhas", async () => {
+	const { tool } = setup();
+	const result = await tool("run_bash").execute("test-lines", {
+		command: `node -e "for(let i=1;i<=300;i++) console.log('linha-'+i+'-'+'X'.repeat(20))"`,
+	} as never);
+	const details = result.details as { truncated?: boolean; full_output_path?: string; total_lines?: number };
+	assert.equal(details.truncated, true);
+	assert.ok((details.total_lines ?? 0) >= 300);
+	const slice = await call(tool("read_file"), {
+		path: details.full_output_path,
+		offset: 150,
+		limit: 3,
+	});
+	assert.match(slice, /linha-150-/);
+	assert.match(slice, /linha-152-/);
 });
 
 test("fluxo completo: Agent com provider faux executa read_file -> edit_file -> run_bash", async () => {

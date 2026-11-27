@@ -19,9 +19,9 @@ import {
 	getBuiltinModel,
 	getBuiltinProviders,
 } from "@earendil-works/pi-ai/providers/all";
+import { resolveAgyAcpRuntime } from "./agy_auth.ts";
 import { FileCredentialStore } from "./file_credential_store.ts";
 import { requireSubscriptionSession } from "./subscription.ts";
-import { resolveAgyAcpRuntime } from "./agy_auth.ts";
 
 export type LiveAuthMode = "api-key" | "subscription";
 
@@ -50,11 +50,17 @@ export async function openLiveSession(options: {
 		if (!isAgyModel(options.modelId)) throw new Error(`modelo agy desconhecido: ${options.modelId}`);
 		const runtime = resolveAgyAcpRuntime();
 		if (runtime === null) {
-			throw new Error("runtime antigravity-acp standalone não encontrado; instale o runtime oficial e configure DV_AGY_ACP_BIN");
+			throw new Error(
+				"runtime antigravity-acp standalone não encontrado; instale o runtime oficial e configure DV_AGY_ACP_BIN",
+			);
 		}
 		return {
 			model: agyModel(options.modelId),
-			streamFn: createAgyStreamFn({ cwd: options.workspaceRoot ?? process.cwd(), timeoutMs: AGY_TIMEOUT_MS, command: [runtime] }),
+			streamFn: createAgyStreamFn({
+				cwd: options.workspaceRoot ?? process.cwd(),
+				timeoutMs: AGY_TIMEOUT_MS,
+				command: [runtime],
+			}),
 			priceBook: {
 				kind: "subscription",
 				id: "agy-local-login",

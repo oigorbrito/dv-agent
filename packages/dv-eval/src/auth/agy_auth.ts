@@ -27,7 +27,14 @@ export function resolveAgyAcpRuntime(env: NodeJS.ProcessEnv = process.env, platf
 	const explicit = env.DV_AGY_ACP_BIN?.trim() || env.AGY_ACP_BIN?.trim();
 	const candidates = [
 		...(explicit ? [explicit] : []),
-		join(homedir(), ".local", "opt", "agy-acp", "current", platform === "win32" ? "agy_acp_server.exe" : "agy_acp_server.par"),
+		join(
+			homedir(),
+			".local",
+			"opt",
+			"agy-acp",
+			"current",
+			platform === "win32" ? "agy_acp_server.exe" : "agy_acp_server.par",
+		),
 		join(homedir(), ".local", "bin", platform === "win32" ? "agy_acp_server.exe" : "agy_acp_server.par"),
 		...(platform === "win32" ? [] : ["/usr/local/bin/agy_acp_server.par", "/usr/bin/agy_acp_server.par"]),
 	];
@@ -64,7 +71,9 @@ class RpcProcess {
 		this.child.stdout.setEncoding("utf8");
 		this.child.stdout.on("data", (chunk: string) => this.onData(chunk));
 		this.child.on("error", (error) => this.fail(error));
-		this.child.on("exit", (code, signal) => this.fail(new Error(`ACP process exited (code=${code}, signal=${signal})`)));
+		this.child.on("exit", (code, signal) =>
+			this.fail(new Error(`ACP process exited (code=${code}, signal=${signal})`)),
+		);
 	}
 	request(method: string, params: unknown, timeoutMs = TIMEOUT_MS): Promise<unknown> {
 		if (this.closed) return Promise.reject(new Error("ACP process closed"));
@@ -79,10 +88,10 @@ class RpcProcess {
 				if (error) {
 					const entry = this.pending.get(id);
 					if (entry) {
-					clearTimeout(entry.timer);
-					this.pending.delete(id);
-					entry.reject(error);
-				}
+						clearTimeout(entry.timer);
+						this.pending.delete(id);
+						entry.reject(error);
+					}
 				}
 			});
 		});
@@ -129,9 +138,8 @@ class RpcProcess {
 					clearTimeout(entry.timer);
 					this.pending.delete(message.id);
 					if (message.error) {
-					entry.reject(new Error(message.error.message ?? `ACP error ${message.error.code ?? "unknown"}`));
-				}
-					else entry.resolve(message.result);
+						entry.reject(new Error(message.error.message ?? `ACP error ${message.error.code ?? "unknown"}`));
+					} else entry.resolve(message.result);
 				}
 			}
 			newline = this.buffer.indexOf("\n");
@@ -147,12 +155,14 @@ class RpcProcess {
 	}
 }
 
-async function initialize(rpc: RpcProcess): Promise<{ agentName?: string; authMethods: Array<{ id?: string; methodId?: string }> }> {
-	const raw = await rpc.request("initialize", {
+async function initialize(
+	rpc: RpcProcess,
+): Promise<{ agentName?: string; authMethods: Array<{ id?: string; methodId?: string }> }> {
+	const raw = (await rpc.request("initialize", {
 		protocolVersion: PROTOCOL_VERSION,
 		clientCapabilities: {},
 		clientInfo: { name: "dv-agent", version: "0.1.0" },
-	}) as { agentInfo?: { name?: string }; authMethods?: Array<{ id?: string; methodId?: string }> };
+	})) as { agentInfo?: { name?: string }; authMethods?: Array<{ id?: string; methodId?: string }> };
 	return { agentName: raw?.agentInfo?.name, authMethods: Array.isArray(raw?.authMethods) ? raw.authMethods : [] };
 }
 async function openSession(rpc: RpcProcess): Promise<void> {
@@ -162,7 +172,8 @@ async function openSession(rpc: RpcProcess): Promise<void> {
 /** Check read-only: initialize + session/new; nunca dispara OAuth nem envia session/prompt. */
 export async function checkAgySession(): Promise<AgySessionCheck> {
 	const runtime = resolveAgyAcpRuntime();
-	if (!runtime) return { status: "not_ready", runtime: null, reason: "runtime antigravity-acp standalone não encontrado" };
+	if (!runtime)
+		return { status: "not_ready", runtime: null, reason: "runtime antigravity-acp standalone não encontrado" };
 	const rpc = new RpcProcess(runtime);
 	try {
 		const info = await initialize(rpc);
@@ -178,7 +189,8 @@ export async function checkAgySession(): Promise<AgySessionCheck> {
 /** Login interativo pelo método OAuth oficial anunciado pelo servidor ACP. */
 export async function loginAgy(): Promise<AgyLoginResult> {
 	const runtime = resolveAgyAcpRuntime();
-	if (!runtime) throw new Error("runtime antigravity-acp standalone não encontrado; instale o binário oficial do ACP Registry");
+	if (!runtime)
+		throw new Error("runtime antigravity-acp standalone não encontrado; instale o binário oficial do ACP Registry");
 	const rpc = new RpcProcess(runtime);
 	try {
 		const info = await initialize(rpc);

@@ -10,6 +10,7 @@ import {
 	type AcpModelSwitch,
 	type AcpSetModelProbe,
 	AGY_API,
+	AGY_DEFAULT_COMMAND,
 	type AgyTurnUsage,
 	type AgyUsageVerdict,
 	classifyAgyUsage,
@@ -87,8 +88,10 @@ export async function runAgyProbe(options: AgyProbeOptions): Promise<AgyProbeRes
 		throw new Error(`--turns deve ser inteiro entre 1 e ${AGY_PROBE_MAX_TURNS}`);
 	}
 	const modelId = options.modelId ?? AGY_PROBE_DEFAULT_MODEL;
-	const runtime = options.command === undefined ? resolveAgyAcpRuntime() : null;
-	const command = options.command === undefined ? (runtime === null ? [] : [runtime]) : [...options.command];
+	const needsRuntimeLookup = options.command === undefined && options.spawn === undefined;
+	const runtime = needsRuntimeLookup ? resolveAgyAcpRuntime() : null;
+	const command =
+		options.command !== undefined ? [...options.command] : runtime !== null ? [runtime] : [...AGY_DEFAULT_COMMAND];
 	const reasons: string[] = [];
 	const result: AgyProbeResult = {
 		schema: PROBE_SCHEMA,
@@ -110,7 +113,7 @@ export async function runAgyProbe(options: AgyProbeOptions): Promise<AgyProbeRes
 		contract_v4_uncached_rule: "ausente_na_tabela_v4",
 	};
 
-	if (options.command === undefined && runtime === null) {
+	if (needsRuntimeLookup && runtime === null) {
 		reasons.push("runtime antigravity-acp standalone não encontrado; configure DV_AGY_ACP_BIN");
 		return result;
 	}

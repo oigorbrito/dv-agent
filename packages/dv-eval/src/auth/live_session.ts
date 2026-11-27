@@ -49,18 +49,20 @@ export async function openLiveSession(options: {
 		}
 		if (!isAgyModel(options.modelId)) throw new Error(`modelo agy desconhecido: ${options.modelId}`);
 		const runtime = resolveAgyAcpRuntime();
-		if (runtime === null) {
-			throw new Error(
-				"runtime antigravity-acp standalone não encontrado; instale o runtime oficial e configure DV_AGY_ACP_BIN",
-			);
-		}
 		return {
 			model: agyModel(options.modelId),
-			streamFn: createAgyStreamFn({
-				cwd: options.workspaceRoot ?? process.cwd(),
-				timeoutMs: AGY_TIMEOUT_MS,
-				command: [runtime],
-			}),
+			streamFn:
+				runtime !== null
+					? createAgyStreamFn({
+							cwd: options.workspaceRoot ?? process.cwd(),
+							timeoutMs: AGY_TIMEOUT_MS,
+							command: [runtime],
+						})
+					: () => {
+							throw new Error(
+								"runtime antigravity-acp standalone não encontrado; instale o runtime oficial e configure DV_AGY_ACP_BIN",
+							);
+						},
 			priceBook: {
 				kind: "subscription",
 				id: "agy-local-login",

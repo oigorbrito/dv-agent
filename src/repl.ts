@@ -122,9 +122,19 @@ const POLICY_HINTS: Readonly<Record<InteractivePolicy, string>> = {
 	"architect-editor": "papéis arquiteto/editor",
 };
 const CONTEXT_TURNS = 4;
-const CONTEXT_CHARS = 24_000;
+const CONTEXT_CHARS = 8_000;
 const SUMMARY_CHARS = 3_000;
-const DEFAULT_AUTO_COMPACT_TOKENS = 6_000;
+const DEFAULT_AUTO_COMPACT_TOKENS = 3_000;
+const LAST_TURN_FIELD_CHARS = 8_000;
+/** Preâmbulo do modo interativo: execução direta, respostas curtas, sem menus nem repetição de restrições. */
+export const INTERACTIVE_PREAMBLE = [
+	"Você está no modo interativo do dv-agent, no diretório de trabalho atual.",
+	"- Execute imediatamente as ferramentas e comandos que o usuário pedir, sem pedir confirmação para o que foi solicitado.",
+	"- Responda de forma concisa, em português.",
+	"- Nunca repita listas de restrições nem ofereça menus de 'o que você gostaria de fazer'.",
+	"- Foque apenas na solicitação atual.",
+].join("\n");
+export const INTERACTIVE_SYSTEM_PROMPT = `${INTERACTIVE_PREAMBLE}\n\n${DEFAULT_SYSTEM_PROMPT}`;
 const AUTO_COMPACT_ENV = "DV_AUTO_COMPACT_TOKENS";
 const SHELL_TIMEOUT_MS = 300_000;
 const MAX_LISTED_LINES = 60;
@@ -256,6 +266,12 @@ function listSessions(cwd: string): SessionListing[] {
 	return found.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+/** Limita um texto longo sem alterar quebras de linha (para o último turno, que deve ficar legível). */
+function capText(text: string): string {
+	const trimmed = text.trim();
+	return trimmed.length <= LAST_TURN_FIELD_CHARS ? trimmed : `${trimmed.slice(0, LAST_TURN_FIELD_CHARS - 1)}…`;
+}
+
 /** Mantém as últimas linhas inteiras que caibam em `max` caracteres (nunca corta uma linha no meio). */
 function keepTail(text: string, max: number): string {
 	if (text.length <= max) return text;
@@ -280,18 +296,27 @@ export function buildTurnPrompt(
 	prompt: string,
 	workspaceLine = "",
 ): string {
-	const recent = session.turns
-		.slice(-CONTEXT_TURNS)
+	const last = session.turns.at(-1);
+	// O último turno entra íntegro (só limitado por campo, bem acima do uso típico); o restante cabe no orçamento.
+	const lastBlock =
+		last === undefined
+			? ""
+			: `Último turno:\nUsuário: ${capText(last.prompt)}\nAgente: ${capText(last.reply)}`;
+	const earlier = session.turns
+		.slice(-CONTEXT_TURNS, -1)
 		.map((t) => `Usuário: ${clipText(t.prompt, 1_500)}\nAgente: ${clipText(t.reply, 2_000)}`)
 		.join("\n\n");
-	const history = [
+	const older = [
 		session.summary === "" ? "" : `Resumo da conversa anterior:\n${session.summary}`,
-		recent === "" ? "" : `Turnos recentes:\n${recent}`,
+		earlier === "" ? "" : `Turnos anteriores:\n${earlier}`,
 	]
 		.filter((part) => part !== "")
 		.join("\n\n");
+	const olderBudget = CONTEXT_CHARS - lastBlock.length - 2;
+	const olderFit = older === "" || olderBudget <= 0 ? "" : keepTail(older, olderBudget);
+	const history = [olderFit, lastBlock].filter((part) => part !== "").join("\n\n");
 	const head = workspaceLine === "" ? "" : `Contexto do workspace (detectado localmente): ${workspaceLine}`;
-	const context = [head, history === "" ? "" : keepTail(history, CONTEXT_CHARS)].filter((p) => p !== "").join("\n\n");
+	const context = [head, history].filter((p) => p !== "").join("\n\n");
 	if (context === "") return prompt;
 	return `${context}\n\nNova solicitação:\n${prompt}`;
 }
@@ -517,7 +542,7 @@ async function runTurn(state: ReplState, io: ReplIO, prompt: string): Promise<nu
 			datasetSha256: "interactive",
 			taskDefinitionSha256: "interactive",
 			model: live.model,
-			systemPrompt: DEFAULT_SYSTEM_PROMPT,
+			systemPrompt: INTERACTIVE_SYSTEM_PROMPT,
 			tools: createWorkspaceTools({ workspaceRoot: state.cwd }),
 			prompt: modelPrompt,
 			streamFn,
@@ -526,6 +551,7 @@ async function runTurn(state: ReplState, io: ReplIO, prompt: string): Promise<nu
 			maxTotalTokens: state.maxTokens,
 			doomLoopMaxIdenticalConsecutive: 3,
 			approvedProbes: loadProbes(),
+			onToolStart: (call) => say(io, `  · ${describeToolCall(call.toolName, call.args)}`),
 			contractId: ref.provider === AGY_PROVIDER ? CONTRACT_V5_ID : CONTRACT_ID,
 			...(ref.reasoningEffort === undefined ? {} : { reasoningEffort: ref.reasoningEffort }),
 		});
@@ -549,6 +575,17 @@ async function runTurn(state: ReplState, io: ReplIO, prompt: string): Promise<nu
 	session.turns.push({ index, prompt, reply, status, at: new Date().toISOString() });
 	safePersist(state, io);
 	return code;
+}
+
+/** Linha curta de progresso para uma ferramenta: `bash: <comando>`, `read: <arquivo>` etc. */
+export function describeToolCall(toolName: string, args: unknown): string {
+	const record = typeof args === "object" && args !== null ? (args as Record<string, unknown>) : {};
+	const preferred = [record.command, record.path, record.pattern, record.query, record.url].find(
+		(v) => typeof v === "string" && v !== "",
+	);
+	const fallback = Object.values(record).find((v) => typeof v === "string" && v !== "");
+	const detail = typeof preferred === "string" ? preferred : typeof fallback === "string" ? fallback : "";
+	return detail === "" ? toolName : `${toolName}: ${clipText(detail, 80)}`;
 }
 
 function runShell(state: ReplState, io: ReplIO, command: string): void {

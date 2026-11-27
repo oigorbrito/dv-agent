@@ -7,6 +7,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
+import { DEFAULT_SYSTEM_PROMPT } from "@dv-agent/core";
 import {
 	checkNpmUpdateNonBlocking,
 	defaultModelForProvider,
@@ -21,7 +22,10 @@ import {
 	autoCompactSession,
 	buildTurnPrompt,
 	compactSession,
+	describeToolCall,
 	historyTokens,
+	INTERACTIVE_PREAMBLE,
+	INTERACTIVE_SYSTEM_PROMPT,
 	readAutoCompactTokens,
 	type SessionState,
 } from "../../../src/repl.ts";
@@ -703,10 +707,39 @@ test("compactação: resumo cortado apenas em linhas inteiras e limiar lido de D
 		"nenhuma linha pode ser cortada no meio",
 	);
 
-	assert.equal(readAutoCompactTokens({}), 6_000, "padrão");
+	assert.equal(readAutoCompactTokens({}), 3_000, "padrão");
 	assert.equal(readAutoCompactTokens({ DV_AUTO_COMPACT_TOKENS: "0" }), 0, "0 desativa");
 	assert.equal(readAutoCompactTokens({ DV_AUTO_COMPACT_TOKENS: " 900 " }), 900);
-	assert.equal(readAutoCompactTokens({ DV_AUTO_COMPACT_TOKENS: "abc" }), 6_000, "inválido cai no padrão");
+	assert.equal(readAutoCompactTokens({ DV_AUTO_COMPACT_TOKENS: "abc" }), 3_000, "inválido cai no padrão");
+});
+
+test("contexto enxuto: o último turno fica íntegro mesmo com histórico grande; o orçamento de 8000 caracteres vale para o resto", () => {
+	const turns = Array.from({ length: 6 }, (_, i) => ({
+		index: i + 1,
+		prompt: `pedido ${i + 1} ${"x".repeat(1_200)}`,
+		reply: `resposta ${i + 1}\n${"y".repeat(1_800)}`,
+		status: "completed",
+		at: "2026-01-01T00:00:00.000Z",
+	}));
+	const prompt = buildTurnPrompt({ summary: "s".repeat(5_000), turns }, "agora");
+	assert.ok(prompt.length <= 8_000 + 200, `contexto com ${prompt.length} caracteres`);
+	assert.ok(prompt.includes(`resposta 6\n${"y".repeat(1_800)}`), "último turno sem cortes e com quebras preservadas");
+	assert.ok(prompt.includes(`pedido 6 ${"x".repeat(1_200)}`));
+	assert.ok(prompt.endsWith("Nova solicitação:\nagora"));
+});
+
+test("modo interativo: preâmbulo direto e base do agente preservada", () => {
+	assert.ok(INTERACTIVE_SYSTEM_PROMPT.startsWith(INTERACTIVE_PREAMBLE));
+	assert.ok(INTERACTIVE_SYSTEM_PROMPT.endsWith(DEFAULT_SYSTEM_PROMPT));
+	assert.ok(INTERACTIVE_PREAMBLE.includes("Execute imediatamente"));
+	assert.ok(INTERACTIVE_PREAMBLE.includes("português"));
+});
+
+test("progresso de ferramenta: linha curta com o comando ou arquivo", () => {
+	assert.equal(describeToolCall("run_bash", { command: "git status" }), "run_bash: git status");
+	assert.equal(describeToolCall("read_file", { path: "src/repl.ts", offset: 1 }), "read_file: src/repl.ts");
+	assert.equal(describeToolCall("list_files", {}), "list_files");
+	assert.equal(describeToolCall("run_bash", { command: "x".repeat(200) }).length, "run_bash: ".length + 80);
 });
 
 test("contexto do workspace: linha detectada entra no prompt do turno, antes da solicitação", () => {

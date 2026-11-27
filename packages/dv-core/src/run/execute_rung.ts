@@ -63,6 +63,8 @@ export interface RungRunOptions {
 	contractId?: string;
 	/** Decisão de roteamento que originou este degrau. Gravada como `route_decided` logo após `run_started`. */
 	routeDecision?: RouteDecidedPayload;
+	/** Notificação (só para exibição) quando uma ferramenta começa a executar. Não altera o ledger. */
+	onToolStart?: (call: { readonly toolCallId: string; readonly toolName: string; readonly args: unknown }) => void;
 }
 
 export interface RungRunResult {
@@ -174,6 +176,15 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 			...(options.reasoningEffort !== undefined ? { thinkingLevel: options.reasoningEffort } : {}),
 		},
 	});
+
+	if (options.onToolStart !== undefined) {
+		const onToolStart = options.onToolStart;
+		agent.subscribe((event) => {
+			if (event.type === "tool_execution_start") {
+				onToolStart({ toolCallId: event.toolCallId, toolName: event.toolName, args: event.args });
+			}
+		});
+	}
 
 	agent.subscribe((event) => {
 		if (event.type !== "message_end") return;

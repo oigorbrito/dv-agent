@@ -26,7 +26,7 @@ function buildCalibrationFixtureSummary(dir: string): string {
 					role: "executor",
 					model: "anthropic/claude-haiku-5-5",
 					ledger_sha256: "a".repeat(64),
-					oracle: { verdict: t.tier === "hard" || t.tier === "frontier" ? "FAIL" : "PASS" },
+					verdict: t.tier === "hard" || t.tier === "frontier" ? "FAIL" : "PASS",
 					verification: { status: t.tier === "hard" || t.tier === "frontier" ? "fail" : "pass" },
 				},
 			],

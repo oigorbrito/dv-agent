@@ -343,10 +343,19 @@ Comando (somente leitura, sem chamadas live): `node scripts/dv-bench-metrics.ts 
 | A (haiku, `221052Z`) | +0,111 [0; 0,333] | +3.446,33 [−17,67; 10.289,67] | não |
 | B1 (sonnet, `221222Z`) | +0,111 [0; 0,333] | −6.405,78 [−9.489,00; −1.160,33] | **sim** |
 | B2 (sonnet, `221705Z`) | +0,111 [0; 0,333] | −325,67 [−8.566,00; 9.028,67] | não |
+<<<<<<< HEAD
 
 Leitura:
 - A redução de tokens com IC excluindo zero aparece **somente** contra B1. Contra B2 o IC cruza zero, e contra A o sinal inverte. Em B1, a média de `tb-jsonl-top-aggregates` é inflada por uma única falha (55.656 tokens). O resultado não é robusto ao baseline e não deve ser lido como redução geral de custo.
 - Média dos dois braços B (por tarefa): Δ = −3.365,72 tokens. Este valor foi calculado manualmente a partir dos summaries; o script não o gera, porque rejeita dois braços `single` na mesma chamada (`duplicate paired run for single`). Não há IC para essa comparação.
+=======
+| média de B1 e B2 (`--baseline-aggregate mean`) | +0,111 [0; 0,333] | −3.365,72 [−8.567,00; −230,17] | **sim** |
+
+Leitura:
+- Contra B1 isolado, o IC de tokens exclui zero; contra B2 isolado ele cruza zero; contra A o sinal inverte. Em B1, a média de `tb-jsonl-top-aggregates` é inflada por uma única falha (55.656 tokens). Por isso o resultado depende do baseline escolhido.
+- Usando a média dos dois braços B como baseline (`dv-bench-metrics --baseline-aggregate mean`, adicionado depois desta rodada), o IC de tokens também exclui zero: Δ = −3.365,72 tokens por tarefa, IC 95% `[−8.567,00; −230,17]`. Esta é a comparação que representa os dois braços Sonnet. Ainda assim, com 3 tarefas, a evidência é sugestiva, não conclusiva.
+- Nota de correção: uma versão anterior deste relatório dizia que o IC só excluía zero contra B1 e que a média não tinha IC. Isso estava desatualizado. A média agora é calculada pelo script.
+>>>>>>> feat/harness-router
 - `solve_rate` é igual nas três comparações (9/9 contra 8/9), e o IC cruza zero em todas.
 - `spent_lower_bound_usd` é 0 em todas (cobrança por assinatura).
 

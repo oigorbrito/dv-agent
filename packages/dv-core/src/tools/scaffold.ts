@@ -4,6 +4,7 @@
 // - Modelos de fronteira mantêm o kit de arquivo tipado (read/write/edit/bash), mas com prompt de sistema enxuto.
 //   Forçar bash-only em fronteira causou estouro de tokens (escaping de shell) no piloto live.
 import type { AgentTool } from "@earendil-works/pi-agent-core";
+import { canonicalJson, sha256Hex } from "../util/canonical.ts";
 import { createWorkspaceTools, type WorkspaceToolsOptions } from "./workspace_tools.ts";
 
 export type ScaffoldMode = "uniform" | "adaptive";
@@ -58,6 +59,25 @@ export interface AssembleScaffoldOptions extends WorkspaceToolsOptions {
 	scaffoldMode?: ScaffoldMode;
 	modelId: string;
 	baseSystemPrompt?: string;
+}
+
+/**
+ * Impressão digital do que é enviado ao modelo: system prompt e ferramentas (nome, descrição e schema). Execuções de
+ * um mesmo braço precisam ter a mesma impressão digital, ou a ablação compara coisas diferentes. Sem o `execute`.
+ */
+export function scaffoldFingerprint(
+	systemPrompt: string,
+	tools: readonly { name: string; description?: string; parameters?: unknown }[],
+): { system_prompt_sha256: string; tools_sha256: string } {
+	const toolsView = tools.map((tool) => ({
+		name: tool.name,
+		description: tool.description ?? null,
+		parameters: tool.parameters ?? null,
+	}));
+	return {
+		system_prompt_sha256: sha256Hex(systemPrompt),
+		tools_sha256: sha256Hex(canonicalJson(toolsView)),
+	};
 }
 
 /**

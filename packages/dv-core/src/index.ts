@@ -127,6 +127,7 @@ export {
 	SCAFFOLD_MODES,
 	type ScaffoldMode,
 	type ScaffoldProfile,
+	scaffoldFingerprint,
 } from "./tools/scaffold.ts";
 export {
 	atomicWriteFile,

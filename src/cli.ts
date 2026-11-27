@@ -10,6 +10,7 @@ Uso:
   dv bench [opções]
   dv metrics (--weak M --strong M | --baseline P --treatment P) [opções] <outdir|summary.json> [...]
   dv probe [opções]
+  dv auth <login|check> [opções]
   dv --help
   dv --version
 
@@ -21,12 +22,14 @@ const COMMANDS: Readonly<Record<string, string>> = {
 	bench: "../scripts/dv-bench.js",
 	metrics: "../scripts/dv-bench-metrics.js",
 	probe: "../packages/dv-eval/src/probe/cli.js",
+	auth: "../packages/dv-eval/src/auth/cli.js",
 };
 const COMMAND_HELP: Readonly<Record<string, string>> = {
 	smoke: "Uso: dv smoke --policy single|ladder|architect-editor|predictive-harness-router [opções do dv-smoke]",
 	bench: "Uso: dv bench --policies single,ladder [opções do dv-bench]",
 	metrics: "Uso: dv metrics (--weak M --strong M | --baseline P --treatment P) [--seed N --resamples N] <outdir|summary.json> [...]",
 	probe: "Uso: dv probe [--live --provider P --model M --auth-mode api-key|subscription]. Sem --live, o probe é offline.",
+	auth: "Uso: dv auth <login <provider> [--browser|--api-key] | check --provider <provider> [--json] [--no-refresh]>",
 };
 
 function packageManifest(): Record<string, unknown> {

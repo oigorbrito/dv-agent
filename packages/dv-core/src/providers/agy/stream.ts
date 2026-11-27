@@ -9,7 +9,13 @@ import {
 	type Model,
 	type StopReason,
 } from "@earendil-works/pi-ai";
-import { AcpClient, type AcpPromptResult, type SpawnFn, sanitizeTransportMessage } from "./acp_client.ts";
+import {
+	AcpClient,
+	type AcpPromptResult,
+	type AgyToolActivity,
+	type SpawnFn,
+	sanitizeTransportMessage,
+} from "./acp_client.ts";
 import { TransportError } from "./jsonrpc.ts";
 import { mapAgyUsage } from "./usage.ts";
 
@@ -88,6 +94,53 @@ export function mapStopReason(acp: string): { stopReason: StopReason; errorMessa
 		default:
 			return { stopReason: "error", errorMessage: `stopReason do agy desconhecido: ${sanitizeTransportMessage(acp)}` };
 	}
+}
+
+type AssistantDiagnostic = NonNullable<AssistantMessage["diagnostics"]>[number];
+
+/**
+ * Diagnóstico `agy_tool_activity`: chamadas de ferramenta que o próprio agy executou no turno (via fs/terminal do
+ * cliente ACP). Não são blocos toolCall: o agent-loop não as reexecuta. execute_rung as grava no ledger.
+ */
+export function toolActivityDiagnostic(
+	calls: readonly AgyToolActivity[],
+	malformedUpdates: number,
+): AssistantDiagnostic {
+	return {
+		type: "agy_tool_activity",
+		timestamp: Date.now(),
+		details: {
+			calls: calls.map((call) => ({
+				tool_call_id: call.toolCallId,
+				tool_name: call.toolName,
+				arguments: call.arguments,
+				status: call.status,
+				output: call.output,
+			})),
+			malformed_updates: malformedUpdates,
+		} as unknown as AssistantDiagnostic["details"],
+	};
+}
+
+/** Chamada de ferramenta do agy lida de um diagnóstico `agy_tool_activity` (forma gravada por toolActivityDiagnostic). */
+export interface ObservedAgyToolCall {
+	tool_call_id: string;
+	tool_name: string;
+	arguments: Record<string, unknown>;
+	status: AgyToolActivity["status"];
+	output: string;
+}
+
+/** Lê as chamadas observadas de uma mensagem do assistente. Diagnóstico malformado é ignorado (a origem é o próprio adaptador). */
+export function observedAgyToolCalls(message: AssistantMessage): ObservedAgyToolCall[] {
+	const calls: ObservedAgyToolCall[] = [];
+	for (const diagnostic of message.diagnostics ?? []) {
+		if (diagnostic.type !== "agy_tool_activity") continue;
+		const list = (diagnostic.details as { calls?: unknown } | undefined)?.calls;
+		if (!Array.isArray(list)) continue;
+		for (const item of list as ObservedAgyToolCall[]) calls.push(item);
+	}
+	return calls;
 }
 
 export interface AgyStreamOptions {
@@ -180,6 +233,9 @@ async function executeTurn(
 		const usage = mapAgyUsage(result.usage);
 		// Diagnósticos auditáveis: campo de usage ausente e troca de modelo não confirmada viram baldes ausentes na telemetria.
 		const diagnostics: NonNullable<AssistantMessage["diagnostics"]> = [
+			...(result.toolActivity.length === 0 && result.malformedToolUpdates === 0
+				? []
+				: [toolActivityDiagnostic(result.toolActivity, result.malformedToolUpdates)]),
 			...(usage.missing.length === 0
 				? []
 				: [{ type: "usage_incomplete", timestamp: Date.now(), details: { missing: usage.missing } }]),
@@ -209,6 +265,10 @@ async function executeTurn(
 	} catch (error) {
 		const detail = error instanceof Error ? error.message : String(error);
 		const suffix = client === undefined ? "" : ` | stderr: ${client.stderrTail()}`;
+		// Chamadas observadas antes da falha ficam registradas: o efeito no workspace pode ter ocorrido.
+		const observed = client?.toolActivitySnapshot() ?? [];
+		const observedDiagnostics: AssistantDiagnostic[] =
+			observed.length === 0 ? [] : [toolActivityDiagnostic(observed, 0)];
 		if (error instanceof TransportError && error.kind === "spawn") {
 			return failed(`falha de transporte do agy: ${detail}`, [
 				{
@@ -222,7 +282,7 @@ async function executeTurn(
 				},
 			]);
 		}
-		return failed(`falha de transporte do agy: ${detail}${suffix}`);
+		return failed(`falha de transporte do agy: ${detail}${suffix}`, observedDiagnostics);
 	} finally {
 		await client?.close();
 	}

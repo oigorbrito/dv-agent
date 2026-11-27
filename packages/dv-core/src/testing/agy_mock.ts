@@ -32,6 +32,11 @@ export interface AgyMockOptions {
 	 * modelo pedido; `mismatch` devolve outro modelo; `error` responde erro JSON-RPC.
 	 */
 	setModelReply?: "unsupported" | "empty" | "echo" | "mismatch" | "error";
+	/**
+	 * Objetos `update` enviados como session/update antes do resultado (ou do erro) do session/prompt. Permite simular
+	 * tool_call / tool_call_update, updates malformados e updates de tipo desconhecido.
+	 */
+	toolUpdates?: readonly Record<string, unknown>[];
 }
 
 export class FakeAgyChild extends EventEmitter implements ProcessLike {
@@ -172,6 +177,9 @@ function serve(child: FakeAgyChild, options: AgyMockOptions, initializeParams: R
 		if (mode === "garbage_on_prompt") {
 			child.stdout.write("isto não é json\n");
 			return;
+		}
+		for (const update of options.toolUpdates ?? []) {
+			send({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update } });
 		}
 		if (options.promptError !== undefined) {
 			send({ jsonrpc: "2.0", id, error: options.promptError });

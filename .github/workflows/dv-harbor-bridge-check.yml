@@ -1,0 +1,28 @@
+name: DV Harbor bridge checks
+
+on:
+  push:
+    branches: [dv-harbor-adapter-isolation]
+  pull_request:
+    branches: [feat/harness-router]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck-and-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+          cache: npm
+      - run: npm ci
+      - run: npm run hydrate:pi-ai-data
+      - run: npm run build:runtime
+      - run: npx biome check packages/dv-core/src/tools/harbor_bridge_main.ts packages/dv-core/src/tools/harbor_remote_tools.ts packages/dv-eval/src/harbor/run_dv_task.ts packages/dv-eval/src/harbor/ledger_telemetry.ts
+      - run: npm run typecheck
+      - run: node --test packages/dv-core/test/harbor_remote_tools.test.ts packages/dv-eval/test/harbor_ledger_telemetry.test.ts

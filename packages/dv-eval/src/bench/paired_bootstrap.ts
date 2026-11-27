@@ -26,6 +26,10 @@ export interface PairedBootstrapResult {
 	total_tokens_difference: BootstrapDifference;
 	cost_usd_difference: BootstrapDifference;
 	spent_lower_bound_usd_difference: BootstrapDifference;
+	/** Quantos resumos contribuíram com o baseline (1 = baseline único, como antes). */
+	baseline_arms: number;
+	/** single: um braço de baseline (duplicata é erro). mean: média dos braços por (tarefa, réplica). */
+	baseline_aggregation: "single" | "mean";
 }
 
 function quantileType7(sorted: readonly number[], q: number): number {
@@ -81,14 +85,21 @@ function summarize(units: readonly number[], random: () => number, resamples: nu
 	};
 }
 
-function collectPolicyRuns(reports: readonly BenchReport[], policy: string): Map<string, RunRecord> {
-	const records = new Map<string, RunRecord>();
+function collectPolicyRuns(
+	reports: readonly BenchReport[],
+	policy: string,
+	allowMultiple: boolean,
+): Map<string, RunRecord[]> {
+	const records = new Map<string, RunRecord[]>();
 	for (const report of reports) {
 		for (const run of report.runs) {
 			if (run.policy !== policy) continue;
 			const key = `${run.task_id}\u0000${run.repeat}`;
-			if (records.has(key)) throw new Error(`duplicate paired run for ${policy}: ${run.task_id}/rep-${run.repeat}`);
-			records.set(key, run);
+			const list = records.get(key) ?? [];
+			if (list.length > 0 && !allowMultiple)
+				throw new Error(`duplicate paired run for ${policy}: ${run.task_id}/rep-${run.repeat}`);
+			list.push(run);
+			records.set(key, list);
 		}
 	}
 	return records;
@@ -116,23 +127,31 @@ function spentLowerBound(run: RunRecord): number | undefined {
 	return run.steps.length === 0 ? undefined : run.steps.reduce((sum, step) => sum + step.spent_lower_bound_usd, 0);
 }
 
+/** Média dos valores de um grupo de runs pareados; qualquer valor ausente torna o par indefinido (sem média parcial). */
+function aggregateValue(runs: readonly RunRecord[], value: (run: RunRecord) => number | undefined): number | undefined {
+	const values = runs.map(value);
+	if (values.some((v) => v === undefined)) return undefined;
+	return mean(values as number[]);
+}
+
 function taskDifferences(
 	keys: readonly string[],
-	a: ReadonlyMap<string, RunRecord>,
-	b: ReadonlyMap<string, RunRecord>,
+	a: ReadonlyMap<string, readonly RunRecord[]>,
+	b: ReadonlyMap<string, readonly RunRecord[]>,
 	value: (run: RunRecord) => number | undefined,
 ): number[] {
 	const byTask = new Map<string, number[]>();
 	for (const key of keys) {
 		const left = a.get(key);
 		const right = b.get(key);
-		if (left === undefined || right === undefined) continue;
-		const x = value(left);
-		const y = value(right);
+		if (left === undefined || right === undefined || left.length === 0 || right.length === 0) continue;
+		const x = aggregateValue(left, value);
+		const y = aggregateValue(right, value);
 		if (x === undefined || y === undefined) continue;
-		const values = byTask.get(left.task_id) ?? [];
+		const taskId = (left[0] as RunRecord).task_id;
+		const values = byTask.get(taskId) ?? [];
 		values.push(y - x);
-		byTask.set(left.task_id, values);
+		byTask.set(taskId, values);
 	}
 	return [...byTask.entries()]
 		.sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0))
@@ -154,6 +173,7 @@ export function computePairedBootstrap(
 		policyB: string;
 		seed?: number;
 		resamples?: number;
+		baselineAggregation?: "single" | "mean";
 	},
 ): PairedBootstrapResult {
 	const seed = options.seed ?? DEFAULT_PAIRED_BOOTSTRAP_SEED;
@@ -165,15 +185,25 @@ export function computePairedBootstrap(
 		throw new Error("seed must be an integer in [0, 2^32-1]");
 	if (!Number.isSafeInteger(resamples) || resamples < 1) throw new Error("resamples must be an integer >= 1");
 
-	const a = collectPolicyRuns(reports, options.policyA);
-	const b = collectPolicyRuns(reports, options.policyB);
+	const aggregation = options.baselineAggregation ?? "single";
+	const arms = reports.filter((report) => report.runs.some((run) => run.policy === options.policyA)).length;
+	const a = collectPolicyRuns(reports, options.policyA, aggregation === "mean");
+	const b = collectPolicyRuns(reports, options.policyB, false);
 	if (a.size === 0 || b.size === 0) throw new Error(`missing runs for ${options.policyA} or ${options.policyB}`);
+	if (aggregation === "mean") {
+		if (arms < 2) throw new Error("baselineAggregation mean exige pelo menos dois resumos com o baseline");
+		// Cada célula (tarefa, réplica) precisa de uma execução de cada braço: média de braços incompletos enganaria.
+		for (const [key, runs] of a) {
+			if (runs.length !== arms)
+				throw new Error(`baseline incompleto para ${key.replace("\u0000", "/rep-")}: ${runs.length} de ${arms} braços`);
+		}
+	}
 	const keysA = [...a.keys()].sort();
 	const keysB = [...b.keys()].sort();
 	if (keysA.length !== keysB.length || keysA.some((key, index) => key !== keysB[index]))
 		throw new Error("policies have different task/repeat sets; paired bootstrap requires identical runs");
-	const tasks = new Set(keysA.map((key) => a.get(key)?.task_id).filter((id): id is string => id !== undefined));
-	const repeats = new Set(keysA.map((key) => a.get(key)?.repeat).filter((n): n is number => n !== undefined));
+	const tasks = new Set(keysA.map((key) => a.get(key)?.[0]?.task_id).filter((id): id is string => id !== undefined));
+	const repeats = new Set(keysA.map((key) => a.get(key)?.[0]?.repeat).filter((n): n is number => n !== undefined));
 	const passDiffs = taskDifferences(keysA, a, b, (run) => (run.solved ? 1 : 0));
 	const tokenDiffs = taskDifferences(keysA, a, b, stepTokens);
 	const costDiffs = taskDifferences(keysA, a, b, stepCost);
@@ -191,6 +221,8 @@ export function computePairedBootstrap(
 		total_tokens_difference: summarize(tokenDiffs, random, resamples),
 		cost_usd_difference: summarize(costDiffs, random, resamples),
 		spent_lower_bound_usd_difference: summarize(taskDifferences(keysA, a, b, spentLowerBound), random, resamples),
+		baseline_arms: arms,
+		baseline_aggregation: aggregation,
 	};
 }
 
@@ -224,7 +256,12 @@ export function renderPairedBootstrap(result: PairedBootstrapResult): string {
 	lines.push(
 		"",
 		"Diferenças = tratamento - baseline; valores negativos indicam redução. solve_rate mede `solved / runs`.",
-		"",
 	);
+	if (result.baseline_aggregation === "mean") {
+		lines.push(
+			`Baseline: média de ${result.baseline_arms} braços \`${result.policy_a}\` por (tarefa, réplica); cada braço conta com peso igual.`,
+		);
+	}
+	lines.push("");
 	return `${lines.join("\n")}\n`;
 }

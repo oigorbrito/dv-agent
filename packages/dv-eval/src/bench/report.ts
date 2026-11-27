@@ -4,6 +4,7 @@ import type { ConformanceStatus, ScaffoldMode } from "@dv-agent/core";
 import type { LedgerMetrics } from "../smoke/ledger_metrics.ts";
 import type { PolicyName, RoleLimits } from "../smoke/runner.ts";
 import { CORPUS_TIERS, type CorpusTier, NEGATIVE_TIER, TIERS } from "./corpus.ts";
+import { metricsTelemetryStatus, type TelemetryStatus, worstTelemetryStatus } from "./telemetry_status.ts";
 
 export const BENCH_SCHEMA = "dv-bench-summary-v2";
 
@@ -24,6 +25,9 @@ export interface RunStep {
 	ledger_sha256: string;
 	metrics: LedgerMetrics;
 	conformance_status: ConformanceStatus;
+	/** Impressão digital do scaffold enviado (ausente em resumos antigos). */
+	system_prompt_sha256?: string;
+	tools_sha256?: string;
 }
 
 /** Uma combinação (tarefa x política). `escalated` é null em políticas sem degrau de escalonamento. */
@@ -69,7 +73,8 @@ export interface GroupRow {
 	pass_all: number;
 	/** Pior teto do grupo: exceeded > unverifiable > within_verified. n/a sem passos. */
 	ceiling_status: CeilingStatus | "n/a";
-	telemetry_status: "MEASURED" | "INCONCLUSIVE";
+	/** MEASURED, UNVERIFIABLE (agy, v5) ou INCONCLUSIVE. A pior etiqueta do grupo vence. */
+	telemetry_status: TelemetryStatus;
 	conformance_v4: ConformanceStatus;
 }
 
@@ -119,8 +124,10 @@ function groupRow(policy: PolicyName, tier: CorpusTier | "all", runs: readonly R
 	const steps = runs.flatMap((r) => r.steps);
 	const sum = (pick: (m: LedgerMetrics) => number): number => steps.reduce((acc, s) => acc + pick(s.metrics), 0);
 	const solved = runs.filter((r) => r.solved).length;
-	const telemetryMeasured =
-		runs.length > 0 && runs.every((r) => r.steps.length > 0 && r.steps.every((s) => s.metrics.telemetry_complete));
+	const telemetryStatus: TelemetryStatus =
+		runs.length === 0 || runs.some((r) => r.steps.length === 0)
+			? "INCONCLUSIVE"
+			: worstTelemetryStatus(steps.map((s) => metricsTelemetryStatus(s.metrics)));
 	const escalating = ESCALATING_POLICIES.includes(policy);
 	const ci = wilsonInterval(solved, runs.length);
 	const costs = steps.map((s) => s.metrics.cost_usd);
@@ -148,7 +155,7 @@ function groupRow(policy: PolicyName, tier: CorpusTier | "all", runs: readonly R
 		budget_exceeded_runs: runs.filter((r) => r.steps.some((s) => s.run_status === "budget_exceeded")).length,
 		...passStats(runs),
 		ceiling_status: worst ?? "n/a",
-		telemetry_status: telemetryMeasured ? "MEASURED" : "INCONCLUSIVE",
+		telemetry_status: telemetryStatus,
 		conformance_v4: groupConformance(runs),
 	};
 }

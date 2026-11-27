@@ -75,6 +75,42 @@ export function sanitizeTransportMessage(text: string): string {
 	return redacted.length > MAX_MESSAGE_CHARS ? `${redacted.slice(0, MAX_MESSAGE_CHARS)}…` : redacted;
 }
 
+export type AgyToolStatus = "pending" | "in_progress" | "completed" | "failed";
+
+const AGY_TOOL_STATUSES: readonly string[] = ["pending", "in_progress", "completed", "failed"];
+
+/** Nome legível da ferramenta: title, depois kind, depois "unknown". */
+function nameOf(update: Record<string, unknown>): string {
+	if (typeof update.title === "string" && update.title !== "") return update.title;
+	if (typeof update.kind === "string" && update.kind !== "") return update.kind;
+	return "unknown";
+}
+
+/** Texto de saída: rawOutput (string) ou blocos {type:"content",content:{type:"text"}} concatenados. */
+function outputOf(update: Record<string, unknown>): string {
+	if (typeof update.rawOutput === "string") return update.rawOutput;
+	if (!Array.isArray(update.content)) return "";
+	return update.content
+		.map((item) => {
+			const block = item as { type?: unknown; content?: { type?: unknown; text?: unknown } } | null;
+			const text = block?.content;
+			return block?.type === "content" && text?.type === "text" && typeof text.text === "string" ? text.text : "";
+		})
+		.filter((text) => text !== "")
+		.join("\n");
+}
+
+/** Chamada de ferramenta executada pelo próprio agy, observada por session/update (tool_call / tool_call_update). */
+export interface AgyToolActivity {
+	toolCallId: string;
+	toolName: string;
+	/** rawInput do tool_call (objeto); {} quando ausente ou inválido. */
+	arguments: Record<string, unknown>;
+	status: AgyToolStatus;
+	/** Saída textual acumulada (rawOutput ou blocos de texto em content). */
+	output: string;
+}
+
 export interface AcpPromptResult {
 	text: string;
 	stopReason: string;
@@ -82,6 +118,10 @@ export interface AcpPromptResult {
 	usage: unknown;
 	usageUpdates: number;
 	updateTypes: string[];
+	/** Chamadas de ferramenta observadas no turno, na ordem da primeira aparição. */
+	toolActivity: AgyToolActivity[];
+	/** Updates de ferramenta sem id, duplicados, com status inválido ou órfãos. Não interrompem o turno. */
+	malformedToolUpdates: number;
 }
 
 /** O que o agente anunciou no initialize (sem texto livre). */
@@ -128,6 +168,8 @@ export class AcpClient {
 	private chunks: string[] = [];
 	private updateTypes: string[] = [];
 	private usageUpdates = 0;
+	private tools = new Map<string, AgyToolActivity>();
+	private malformedToolUpdates = 0;
 	private closed = false;
 	private processError: TransportError | undefined;
 	private handshakeInfo: AcpHandshake = { protocolVersion: null, agentName: null, authMethods: 0 };
@@ -277,6 +319,8 @@ export class AcpClient {
 		this.chunks = [];
 		this.updateTypes = [];
 		this.usageUpdates = 0;
+		this.tools = new Map();
+		this.malformedToolUpdates = 0;
 		const result = (await this.conn.request(
 			"session/prompt",
 			{ sessionId: this.sessionId, prompt: [{ type: "text", text }] },
@@ -291,7 +335,14 @@ export class AcpClient {
 			usage: result.usage,
 			usageUpdates: this.usageUpdates,
 			updateTypes: [...this.updateTypes],
+			toolActivity: this.toolActivitySnapshot(),
+			malformedToolUpdates: this.malformedToolUpdates,
 		};
+	}
+
+	/** Cópia das chamadas de ferramenta observadas até agora (também usada no caminho de erro, sem resultado do prompt). */
+	toolActivitySnapshot(): AgyToolActivity[] {
+		return [...this.tools.values()].map((tool) => ({ ...tool, arguments: { ...tool.arguments } }));
 	}
 
 	/**
@@ -354,6 +405,9 @@ export class AcpClient {
 		if (p.sessionId !== this.sessionId || p.update === undefined) return;
 		const kind = typeof p.update.sessionUpdate === "string" ? p.update.sessionUpdate : "desconhecido";
 		this.updateTypes.push(kind);
+		if (kind === "tool_call" || kind === "tool_call_update") {
+			this.onToolUpdate(kind, p.update as Record<string, unknown>);
+		}
 		if (
 			kind === "agent_message_chunk" &&
 			p.update.content?.type === "text" &&
@@ -362,6 +416,62 @@ export class AcpClient {
 			this.chunks.push(p.update.content.text);
 		}
 		if (kind === "usage_update") this.usageUpdates += 1;
+	}
+
+	/**
+	 * tool_call declara a chamada; tool_call_update atualiza status e saída. Entradas inválidas são contadas, nunca
+	 * lançadas: um update malformado não pode derrubar um turno que o agy concluiu.
+	 */
+	private onToolUpdate(kind: "tool_call" | "tool_call_update", update: Record<string, unknown>): void {
+		const id = typeof update.toolCallId === "string" && update.toolCallId !== "" ? update.toolCallId : undefined;
+		if (id === undefined) {
+			this.malformedToolUpdates += 1;
+			return;
+		}
+		const rawStatus = update.status;
+		const statusValid =
+			rawStatus === undefined || (typeof rawStatus === "string" && AGY_TOOL_STATUSES.includes(rawStatus));
+		if (!statusValid) this.malformedToolUpdates += 1;
+		const status = statusValid && typeof rawStatus === "string" ? (rawStatus as AgyToolStatus) : undefined;
+		const existing = this.tools.get(id);
+		if (kind === "tool_call") {
+			if (existing !== undefined) {
+				this.malformedToolUpdates += 1;
+				return;
+			}
+			this.tools.set(id, {
+				toolCallId: id,
+				toolName: nameOf(update),
+				arguments: this.argumentsFrom(update),
+				status: status ?? "pending",
+				output: outputOf(update),
+			});
+			return;
+		}
+		// tool_call_update: órfão (sem tool_call anterior) também é registrado, para não perder a execução.
+		if (existing === undefined) this.malformedToolUpdates += 1;
+		const entry: AgyToolActivity = existing ?? {
+			toolCallId: id,
+			toolName: nameOf(update),
+			arguments: this.argumentsFrom(update),
+			status: "pending",
+			output: "",
+		};
+		if (status !== undefined) entry.status = status;
+		const out = outputOf(update);
+		if (out !== "") entry.output = entry.output === "" ? out : `${entry.output}\n${out}`;
+		this.tools.set(id, entry);
+	}
+
+	/** rawInput objeto -> argumentos; ausente -> {}; presente e não objeto -> {} e conta como malformado. */
+	private argumentsFrom(update: Record<string, unknown>): Record<string, unknown> {
+		const raw = update.rawInput;
+		if (raw === undefined) return {};
+		if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+			this.malformedToolUpdates += 1;
+			return {};
+		}
+		return { ...(raw as Record<string, unknown>) };
 	}
 
 	private waitExit(ms: number): Promise<boolean> {

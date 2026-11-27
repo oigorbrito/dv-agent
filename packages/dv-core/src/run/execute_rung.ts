@@ -18,6 +18,7 @@ import {
 } from "@earendil-works/pi-ai";
 import { CONTRACT_ID, CONTRACT_V5_ID } from "../contract.ts";
 import { BudgetGuard, type CeilingStatus } from "../guards/budget.ts";
+import { COMPACTION_RULES, compactToolResults, modelClassOf } from "../guards/compaction.ts";
 import { composeBeforeToolCall } from "../guards/compose.ts";
 import { DoomLoopDetector } from "../guards/doom_loop.ts";
 import { argumentsSha256 } from "../guards/tool_signature.ts";
@@ -28,6 +29,7 @@ import { sanitizeProviderErrorMessage } from "../ledger/redact.ts";
 import { buildCallTelemetry } from "../ledger/telemetry.ts";
 import { ToolOutcomeTracker } from "../ledger/tool_outcomes.ts";
 import { ledgerSha256, RunLedger } from "../ledger/writer.ts";
+import { type ObservedAgyToolCall, observedAgyToolCalls } from "../providers/agy/stream.ts";
 import type { ReasoningEffort } from "../router/policy.ts";
 import { sha256Hex } from "../util/canonical.ts";
 
@@ -35,6 +37,8 @@ export interface RungRunOptions {
 	ledgerPath: string;
 	runId: string;
 	harnessVariant: string;
+	/** Compactação intra-degrau (guards/compaction.ts). "off" (padrão) não altera o contexto enviado ao modelo. */
+	compaction?: "off" | "by_model";
 	referenceProvenance: Record<string, string>;
 	datasetSha256: string;
 	taskDefinitionSha256: string;
@@ -103,10 +107,14 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 	// Chamada vetada pelo gate pré-chamada: a run termina por orçamento, sem que o teto tenha sido excedido.
 	let preCallBlocked = false;
 
+	// Porte do modelo decide a compactação (opt-in). Declarado antes do run_started, que registra o modo no harness_variant.
+	const modelClass = modelClassOf(options.model.id);
+	const compactionRule = options.compaction === "by_model" ? COMPACTION_RULES[modelClass] : undefined;
 	ledger.appendRunStarted({
 		run_id: options.runId,
 		contract_id: contractId,
-		harness_variant: options.harnessVariant,
+		harness_variant:
+			options.compaction === "by_model" ? `${options.harnessVariant}+compaction:${modelClass}` : options.harnessVariant,
 		reference_provenance: options.referenceProvenance,
 		dataset_sha256: options.datasetSha256,
 		task_definition_sha256: options.taskDefinitionSha256,
@@ -154,6 +162,11 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 	const agent = new Agent({
 		streamFn,
 		beforeToolCall: recordingHook,
+		...(compactionRule === undefined
+			? {}
+			: {
+					transformContext: async (messages: AgentMessage[]) => compactToolResults(messages, compactionRule).messages,
+				}),
 		initialState: {
 			model: options.model,
 			systemPrompt: options.systemPrompt ?? "",
@@ -193,12 +206,38 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 		}
 	});
 
+	/**
+	 * Ferramentas executadas pelo próprio agy (diagnóstico agy_tool_activity). A declaração vai em
+	 * call_finished.record.tool_calls (o papel de tool_started) e o desfecho em tool_finished, sem reexecução.
+	 * Status não terminal ao fim do turno vira error com a causa escrita na saída.
+	 */
+	const recordObservedTool = (call: ObservedAgyToolCall): void => {
+		const ended = call.status === "completed" || call.status === "failed";
+		const rawOutput = ended
+			? call.output
+			: `[agy] desfecho indefinido: status '${call.status}' ao fim do turno${
+					call.output === ""
+						? ""
+						: `
+${call.output}`
+				}`;
+		ledger.appendToolFinished({
+			tool_call_id: call.tool_call_id,
+			tool_name: call.tool_name,
+			arguments_sha256: argumentsSha256(call.arguments),
+			status: call.status === "completed" ? "ok" : "error",
+			raw_output: rawOutput,
+			raw_output_sha256: sha256Hex(rawOutput),
+		});
+	};
+
 	const recordAssistant = (index: number, message: AssistantMessage): void => {
 		const toolCalls = message.content.filter((block) => block.type === "toolCall");
 		for (const call of toolCalls) {
 			toolArgumentDigests.set(call.id, argumentsSha256(call.arguments));
 			tools.declare({ toolCallId: call.id, toolName: call.name, argumentsSha256: argumentsSha256(call.arguments) });
 		}
+		const observed = observedAgyToolCalls(message);
 		ledger.appendCallFinished({
 			call_index: index,
 			record: {
@@ -214,13 +253,21 @@ export async function executeRung(options: RungRunOptions): Promise<RungRunResul
 					total: message.usage.totalTokens,
 				},
 				telemetry: buildCallTelemetry(message.provider, message, options.priceBook, { contractId }),
-				tool_calls: toolCalls.map((call) => ({
-					tool_call_id: call.id,
-					tool_name: call.name,
-					arguments_sha256: argumentsSha256(call.arguments),
-				})),
+				tool_calls: [
+					...toolCalls.map((call) => ({
+						tool_call_id: call.id,
+						tool_name: call.name,
+						arguments_sha256: argumentsSha256(call.arguments),
+					})),
+					...observed.map((call) => ({
+						tool_call_id: call.tool_call_id,
+						tool_name: call.tool_name,
+						arguments_sha256: argumentsSha256(call.arguments),
+					})),
+				],
 			},
 		});
+		for (const call of observed) recordObservedTool(call);
 	};
 
 	const recordToolResult = (message: ToolResultMessage): void => {

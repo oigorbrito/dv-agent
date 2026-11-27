@@ -2,7 +2,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { runInteractiveMode, runSelfUpdate } from "./interactive.ts";
+import { runSelfUpdate } from "./interactive.ts";
+import { runInteractiveMode } from "./repl.ts";
 
 const HELP = `dv-agent — agente interativo e harness determinístico para smoke, bench e métricas
 
@@ -63,6 +64,8 @@ if (command === "--help" || command === "-h") {
 	process.stdout.write(`${currentVersion}\n`);
 } else if (command === "update") {
 	process.exitCode = runSelfUpdate();
+} else if (command === "--login") {
+	process.exitCode = await runInteractiveMode({ forceLogin: true, currentVersion });
 } else if (command !== undefined && command in COMMANDS && (args[0] === "--help" || args[0] === "-h")) {
 	process.stdout.write(`${COMMAND_HELP[command]}\n`);
 } else if (command !== undefined && command in COMMANDS) {

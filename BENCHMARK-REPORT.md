@@ -21,8 +21,8 @@ explicitamente na seção 6.
   diferença entre eles **não é estatisticamente sustentada**.
 - **Limites de variância.** A temperatura **não é aplicada ao Haiku 5.5** (`compat.supportsTemperature=false`).
   Parte da variância entre réplicas do Haiku não é controlável pelo harness.
-- **O modelo `gpt-6.1-luna` está registrado no catálogo local, mas não é aceito por esta conta ChatGPT** (probe
-  live, seção 5).
+- **O modelo `gpt-6.1-luna` está registrado em um overlay local do `dv-eval` (`packages/dv-eval/src/catalog/overlay.ts`),
+  fora do catálogo vendorizado do pi-ai, mas não é aceito por esta conta ChatGPT** (probe live, seção 7).
 
 ## 2. Arquitetura e proveniência
 
@@ -161,14 +161,16 @@ enviadas depois do corte. Essas chamadas não são mais enviadas: nos runs poste
 
 ## 7. Modelo `gpt-6.1-luna` (catálogo `openai-codex`)
 
-- Registrado no catálogo local com os metadados de `gpt-6-luna` (API `openai-codex-responses`, janela de 272.000 e
-  mesmos preços). O pedido citava `codex-responses`, mas o valor real herdado é `openai-codex-responses`.
+- Desde a pi 1.7.0, o catálogo vendorizado do pi-ai não traz `gpt-6.1-luna` (a exceção local foi removida no bump,
+  commit `f601440`). O modelo passou a ser registrado em um overlay do `dv-eval` (`packages/dv-eval/src/catalog/overlay.ts`),
+  que herda os metadados de `gpt-6-luna` (API `openai-codex-responses`, janela de 272.000 e mesmos preços). O pedido citava
+  `codex-responses`, mas o valor real herdado é `openai-codex-responses`. O código vendorizado não foi alterado.
 - Os preços são **herdados e não verificados** para o 6.1: o catálogo não traz uma fonte própria para eles.
 - **Probe live** (`runLiveProbe`, `openai-codex`, subscription, ~20 tokens): status `INCONCLUSIVE`. As duas chamadas
   retornaram: *"The 'gpt-6.1-luna' model is not supported when using Codex with a ChatGPT account."* A conta ChatGPT
   desta máquina **não aceita** o modelo. A mesma mensagem está documentada no `dv-baseline`.
-- O comentário da lista em `catalog/providers/openai-codex.ts` registra a exceção. O modelo fica no catálogo, mas
-  **não é utilizável nesta conta**.
+- O modelo fica no overlay do `dv-eval`, mas **não é utilizável nesta conta** enquanto o backend recusar a conta ChatGPT.
+  Quando a conta for habilitada, a chamada deve funcionar; isso ainda não foi testado.
 
 ## 8. Reprodução
 

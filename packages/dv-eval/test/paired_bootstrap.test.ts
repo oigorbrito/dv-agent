@@ -182,3 +182,17 @@ test("dv-bench-metrics: opção de bootstrap funciona offline em faux", () => {
 		/IC 95%/,
 	);
 });
+
+test("bootstrap pareado: pares excluídos por telemetria ausente aparecem no resultado", () => {
+	const input = report([
+		run("task-a", "single", true, 100, null),
+		run("task-a", "ladder", true, 110, null),
+		run("task-b", "single", false, 120, 0.2),
+		run("task-b", "ladder", true, 130, 0.3),
+	]);
+	const result = computePairedBootstrap([input], { policyA: "single", policyB: "ladder", seed: 1, resamples: 20 });
+	assert.deepEqual(result.cost_usd_difference.excluded_pairs, ["task-a/rep-0"]);
+	assert.deepEqual(result.total_tokens_difference.excluded_pairs, ["task-a/rep-0"]);
+	assert.deepEqual(result.pass_rate_difference.excluded_pairs, []);
+	assert.match(renderPairedBootstrap(result), /excluídos.*task-a\/rep-0/);
+});

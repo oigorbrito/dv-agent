@@ -186,23 +186,28 @@ const ANTHROPIC_LADDER_MODELS: Readonly<Record<string, string>> = {
 	"opus 5.5": "anthropic/claude-opus-5-5",
 };
 
+/** Busca só chaves próprias da tabela: `toString`, `constructor` etc. herdam de Object.prototype e não são aliases. */
+function ladderAlias(key: string): string | undefined {
+	return Object.hasOwn(ANTHROPIC_LADDER_MODELS, key) ? ANTHROPIC_LADDER_MODELS[key] : undefined;
+}
+
 export function parseLadderModel(text: string): ModelRef {
 	const trimmed = text.trim();
 	const colon = trimmed.lastIndexOf(":");
 	if (colon > 0) {
 		const prefix = trimmed.slice(0, colon).trim().toLowerCase();
 		const effortCandidate = trimmed.slice(colon + 1).toLowerCase();
-		if (ANTHROPIC_LADDER_MODELS[prefix] !== undefined) {
+		const aliasWithEffort = ladderAlias(prefix);
+		if (aliasWithEffort !== undefined) {
 			if (!VALID_EFFORTS.has(effortCandidate)) {
 				throw new Error(
 					`effort inválido: "${trimmed.slice(colon + 1)}" em ${text} (deve ser low, medium, high ou xhigh)`,
 				);
 			}
-			return parseModelRef(`${ANTHROPIC_LADDER_MODELS[prefix]}:${effortCandidate}`);
+			return parseModelRef(`${aliasWithEffort}:${effortCandidate}`);
 		}
 	}
-	const alias = ANTHROPIC_LADDER_MODELS[trimmed.toLowerCase()];
-	return parseModelRef(alias ?? trimmed);
+	return parseModelRef(ladderAlias(trimmed.toLowerCase()) ?? trimmed);
 }
 
 /** Política e modelos por papel. Em offline, o id do modelo escolhe o roteiro faux. */

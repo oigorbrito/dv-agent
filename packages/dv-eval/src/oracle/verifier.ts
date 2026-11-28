@@ -255,6 +255,45 @@ interface VerifierRun {
 /** Forma mínima de spawn usada pelo oráculo (injetável em teste). */
 export type SpawnFn = (command: string, args: string[], options: SpawnOptions) => ChildProcess;
 
+/**
+ * Variáveis que o verificador recebe. Allowlist: o código do agente roda aqui, então chaves de API e tokens do
+ * processo pai não podem chegar a ele. Credenciais em arquivo (ex.: ~/.pi/agent/auth.json) não são cobertas por isto.
+ */
+const VERIFIER_ENV_ALLOWLIST = [
+	"PATH",
+	"PATHEXT",
+	"SYSTEMROOT",
+	"SYSTEMDRIVE",
+	"TEMP",
+	"TMP",
+	"TMPDIR",
+	"LANG",
+	"LC_ALL",
+	"LC_CTYPE",
+] as const;
+
+function verifierEnv(workDir: string): NodeJS.ProcessEnv {
+	const env: NodeJS.ProcessEnv = {};
+	for (const key of VERIFIER_ENV_ALLOWLIST) {
+		const value = process.env[key];
+		if (value !== undefined) env[key] = value;
+	}
+	return { ...env, PYTHONPATH: workDir, PYTHONDONTWRITEBYTECODE: "1" };
+}
+
+/** Encerra o processo e, em POSIX, o grupo inteiro: netos que herdaram a saída também morrem. */
+function killTree(child: ChildProcess): void {
+	if (process.platform !== "win32" && child.pid !== undefined) {
+		try {
+			process.kill(-child.pid, "SIGKILL");
+			return;
+		} catch {
+			// Grupo já encerrado: cai no kill direto abaixo.
+		}
+	}
+	child.kill("SIGKILL");
+}
+
 /** Executável alternativo para `python` quando ele não existe no PATH (ex.: WSL/Linux sem python-is-python3). */
 const PYTHON_FALLBACK = "python3";
 
@@ -274,11 +313,13 @@ export function execVerifier(
 	const scriptArgs = args.map((arg) => (arg.endsWith(".py") ? join(verifierDir, arg) : arg));
 	const launch = (exe: string): Promise<VerifierRun> =>
 		new Promise((done, fail) => {
+			// Grupo de processos próprio (POSIX) para o timeout matar também os netos que seguram a saída.
 			const child = spawnFn(exe, scriptArgs, {
 				cwd: workDir,
-				env: { ...process.env, PYTHONPATH: workDir, PYTHONDONTWRITEBYTECODE: "1" },
+				env: verifierEnv(workDir),
 				stdio: ["ignore", "pipe", "pipe"],
 				windowsHide: true,
+				detached: process.platform !== "win32",
 			});
 			let stdout = "";
 			let stderr = "";
@@ -291,7 +332,7 @@ export function execVerifier(
 			});
 			const timer = setTimeout(() => {
 				timedOut = true;
-				child.kill("SIGKILL");
+				killTree(child);
 			}, timeoutMs);
 			child.on("error", (error) => {
 				clearTimeout(timer);

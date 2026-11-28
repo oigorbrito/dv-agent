@@ -13,12 +13,8 @@ import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type { Model } from "@earendil-works/pi-ai";
 import { createModels } from "@earendil-works/pi-ai";
 import { streamSimple as streamSimpleWithEnvAuth } from "@earendil-works/pi-ai/compat";
-import {
-	type BuiltinProvider,
-	builtinProviders,
-	getBuiltinModel,
-	getBuiltinProviders,
-} from "@earendil-works/pi-ai/providers/all";
+import { type BuiltinProvider, builtinProviders, getBuiltinProviders } from "@earendil-works/pi-ai/providers/all";
+import { getChatModel } from "../catalog/overlay.ts";
 import { FileCredentialStore } from "./file_credential_store.ts";
 import { requireSubscriptionSession } from "./subscription.ts";
 
@@ -61,9 +57,7 @@ export async function openLiveSession(options: {
 		throw new Error(`provedor desconhecido no pi-ai: ${options.provider}`);
 	}
 	// Entrada de CLI validada contra o catálogo acima; o tipo genérico do catálogo não aceita string.
-	const model = getBuiltinModel(options.provider as BuiltinProvider, options.modelId as never) as
-		| Model<string>
-		| undefined;
+	const model = getChatModel(options.provider as BuiltinProvider, options.modelId) as Model<string> | undefined;
 	if (model === undefined) throw new Error(`modelo ausente no catálogo pi-ai: ${options.provider}/${options.modelId}`);
 	const key = `${options.provider}/${options.modelId}`;
 

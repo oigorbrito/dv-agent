@@ -13,6 +13,8 @@ export interface BootstrapDifference {
 	defined_resamples: number;
 	resamples: number;
 	reason: string | null;
+	/** Pares (tarefa/réplica) fora da métrica por telemetria incompleta ou ausente. Vazio quando nenhum foi descartado. */
+	excluded_pairs: string[];
 }
 
 export interface PairedBootstrapResult {
@@ -54,7 +56,12 @@ function seededRandom(seed: number): () => number {
 	};
 }
 
-function summarize(units: readonly number[], random: () => number, resamples: number): BootstrapDifference {
+function summarize(
+	units: readonly number[],
+	random: () => number,
+	resamples: number,
+	excluded_pairs: readonly string[],
+): BootstrapDifference {
 	if (units.length === 0) {
 		return {
 			estimate: null,
@@ -63,6 +70,7 @@ function summarize(units: readonly number[], random: () => number, resamples: nu
 			defined_resamples: 0,
 			resamples,
 			reason: "no paired measurable task values",
+			excluded_pairs: [...excluded_pairs],
 		};
 	}
 	const estimate = units.reduce((sum, value) => sum + value, 0) / units.length;
@@ -82,6 +90,7 @@ function summarize(units: readonly number[], random: () => number, resamples: nu
 		defined_resamples: draws.length,
 		resamples,
 		reason: null,
+		excluded_pairs: [...excluded_pairs],
 	};
 }
 
@@ -134,31 +143,42 @@ function aggregateValue(runs: readonly RunRecord[], value: (run: RunRecord) => n
 	return mean(values as number[]);
 }
 
+interface TaskDifferences {
+	values: number[];
+	/** Pares tarefa/réplica sem valor medível em um dos braços: ficam fora, e aparecem no resultado. */
+	excluded: string[];
+}
+
 function taskDifferences(
 	keys: readonly string[],
 	a: ReadonlyMap<string, readonly RunRecord[]>,
 	b: ReadonlyMap<string, readonly RunRecord[]>,
 	value: (run: RunRecord) => number | undefined,
-): number[] {
+): TaskDifferences {
 	const byTask = new Map<string, number[]>();
+	const excluded: string[] = [];
 	for (const key of keys) {
 		const left = a.get(key);
 		const right = b.get(key);
 		if (left === undefined || right === undefined || left.length === 0 || right.length === 0) continue;
 		const x = aggregateValue(left, value);
 		const y = aggregateValue(right, value);
-		if (x === undefined || y === undefined) continue;
-		const taskId = (left[0] as RunRecord).task_id;
-		const values = byTask.get(taskId) ?? [];
+		const first = left[0] as RunRecord;
+		if (x === undefined || y === undefined) {
+			excluded.push(`${first.task_id}/rep-${first.repeat}`);
+			continue;
+		}
+		const values = byTask.get(first.task_id) ?? [];
 		values.push(y - x);
-		byTask.set(taskId, values);
+		byTask.set(first.task_id, values);
 	}
-	return [...byTask.entries()]
+	const values = [...byTask.entries()]
 		.sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0))
-		.flatMap(([, values]) => {
-			const result = mean(values);
+		.flatMap(([, taskValues]) => {
+			const result = mean(taskValues);
 			return result === undefined ? [] : [result];
 		});
+	return { values, excluded: excluded.sort() };
 }
 
 /**
@@ -207,6 +227,7 @@ export function computePairedBootstrap(
 	const passDiffs = taskDifferences(keysA, a, b, (run) => (run.solved ? 1 : 0));
 	const tokenDiffs = taskDifferences(keysA, a, b, stepTokens);
 	const costDiffs = taskDifferences(keysA, a, b, stepCost);
+	const spentDiffs = taskDifferences(keysA, a, b, spentLowerBound);
 
 	// Uma única sequência de PRNG, usada em ordem fixa para resultados inteiramente reprodutíveis.
 	const random = seededRandom(seed);
@@ -217,10 +238,10 @@ export function computePairedBootstrap(
 		resamples,
 		tasks: tasks.size,
 		repeats: repeats.size,
-		pass_rate_difference: summarize(passDiffs, random, resamples),
-		total_tokens_difference: summarize(tokenDiffs, random, resamples),
-		cost_usd_difference: summarize(costDiffs, random, resamples),
-		spent_lower_bound_usd_difference: summarize(taskDifferences(keysA, a, b, spentLowerBound), random, resamples),
+		pass_rate_difference: summarize(passDiffs.values, random, resamples, passDiffs.excluded),
+		total_tokens_difference: summarize(tokenDiffs.values, random, resamples, tokenDiffs.excluded),
+		cost_usd_difference: summarize(costDiffs.values, random, resamples, costDiffs.excluded),
+		spent_lower_bound_usd_difference: summarize(spentDiffs.values, random, resamples, spentDiffs.excluded),
 		baseline_arms: arms,
 		baseline_aggregation: aggregation,
 	};
@@ -257,6 +278,18 @@ export function renderPairedBootstrap(result: PairedBootstrapResult): string {
 		"",
 		"Diferenças = tratamento - baseline; valores negativos indicam redução. solve_rate mede `solved / runs`.",
 	);
+	const excludedLines = [
+		["solve_rate", result.pass_rate_difference],
+		["total tokens", result.total_tokens_difference],
+		["custo USD", result.cost_usd_difference],
+		["spent_lower_bound_usd", result.spent_lower_bound_usd_difference],
+	] as const;
+	for (const [label, metric] of excludedLines) {
+		if (metric.excluded_pairs.length > 0)
+			lines.push(
+				`- pares excluídos de ${label} (telemetria ausente ou incompleta): ${metric.excluded_pairs.join(", ")}`,
+			);
+	}
 	if (result.baseline_aggregation === "mean") {
 		lines.push(
 			`Baseline: média de ${result.baseline_arms} braços \`${result.policy_a}\` por (tarefa, réplica); cada braço conta com peso igual.`,

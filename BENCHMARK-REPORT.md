@@ -21,8 +21,8 @@ explicitamente na seção 6.
   diferença entre eles **não é estatisticamente sustentada**.
 - **Limites de variância.** A temperatura **não é aplicada ao Haiku 5.5** (`compat.supportsTemperature=false`).
   Parte da variância entre réplicas do Haiku não é controlável pelo harness.
-- **O modelo `gpt-6.1-luna` está registrado no catálogo local, mas não é aceito por esta conta ChatGPT** (probe
-  live, seção 5).
+- **O modelo `gpt-6.1-luna` está registrado em um overlay local do `dv-eval` (`packages/dv-eval/src/catalog/overlay.ts`),
+  fora do catálogo vendorizado do pi-ai, mas não é aceito por esta conta ChatGPT** (probe live, seção 7).
 
 ## 2. Arquitetura e proveniência
 
@@ -161,14 +161,16 @@ enviadas depois do corte. Essas chamadas não são mais enviadas: nos runs poste
 
 ## 7. Modelo `gpt-6.1-luna` (catálogo `openai-codex`)
 
-- Registrado no catálogo local com os metadados de `gpt-6-luna` (API `openai-codex-responses`, janela de 272.000 e
-  mesmos preços). O pedido citava `codex-responses`, mas o valor real herdado é `openai-codex-responses`.
+- Desde a pi 1.7.0, o catálogo vendorizado do pi-ai não traz `gpt-6.1-luna` (a exceção local foi removida no bump,
+  commit `f601440`). O modelo passou a ser registrado em um overlay do `dv-eval` (`packages/dv-eval/src/catalog/overlay.ts`),
+  que herda os metadados de `gpt-6-luna` (API `openai-codex-responses`, janela de 272.000 e mesmos preços). O pedido citava
+  `codex-responses`, mas o valor real herdado é `openai-codex-responses`. O código vendorizado não foi alterado.
 - Os preços são **herdados e não verificados** para o 6.1: o catálogo não traz uma fonte própria para eles.
 - **Probe live** (`runLiveProbe`, `openai-codex`, subscription, ~20 tokens): status `INCONCLUSIVE`. As duas chamadas
   retornaram: *"The 'gpt-6.1-luna' model is not supported when using Codex with a ChatGPT account."* A conta ChatGPT
   desta máquina **não aceita** o modelo. A mesma mensagem está documentada no `dv-baseline`.
-- O comentário da lista em `catalog/providers/openai-codex.ts` registra a exceção. O modelo fica no catálogo, mas
-  **não é utilizável nesta conta**.
+- O modelo fica no overlay do `dv-eval`, mas **não é utilizável nesta conta** enquanto o backend recusar a conta ChatGPT.
+  Quando a conta for habilitada, a chamada deve funcionar; isso ainda não foi testado.
 
 ## 8. Reprodução
 
@@ -343,12 +345,19 @@ Comando (somente leitura, sem chamadas live): `node scripts/dv-bench-metrics.ts 
 | A (haiku, `221052Z`) | +0,111 [0; 0,333] | +3.446,33 [−17,67; 10.289,67] | não |
 | B1 (sonnet, `221222Z`) | +0,111 [0; 0,333] | −6.405,78 [−9.489,00; −1.160,33] | **sim** |
 | B2 (sonnet, `221705Z`) | +0,111 [0; 0,333] | −325,67 [−8.566,00; 9.028,67] | não |
+<<<<<<< HEAD
+
+Leitura:
+- A redução de tokens com IC excluindo zero aparece **somente** contra B1. Contra B2 o IC cruza zero, e contra A o sinal inverte. Em B1, a média de `tb-jsonl-top-aggregates` é inflada por uma única falha (55.656 tokens). O resultado não é robusto ao baseline e não deve ser lido como redução geral de custo.
+- Média dos dois braços B (por tarefa): Δ = −3.365,72 tokens. Este valor foi calculado manualmente a partir dos summaries; o script não o gera, porque rejeita dois braços `single` na mesma chamada (`duplicate paired run for single`). Não há IC para essa comparação.
+=======
 | média de B1 e B2 (`--baseline-aggregate mean`) | +0,111 [0; 0,333] | −3.365,72 [−8.567,00; −230,17] | **sim** |
 
 Leitura:
 - Contra B1 isolado, o IC de tokens exclui zero; contra B2 isolado ele cruza zero; contra A o sinal inverte. Em B1, a média de `tb-jsonl-top-aggregates` é inflada por uma única falha (55.656 tokens). Por isso o resultado depende do baseline escolhido.
 - Usando a média dos dois braços B como baseline (`dv-bench-metrics --baseline-aggregate mean`, adicionado depois desta rodada), o IC de tokens também exclui zero: Δ = −3.365,72 tokens por tarefa, IC 95% `[−8.567,00; −230,17]`. Esta é a comparação que representa os dois braços Sonnet. Ainda assim, com 3 tarefas, a evidência é sugestiva, não conclusiva.
 - Nota de correção: uma versão anterior deste relatório dizia que o IC só excluía zero contra B1 e que a média não tinha IC. Isso estava desatualizado. A média agora é calculada pelo script.
+>>>>>>> feat/harness-router
 - `solve_rate` é igual nas três comparações (9/9 contra 8/9), e o IC cruza zero em todas.
 - `spent_lower_bound_usd` é 0 em todas (cobrança por assinatura).
 

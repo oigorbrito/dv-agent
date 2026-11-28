@@ -46,14 +46,36 @@ export function costForMessage(message: AssistantMessage, book: PriceBook): Call
 	if (message.usage.cost.totalFromProvider === true) {
 		return { usd: message.usage.cost.total, basis: "provider_reported" };
 	}
-	const rates = book.entries[`${message.provider}/${message.model}`];
-	if (rates === undefined) return null;
+	const entry = book.entries[`${message.provider}/${message.model}`];
+	if (entry === undefined) return null;
 	const u = message.usage;
+	const rates = ratesFor(entry, u);
+	// Escrita de cache de 1h custa 2x a entrada (regra do pi-ai, calculateCost). O resto da escrita é cache de 5 min.
+	const longWrite = Math.min(u.cacheWrite1h ?? 0, u.cacheWrite);
+	const shortWrite = u.cacheWrite - longWrite;
 	const usd =
 		(u.input * rates.input +
 			u.output * rates.output +
 			u.cacheRead * rates.cacheRead +
-			u.cacheWrite * rates.cacheWrite) /
+			shortWrite * rates.cacheWrite +
+			longWrite * rates.input * 2) /
 		1_000_000;
 	return { usd, basis: `price_book:${book.id}` };
+}
+
+/**
+ * Taxas da requisição. Como no pi-ai (calculateCost): a faixa de maior limite já atingido pela entrada inteira
+ * (input + cache de leitura + cache de escrita) vale para a requisição toda. Sem faixa atingida, vale a base.
+ */
+function ratesFor(entry: PriceEntry, u: AssistantMessage["usage"]): Omit<PriceEntry, "tiers"> {
+	const inputTokens = u.input + u.cacheRead + u.cacheWrite;
+	let selected: Omit<PriceEntry, "tiers"> = entry;
+	let matched = -1;
+	for (const tier of entry.tiers ?? []) {
+		if (inputTokens > tier.inputTokensAbove && tier.inputTokensAbove > matched) {
+			selected = tier;
+			matched = tier.inputTokensAbove;
+		}
+	}
+	return selected;
 }

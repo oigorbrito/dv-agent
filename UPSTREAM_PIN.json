@@ -1,9 +1,9 @@
 {
   "schema": "dv-upstream-pin-v1",
   "upstream": {
-    "repository": "https://github.com/badlogic/pi-mono",
-    "commit": "69a6993486acee850d14a4a1547daa4a167228ad",
-    "commit_date": "2026-11-22T20:36:12+01:00",
+    "repository": "https://github.com/earendil-works/pi",
+    "commit": "fb0fe823539f6d04850f6e34748c01f01f212e1f",
+    "commit_date": "2026-11-27T17:34:59+01:00",
     "license": "MIT",
     "license_file": "packages/runtime-pi/LICENSE"
   },
@@ -13,35 +13,26 @@
       "npm_name": "@earendil-works/pi-ai",
       "upstream_path": "packages/ai",
       "vendored_path": "packages/runtime-pi/pi-ai",
-      "version": "1.6.0",
-      "subtree_git_tree": "9119c3497c8dd43e68f2d6e594805fc993a48184",
-      "tracked_files": 481,
+      "version": "1.7.0",
+      "subtree_git_tree": "a32d746d578412b5f37869c19aafcf46c737b3c5",
+      "tracked_files": 497,
       "role": "provider/stream runtime (EventStream, validateToolArguments, normalizeContext)"
     },
     {
       "npm_name": "@earendil-works/pi-agent-core",
       "upstream_path": "packages/agent",
       "vendored_path": "packages/runtime-pi/pi-agent-core",
-      "version": "1.6.0",
-      "subtree_git_tree": "c720258cae7e957f005b77d264c424e9d0f3feaf",
+      "version": "1.7.0",
+      "subtree_git_tree": "176a1a892129575c3748989268fb76f1e5937578",
       "tracked_files": 21,
       "role": "agent loop com hooks beforeToolCall/afterToolCall e eventos message_end"
-    },
-    {
-      "npm_name": "@earendil-works/pi-coding-agent",
-      "upstream_path": "packages/coding-agent",
-      "vendored_path": "packages/runtime-pi/pi-coding-agent",
-      "version": "1.6.0",
-      "subtree_git_tree": "93329f82e9affb01b2510a075124f6ccd61e1fcb",
-      "tracked_files": 883,
-      "role": "vendorado como fonte solicitado; NAO importado pelo dv-core; nao compilado nesta fase"
     },
     {
       "npm_name": "@earendil-works/pi-schema",
       "upstream_path": "packages/schema",
       "vendored_path": "packages/runtime-pi/pi-schema",
-      "version": "1.6.0",
-      "subtree_git_tree": "5879a2dcf205c727356c2ed8293c1fa887ec21b7",
+      "version": "1.7.0",
+      "subtree_git_tree": "310bf999a806859741f504810f99ba14412c9069",
       "tracked_files": 260,
       "role": "dependencia de runtime transitiva de pi-ai (builders de schema)"
     },
@@ -49,12 +40,48 @@
       "npm_name": "@earendil-works/pi-telemetry",
       "upstream_path": "packages/telemetry",
       "vendored_path": "packages/runtime-pi/pi-telemetry",
-      "version": "1.6.0",
-      "subtree_git_tree": "9f2f19f3a4b88dd581ab8e315f077790d64be4eb",
+      "version": "1.7.0",
+      "subtree_git_tree": "15275e62a0c08800ec756c7fc4f89158a2812cf3",
       "tracked_files": 20,
       "role": "dependencia de runtime transitiva de pi-ai (TelemetrySpan)"
+    },
+    {
+      "npm_name": "@earendil-works/pi-coding-agent",
+      "upstream_path": "packages/coding-agent",
+      "vendored_path": "packages/runtime-pi/pi-coding-agent",
+      "version": "1.7.0",
+      "subtree_git_tree": "a5c6c53657bf00ace1038cb91f303d4106e95e76",
+      "tracked_files": 892,
+      "role": "CLI e modo interativo do pi (não usado pelo dv-core/dv-eval; vendorizado para manter o runtime na mesma versão)"
+    },
+    {
+      "npm_name": "@earendil-works/pi-tui",
+      "upstream_path": "packages/tui",
+      "vendored_path": "packages/runtime-pi/pi-tui",
+      "version": "1.7.0",
+      "subtree_git_tree": "0fa38adb4fcf0177a8458abd0152818f5fb106bf",
+      "tracked_files": 132,
+      "role": "interface de terminal, dependência do pi-coding-agent"
+    },
+    {
+      "npm_name": "@earendil-works/pi-mcp",
+      "upstream_path": "packages/mcp",
+      "vendored_path": "packages/runtime-pi/pi-mcp",
+      "version": "1.7.0",
+      "subtree_git_tree": "5c6ecd0bc80a0f43476a251134e95670ce3dcaa2",
+      "tracked_files": 57,
+      "role": "cliente MCP, dependência do pi-coding-agent"
+    },
+    {
+      "npm_name": "@earendil-works/pi-codemode",
+      "upstream_path": "packages/codemode",
+      "vendored_path": "packages/runtime-pi/pi-codemode",
+      "version": "1.7.0",
+      "subtree_git_tree": "88ef49efd6c502d19b1d3bc5ef8a8ef4964b8a35",
+      "tracked_files": 35,
+      "role": "execução de código em sandbox, dependência do pi-coding-agent"
     }
   ],
-  "transitive_closure_note": "pi-coding-agent depende de pi-tui, pi-mcp, pi-codemode (nao vendorados). Nao sao necessarios para pi-ai/pi-agent-core. Vendorar pi-coding-agent executavel exige o fechamento completo.",
+  "transitive_closure_note": "pi-coding-agent 1.7.0 e seu fechamento (pi-tui, pi-mcp, pi-codemode) estão vendorizados a partir do commit fb0fe82. Dependências @earendil-works do fechamento: pi-ai e pi-agent-core, já vendorizados; pi-tui, pi-mcp e pi-codemode não puxam outros pacotes @earendil-works.",
   "npm_registry_reference": "@earendil-works/pi-agent-core@1.6.0 existe no registro npm (referencia de conferencia, nao fonte de codigo)"
 }

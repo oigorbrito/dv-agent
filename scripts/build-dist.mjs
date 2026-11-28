@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = join(root, "dist");
 const stage = join(dist, ".stage");
+const runtimeVersion = (dir) =>
+	JSON.parse(readFileSync(join(root, "packages", "runtime-pi", dir, "package.json"), "utf8")).version;
 const run = (args) => execFileSync(process.execPath, args, { cwd: root, stdio: "inherit" });
 const copy = (source, target) => {
 	mkdirSync(dirname(target), { recursive: true });
@@ -53,25 +55,25 @@ const packages = [
 	},
 	{
 		name: "@earendil-works/pi-agent-core",
-		version: "1.6.0",
+		version: runtimeVersion("pi-agent-core"),
 		runtimePackage: "pi-agent-core",
 		distributionDirectory: "packages/runtime-pi/pi-agent-core",
 	},
 	{
 		name: "@earendil-works/pi-ai",
-		version: "1.6.0",
+		version: runtimeVersion("pi-ai"),
 		runtimePackage: "pi-ai",
 		distributionDirectory: "packages/runtime-pi/pi-ai",
 	},
 	{
 		name: "@earendil-works/pi-schema",
-		version: "1.6.0",
+		version: runtimeVersion("pi-schema"),
 		runtimePackage: "pi-schema",
 		distributionDirectory: "packages/runtime-pi/pi-schema",
 	},
 	{
 		name: "@earendil-works/pi-telemetry",
-		version: "1.6.0",
+		version: runtimeVersion("pi-telemetry"),
 		runtimePackage: "pi-telemetry",
 		distributionDirectory: "packages/runtime-pi/pi-telemetry",
 	},

@@ -78,7 +78,7 @@ test("requireSubscriptionSession: sem sessão, instrui o login sem expor segredo
 	const store = new FileCredentialStore(tempAuthFile({}));
 	const error = await requireSubscriptionSession(store, anthropicProvider()).catch((e: unknown) => e);
 	assert.ok(error instanceof SubscriptionLoginRequired);
-	assert.match(error.message, /npx @earendil-works\/pi-ai@1\.6\.0 login anthropic/);
+	assert.match(error.message, /npx @earendil-works\/pi-ai@1\.7\.0 login anthropic/);
 	assert.match(error.message, /DV_AUTH_FILE/);
 	assert.doesNotMatch(error.message, /tok-/);
 });

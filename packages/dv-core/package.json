@@ -8,7 +8,7 @@
 		".": "./src/index.ts"
 	},
 	"dependencies": {
-		"@earendil-works/pi-agent-core": "1.6.0",
-		"@earendil-works/pi-ai": "1.6.0"
+		"@earendil-works/pi-agent-core": "1.7.0",
+		"@earendil-works/pi-ai": "1.7.0"
 	}
 }

@@ -70,7 +70,7 @@ Usa a sessão OAuth de plano (Claude Pro/Max, ChatGPT Plus/Pro) guardada pelo pi
 - **Como entrar** (o token fica 0600; nunca cole em chat ou log):
   ```
   mkdir -p ~/.pi/agent && cd ~/.pi/agent
-  npx @earendil-works/pi-ai@1.6.0 login anthropic      # ou: login openai-codex
+  npx @earendil-works/pi-ai@1.7.0 login anthropic      # ou: login openai-codex
   ```
   O comando grava `auth.json` no diretório atual, por isso o `cd`.
 - **Sem sessão:** o modo para antes de qualquer chamada (`blocked`), com essa instrução. Credencial `api_key` guardada não serve como assinatura e é recusada.

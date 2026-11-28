@@ -6,7 +6,7 @@ import type { Credential, Provider } from "@earendil-works/pi-ai";
 import type { FileCredentialStore } from "./file_credential_store.ts";
 
 /** Pi-ai pinado no repositório: o comando de login usa a mesma versão. */
-const PI_AI_PACKAGE = "@earendil-works/pi-ai@1.6.0";
+const PI_AI_PACKAGE = "@earendil-works/pi-ai@1.7.0";
 
 /** Sessão ausente ou inadequada. A mensagem diz como autenticar, sem expor segredo. */
 export class SubscriptionLoginRequired extends Error {

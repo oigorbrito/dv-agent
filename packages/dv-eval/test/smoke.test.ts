@@ -159,7 +159,7 @@ test("subscription sem sessão no auth.json: parada blocked com instrução de l
 		opts("single", { authMode: "subscription", model: "anthropic/claude-sonnet-4-5", authPath: emptyAuth }),
 	);
 	assert.equal(summary.final_outcome, "blocked");
-	assert.match(summary.blocked_reason ?? "", /npx @earendil-works\/pi-ai@1\.6\.0 login anthropic/);
+	assert.match(summary.blocked_reason ?? "", /npx @earendil-works\/pi-ai@1\.7\.0 login anthropic/);
 	assert.equal(summary.steps.length, 0);
 });
 

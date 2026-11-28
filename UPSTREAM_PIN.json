@@ -44,8 +44,44 @@
       "subtree_git_tree": "15275e62a0c08800ec756c7fc4f89158a2812cf3",
       "tracked_files": 20,
       "role": "dependencia de runtime transitiva de pi-ai (TelemetrySpan)"
+    },
+    {
+      "npm_name": "@earendil-works/pi-coding-agent",
+      "upstream_path": "packages/coding-agent",
+      "vendored_path": "packages/runtime-pi/pi-coding-agent",
+      "version": "1.7.0",
+      "subtree_git_tree": "a5c6c53657bf00ace1038cb91f303d4106e95e76",
+      "tracked_files": 892,
+      "role": "CLI e modo interativo do pi (não usado pelo dv-core/dv-eval; vendorizado para manter o runtime na mesma versão)"
+    },
+    {
+      "npm_name": "@earendil-works/pi-tui",
+      "upstream_path": "packages/tui",
+      "vendored_path": "packages/runtime-pi/pi-tui",
+      "version": "1.7.0",
+      "subtree_git_tree": "0fa38adb4fcf0177a8458abd0152818f5fb106bf",
+      "tracked_files": 132,
+      "role": "interface de terminal, dependência do pi-coding-agent"
+    },
+    {
+      "npm_name": "@earendil-works/pi-mcp",
+      "upstream_path": "packages/mcp",
+      "vendored_path": "packages/runtime-pi/pi-mcp",
+      "version": "1.7.0",
+      "subtree_git_tree": "5c6ecd0bc80a0f43476a251134e95670ce3dcaa2",
+      "tracked_files": 57,
+      "role": "cliente MCP, dependência do pi-coding-agent"
+    },
+    {
+      "npm_name": "@earendil-works/pi-codemode",
+      "upstream_path": "packages/codemode",
+      "vendored_path": "packages/runtime-pi/pi-codemode",
+      "version": "1.7.0",
+      "subtree_git_tree": "88ef49efd6c502d19b1d3bc5ef8a8ef4964b8a35",
+      "tracked_files": 35,
+      "role": "execução de código em sandbox, dependência do pi-coding-agent"
     }
   ],
-  "transitive_closure_note": "pi-coding-agent NAO vendorado nesta fase (depende de pi-tui, pi-mcp, pi-codemode, tambem nao vendorados). Vendorar pi-coding-agent executavel exige o fechamento completo, em PR propria.",
+  "transitive_closure_note": "pi-coding-agent 1.7.0 e seu fechamento (pi-tui, pi-mcp, pi-codemode) estão vendorizados a partir do commit fb0fe82. Dependências @earendil-works do fechamento: pi-ai e pi-agent-core, já vendorizados; pi-tui, pi-mcp e pi-codemode não puxam outros pacotes @earendil-works.",
   "npm_registry_reference": "@earendil-works/pi-agent-core@1.6.0 existe no registro npm (referencia de conferencia, nao fonte de codigo)"
 }

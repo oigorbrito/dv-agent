@@ -9,7 +9,16 @@ import { join, resolve } from "node:path";
 const root = resolve(import.meta.dirname, "..");
 const runtime = join(root, "packages", "runtime-pi");
 const tscBin = join(root, "node_modules", "typescript", "bin", "tsc");
-const packages = ["pi-schema", "pi-telemetry", "pi-ai", "pi-agent-core"];
+const packages = [
+	"pi-schema",
+	"pi-telemetry",
+	"pi-ai",
+	"pi-agent-core",
+	"pi-tui",
+	"pi-mcp",
+	"pi-codemode",
+	"pi-coding-agent",
+];
 
 for (const name of packages) {
 	const dir = join(runtime, name);

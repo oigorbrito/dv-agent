@@ -30,6 +30,10 @@
 		"packages/runtime-pi/pi-telemetry",
 		"packages/runtime-pi/pi-ai",
 		"packages/runtime-pi/pi-agent-core",
+		"packages/runtime-pi/pi-tui",
+		"packages/runtime-pi/pi-mcp",
+		"packages/runtime-pi/pi-codemode",
+		"packages/runtime-pi/pi-coding-agent",
 		"packages/dv-core",
 		"packages/dv-eval"
 	],

@@ -200,3 +200,17 @@ test("fluxo completo: Agent com provider faux executa read_file -> edit_file -> 
 	assert.match(output, /^5/);
 	assert.ok(tool("edit_file"));
 });
+
+test("link quebrado apontando para fora da raiz: escrita é recusada e nada é criado fora", async () => {
+	const { root, outside, tool } = setup();
+	const target = join(outside, "novo-via-link.txt");
+	symlinkSync(target, join(root, "link"));
+	await expectViolation(call(tool("write_file"), { path: "link", content: "x" }), "path_traversal");
+	assert.equal(existsSync(target), false, "nenhum arquivo criado fora do workspace");
+});
+
+test("run_bash recusa criação de link simbólico (ln), inclusive com HOME expandido", async () => {
+	const { tool } = setup();
+	await assert.rejects(call(tool("run_bash"), { command: 'ln -s "$HOME/x" link' }), WorkspaceViolation);
+	await assert.rejects(call(tool("run_bash"), { command: "ln -s /tmp/x link" }), WorkspaceViolation);
+});

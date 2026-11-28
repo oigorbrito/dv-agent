@@ -1,7 +1,7 @@
 // Confinamento de caminhos e denylist de comandos para as ferramentas de workspace.
 // A fronteira real das ferramentas de arquivo é o caminho resolvido (com realpath); a denylist de run_bash é defesa
 // em profundidade e não é um sandbox de processo.
-import { existsSync, realpathSync } from "node:fs";
+import { lstatSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 export class WorkspaceViolation extends Error {
@@ -39,12 +39,30 @@ export function resolveInWorkspace(rootReal: string, input: string): string {
 	if (!isInside(rootReal, target)) {
 		throw new WorkspaceViolation("path_traversal", `caminho fora do workspace: ${input}`);
 	}
+	// Procura o componente mais próximo que existe como entrada, inclusive link quebrado (lstat não segue o link).
+	// existsSync seria falso para link quebrado e deixaria o caminho passar: um link para fora seria criado por escrita.
 	let existing = target;
-	while (!existsSync(existing) && existing !== dirname(existing)) existing = dirname(existing);
-	if (!isInside(rootReal, realpathSync(existing))) {
+	while (!entryExists(existing) && existing !== dirname(existing)) existing = dirname(existing);
+	let real: string;
+	try {
+		real = realpathSync(existing);
+	} catch {
+		// Link cujo destino não resolve: não é possível provar que fica dentro da raiz. Falha fechada.
+		throw new WorkspaceViolation("path_traversal", `link sem destino resolvível no workspace: ${input}`);
+	}
+	if (!isInside(rootReal, real)) {
 		throw new WorkspaceViolation("path_traversal", `caminho aponta para fora do workspace via link: ${input}`);
 	}
 	return target;
+}
+
+function entryExists(path: string): boolean {
+	try {
+		lstatSync(path);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 /** Tokens de comando que apontam para fora do workspace ou são destrutivos, com o motivo. */
@@ -61,6 +79,8 @@ const DESTRUCTIVE_PATTERNS: readonly [RegExp, string][] = [
 	[/\b(sudo|runas)\b/, "elevação de privilégio"],
 	[/\breg\s+delete\b/i, "reg delete"],
 	[/\|\s*(sh|bash|zsh)\b/, "pipe para shell"],
+	// Link simbólico pode apontar para fora sem passar pelos tokens de caminho (ex.: ln -s "$HOME/x" link).
+	[/(^|[;&|(\s])ln\s/, "criação de link simbólico (ln)"],
 	[/:\(\)\s*\{/, "fork bomb"],
 ];
 
@@ -78,7 +98,8 @@ export function assertCommandAllowed(command: string, rootReal: string): void {
 	for (const token of tokens) {
 		if (SAFE_ABSOLUTE.has(token)) continue;
 		const escapesByPath = /(^|[\\/])\.\.([\\/]|$)/.test(token);
-		const home = token.startsWith("~");
+		// HOME em forma de variável também é caminho de home, mesmo sem o til.
+		const home = token.startsWith("~") || /^\$\{?HOME\b/.test(token);
 		const absolute = /^(\/|[A-Za-z]:[\\/]|\\\\)/.test(token);
 		if (escapesByPath) throw new WorkspaceViolation("path_traversal", `comando com '..' recusado: ${token}`);
 		if (home) throw new WorkspaceViolation("path_traversal", `comando com caminho home recusado: ${token}`);
